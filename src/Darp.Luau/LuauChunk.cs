@@ -100,6 +100,10 @@ public readonly ref struct LuauChunk
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
     public void Execute(params RefEnumerable<IntoLuau> args) => ExecuteCore(args, nResults: 0);
 
+    public ValueTask ExecuteAsync(params RefEnumerable<IntoLuau> args) => ValueTask.CompletedTask;
+
+    public ValueTask ExecuteAsync(RefEnumerable<IntoLuau> args, CancellationToken token) => ValueTask.CompletedTask;
+
     /// <summary> Compiles and executes the chunk and converts the first return value. </summary>
     /// <param name="args">The arguments passed to the chunk.</param>
     /// <typeparam name="TR">Managed return type to convert to.</typeparam>
@@ -193,7 +197,8 @@ public readonly ref struct LuauChunk
 
             int status = lua_pcall(L, nArgs, nResults, 0);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-            var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
+            using LuauCallFrame frame = state.BeginLuauCallFrame();
+            var result = new LuauArgs(state.L, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1, frame);
             return resultSelector(result);
         }
         finally

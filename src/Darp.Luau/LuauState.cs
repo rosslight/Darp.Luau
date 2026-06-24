@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -20,6 +21,8 @@ public sealed unsafe class LuauState : IDisposable
     private int _disposing; // 0 = false, 1 = true
     private readonly ulong _globalsHandle;
     private readonly UserdataRegistrationCache _cache;
+    private ulong _nextCallFrameId;
+    private readonly HashSet<ulong> _activeCallFrameIds = [];
 
     private LuauModuleRequirer? _moduleRequirer;
 
@@ -220,6 +223,24 @@ public sealed unsafe class LuauState : IDisposable
         return handle;
     }
 
+    internal LuauCallFrame BeginLuauCallFrame()
+    {
+        ulong id = unchecked(++_nextCallFrameId);
+        if (id == 0)
+            id = unchecked(++_nextCallFrameId);
+
+        _activeCallFrameIds.Add(id);
+        return new LuauCallFrame(this, id);
+    }
+
+    internal void ThrowIfLuauCallFrameDisposed(ulong id)
+    {
+        if (!_activeCallFrameIds.Contains(id))
+            throw new ObjectDisposedException(nameof(LuauArgs), "The Luau argument frame is no longer valid.");
+    }
+
+    internal void EndLuauCallFrame(ulong id) => _activeCallFrameIds.Remove(id);
+
     /// <summary> Create a new table </summary>
     /// <returns> The resulting table </returns>
     public LuauTable CreateTable()
@@ -274,6 +295,14 @@ public sealed unsafe class LuauState : IDisposable
     public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
 
     /// <summary>
+    /// Manual async callback delegate used by <see cref="CreateAsyncFunctionBuilder(LuauAsyncFunctionBuilder)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Async callbacks require async Luau execution. Calling them from sync execution returns a Lua error.
+    /// </remarks>
+    public delegate ValueTask<LuauReturn> LuauAsyncFunctionBuilder(LuauArgs args, CancellationToken token);
+
+    /// <summary>
     /// Creates a Luau function from a manual callback builder.
     /// </summary>
     /// <param name="onCalled">Callback that reads its inputs from <see cref="LuauArgs"/> and returns a <see cref="LuauReturn"/>.</param>
@@ -286,10 +315,30 @@ public sealed unsafe class LuauState : IDisposable
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(onCalled);
+        return CreateFunctionBuilderCore(new FunctionBuilderCallbackContext(this, onCalled));
+    }
+
+    /// <summary>
+    /// Creates a Luau function from a manual async callback builder.
+    /// </summary>
+    /// <param name="onCalled">Callback that reads its inputs from <see cref="LuauArgs"/> and asynchronously returns a <see cref="LuauReturn"/>.</param>
+    /// <returns>The created <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// This scaffolds async callback registration. Until async execution is implemented, invoking the returned function
+    /// through a sync execution path returns a Lua error.
+    /// </remarks>
+    public LuauFunction CreateAsyncFunctionBuilder(LuauAsyncFunctionBuilder onCalled)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(onCalled);
+        return CreateFunctionBuilderCore(new FunctionBuilderCallbackContext(this, onCalled));
+    }
+
+    private LuauFunction CreateFunctionBuilderCore(FunctionBuilderCallbackContext context)
+    {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        var context = new FunctionBuilderCallbackContext(this, onCalled);
         GCHandle handle = TrackCallbackContext(context);
         fixed (byte* pDebugName = "managed function\0"u8)
         {
@@ -319,25 +368,57 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
-    private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
+    private sealed class FunctionBuilderCallbackContext
     {
+        private readonly LuauState _state;
+        private readonly LuauFunctionBuilder? _onCalled;
+        private readonly LuauAsyncFunctionBuilder? _onCalledAsync;
+
+        public FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
+        {
+            _state = state;
+            _onCalled = onCalled;
+        }
+
+        public FunctionBuilderCallbackContext(LuauState state, LuauAsyncFunctionBuilder onCalledAsync)
+        {
+            _state = state;
+            _onCalledAsync = onCalledAsync;
+        }
+
+        public bool IsAsync => _onCalledAsync is not null;
+
         public int Invoke(lua_State* luaState)
         {
-            if (!state.OwnsThread(luaState))
+            if (!_state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
+            if (IsAsync)
+                return LuauStateMarshal.ReturnError(
+                    luaState,
+                    "async managed function requires async Luau execution; use ExecuteAsync or InvokeAsync"
+                );
 
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
             using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
-                LuauReturn result = onCalled(args);
+                LuauReturn result;
+                LuauCallFrame frame = _state.BeginLuauCallFrame();
+                try
+                {
+                    var args = new LuauArgs(luaState, numberOfParameters, firstParameterStackIndex: 1, frame);
+                    result = _onCalled!(args);
+                }
+                finally
+                {
+                    frame.Dispose();
+                }
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
-                if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
+                if (!result.TryPushValues(_state, luaState, out int outputCount, out string? error))
                 {
                     lua_settop(luaState, topBeforeInvoke);
                     int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);

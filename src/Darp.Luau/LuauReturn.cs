@@ -12,7 +12,7 @@ namespace Darp.Luau;
 /// <remarks>
 /// The default value represents an error with message <c>Unknown error</c>.
 /// </remarks>
-public readonly ref struct LuauReturn
+public readonly struct LuauReturn
 {
     private readonly IntoLuauCopiedBuffer _buffer;
     private readonly string? _error;
@@ -86,19 +86,6 @@ public readonly ref struct LuauReturn
     /// </summary>
     public static LuauReturn NotHandledError => Error(NotHandled);
 
-    /// <summary> Pushes return values when this result is successful. </summary>
-    /// <param name="state">Target state that receives the return values.</param>
-    /// <param name="outputCount">Number of values produced for the callback.</param>
-    /// <param name="error">Receives the error message when this result is not successful.</param>
-    /// <returns><c>true</c> when values are available; otherwise <c>false</c>.</returns>
-    internal bool TryPushValues(LuauState state, out int outputCount, [NotNullWhen(false)] out string? error)
-    {
-        unsafe
-        {
-            return TryPushValues(state, state.L, out outputCount, out error);
-        }
-    }
-
     internal unsafe bool TryPushValues(
         LuauState state,
         lua_State* luaState,
@@ -149,7 +136,7 @@ public readonly ref struct LuauReturn
         }
     }
 
-    private readonly ref struct IntoLuauCopiedBuffer(
+    private readonly struct IntoLuauCopiedBuffer(
         int length,
         IntoLuauCopied element0,
         IntoLuauCopied element1,

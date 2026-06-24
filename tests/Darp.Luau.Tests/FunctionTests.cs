@@ -143,6 +143,39 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CSharpFunction_LeakedArgs_ShouldThrowAfterCallbackReturns()
+    {
+        LuauArgs capturedArgs = default;
+        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        {
+            capturedArgs = args;
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("capture", func);
+
+        _state.Load("capture(1)").Execute();
+
+        Should.Throw<ObjectDisposedException>(() => capturedArgs.TryValidateArgumentCount(1, out _));
+    }
+
+    [Fact]
+    public void CSharpFunction_AsyncBuilder_FromSyncExecution_ShouldBeLuaError()
+    {
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(
+            static (_, _) => ValueTask.FromResult(LuauReturn.Ok())
+        );
+        _state.Globals.Set("asyncFunc", func);
+
+        _state.Load("ok, err = pcall(asyncFunc)").Execute();
+
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("async managed function requires async Luau execution");
+    }
+
+    [Fact]
     public void CSharpFunction_ResultObject_FromCoroutine_ShouldReturnValue()
     {
         using LuauFunction func = _state.CreateFunctionBuilder(static args =>

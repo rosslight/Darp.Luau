@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -78,18 +79,26 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            var args = new LuauArgs(lua, L, argumentCount: 1, firstParameterStackIndex: 3);
-            Debug.Assert(args.ArgumentCount == 1);
-            var argsSingle = new LuauArgsSingle(args);
-            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
-            if (!result.TryGetError(out string? error))
+            LuauCallFrame frame = lua.BeginLuauCallFrame();
+            try
             {
-                // Success
-                return 0;
+                var args = new LuauArgs(L, argumentCount: 1, firstParameterStackIndex: 3, frame);
+                Debug.Assert(args.ArgumentCount == 1);
+                var argsSingle = new LuauArgsSingle(args);
+                LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
+                if (!result.TryGetError(out string? error))
+                {
+                    // Success
+                    return 0;
+                }
+                if (error == LuauReturn.NotHandled)
+                    return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
+                return error;
             }
-            if (error == LuauReturn.NotHandled)
-                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
-            return error;
+            finally
+            {
+                frame.Dispose();
+            }
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
@@ -115,13 +124,22 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = lua_gettop(L);
-            var functionArgs = new LuauArgs(lua, L, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
             ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
             try
             {
-                LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+                LuauReturn result;
+                LuauCallFrame frame = lua.BeginLuauCallFrame();
+                try
+                {
+                    var functionArgs = new LuauArgs(L, numberOfParameters, firstParameterStackIndex, frame);
+                    result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+                }
+                finally
+                {
+                    frame.Dispose();
+                }
                 lua_settop(L, topBeforeInvoke);
 
                 if (result.TryPushValues(lua, L, out int outputCount, out string? error))

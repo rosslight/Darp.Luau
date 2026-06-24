@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Darp.Luau;
 
-public readonly ref partial struct LuauArgs
+public readonly partial struct LuauArgs
 {
     /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>

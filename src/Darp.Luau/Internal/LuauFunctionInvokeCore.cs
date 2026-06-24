@@ -54,7 +54,8 @@ internal static unsafe class LuauFunctionInvokeCore
 
             int status = lua_pcall(L, nArgs, LuaMultRet, 0);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-            var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
+            using LuauCallFrame frame = state.BeginLuauCallFrame();
+            var result = new LuauArgs(state.L, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1, frame);
             return func(result);
         }
         finally
