@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Darp.Luau.Internal.Async;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -100,9 +101,31 @@ public readonly ref struct LuauChunk
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
     public void Execute(params RefEnumerable<IntoLuau> args) => ExecuteCore(args, nResults: 0);
 
-    public ValueTask ExecuteAsync(params RefEnumerable<IntoLuau> args) => ValueTask.CompletedTask;
+    /// <summary> Compiles and executes the chunk asynchronously, ignoring any return values. </summary>
+    public ValueTask ExecuteAsync(params RefEnumerable<IntoLuau> args) => ExecuteAsync(args, CancellationToken.None);
 
-    public ValueTask ExecuteAsync(RefEnumerable<IntoLuau> args, CancellationToken token) => ValueTask.CompletedTask;
+    /// <summary> Compiles and executes the chunk asynchronously, ignoring any return values. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="token">Cancellation token passed to async managed callbacks.</param>
+    public ValueTask ExecuteAsync(RefEnumerable<IntoLuau> args, CancellationToken token)
+    {
+        LuauState state = GetState();
+        IntoLuauCopied[] copiedArgs = CaptureArgs(args);
+        LuauAsyncChunkSource source;
+        try
+        {
+            source = CreateAsyncSource(state);
+        }
+        catch
+        {
+            ReleaseArgs(copiedArgs);
+            throw;
+        }
+
+        var frame = new LuauAsyncVoidCoroutineFrame(state, source, copiedArgs, token);
+        state.EnqueueAsyncWork(frame.Start);
+        return frame.VoidValueTask;
+    }
 
     /// <summary> Compiles and executes the chunk and converts the first return value. </summary>
     /// <param name="args">The arguments passed to the chunk.</param>
@@ -113,6 +136,17 @@ public readonly ref struct LuauChunk
     /// <exception cref="InvalidCastException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
     public TR Execute<TR>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 1, LuauFunctionInvokeCore.ResultSelector<TR>);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first return value. </summary>
+    public ValueTask<TR> ExecuteAsync<TR>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR>, CancellationToken.None);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first return value. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="token">Cancellation token passed to async managed callbacks.</param>
+    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
+    public ValueTask<TR> ExecuteAsync<TR>(RefEnumerable<IntoLuau> args, CancellationToken token) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR>, token);
 
     /// <summary> Compiles and executes the chunk and converts the first two return values. </summary>
     /// <param name="args">The arguments passed to the chunk.</param>
@@ -125,6 +159,14 @@ public readonly ref struct LuauChunk
     public (TR1, TR2) Execute<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 2, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
 
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first two return values. </summary>
+    public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>, CancellationToken.None);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first two return values. </summary>
+    public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(RefEnumerable<IntoLuau> args, CancellationToken token) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>, token);
+
     /// <summary> Compiles and executes the chunk and converts the first three return values. </summary>
     /// <param name="args">The arguments passed to the chunk.</param>
     /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
@@ -136,6 +178,16 @@ public readonly ref struct LuauChunk
     /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2, TR3) Execute<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 3, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first three return values. </summary>
+    public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>, CancellationToken.None);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first three return values. </summary>
+    public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken token
+    ) => ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>, token);
 
     /// <summary> Compiles and executes the chunk and converts the first four return values. </summary>
     /// <param name="args">The arguments passed to the chunk.</param>
@@ -150,6 +202,17 @@ public readonly ref struct LuauChunk
     public (TR1, TR2, TR3, TR4) Execute<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 4, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>);
 
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first four return values. </summary>
+    public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(
+        params RefEnumerable<IntoLuau> args
+    ) => ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>, CancellationToken.None);
+
+    /// <summary> Compiles and executes the chunk asynchronously and converts the first four return values. </summary>
+    public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken token
+    ) => ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>, token);
+
     /// <summary>
     /// Compiles and executes the chunk and returns all Luau return values as raw <see cref="LuauValue"/> instances.
     /// </summary>
@@ -159,6 +222,14 @@ public readonly ref struct LuauChunk
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
     public LuauValue[] ExecuteMulti(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: LuaMultRet, LuauFunctionInvokeCore.ResultSelectorMulti);
+
+    /// <summary> Compiles and executes the chunk asynchronously and returns all Luau return values. </summary>
+    public ValueTask<LuauValue[]> ExecuteMultiAsync(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelectorMulti, CancellationToken.None);
+
+    /// <summary> Compiles and executes the chunk asynchronously and returns all Luau return values. </summary>
+    public ValueTask<LuauValue[]> ExecuteMultiAsync(RefEnumerable<IntoLuau> args, CancellationToken token) =>
+        ExecuteAsync(args, LuauFunctionInvokeCore.ResultSelectorMulti, token);
 
     /// <summary> Compiles and loads the chunk as a reusable <see cref="LuauFunction"/>. </summary>
     /// <returns>The loaded chunk represented as a function.</returns>
@@ -205,6 +276,68 @@ public readonly ref struct LuauChunk
         {
             lua_settop(L, topBeforeInvoke);
         }
+    }
+
+    private ValueTask<TResult> ExecuteAsync<TResult>(
+        RefEnumerable<IntoLuau> args,
+        Func<LuauArgs, TResult> resultSelector,
+        CancellationToken token
+    )
+    {
+        LuauState state = GetState();
+        IntoLuauCopied[] copiedArgs = CaptureArgs(args);
+        LuauAsyncChunkSource source;
+        try
+        {
+            source = CreateAsyncSource(state);
+        }
+        catch
+        {
+            ReleaseArgs(copiedArgs);
+            throw;
+        }
+
+        var frame = new LuauAsyncCoroutineFrame<TResult>(state, source, copiedArgs, resultSelector, token);
+        state.EnqueueAsyncWork(frame.Start);
+        return frame.ValueTask;
+    }
+
+    private LuauAsyncChunkSource CreateAsyncSource(LuauState state)
+    {
+        ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? DefaultChunkName : _chunkName;
+        return new LuauAsyncChunkSource(
+            state,
+            _compiler,
+            _sourceKind,
+            _charSource,
+            _utf8Source,
+            chunkName,
+            _environmentHandle
+        );
+    }
+
+    private static IntoLuauCopied[] CaptureArgs(RefEnumerable<IntoLuau> args)
+    {
+        var copiedArgs = new IntoLuauCopied[args.Length];
+        int captured = 0;
+        try
+        {
+            for (; captured < args.Length; captured++)
+                copiedArgs[captured] = args[captured].CaptureCopied();
+            return copiedArgs;
+        }
+        catch
+        {
+            for (int i = 0; i < captured; i++)
+                copiedArgs[i].Release();
+            throw;
+        }
+    }
+
+    private static void ReleaseArgs(IntoLuauCopied[] args)
+    {
+        foreach (IntoLuauCopied arg in args)
+            arg.Release();
     }
 
     private unsafe void ExecuteCore(RefEnumerable<IntoLuau> args, int nResults)

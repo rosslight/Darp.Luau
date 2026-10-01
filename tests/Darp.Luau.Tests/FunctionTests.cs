@@ -176,6 +176,305 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public async Task Chunk_ExecuteAsync_WithSyncCode_ShouldRun()
+    {
+        await _state.Load("result = 42").ExecuteAsync(default, TestContext.Current.CancellationToken);
+
+        _state.Globals.GetNumber("result").ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task Chunk_ExecuteAsync_WithTypedReturn_ShouldReturnValue()
+    {
+        int result = await _state.Load("return 40 + 2").ExecuteAsync<int>(default, TestContext.Current.CancellationToken);
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_CompletedSynchronously_ShouldReturnValue()
+    {
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(static (args, _) =>
+        {
+            args.TryReadNumber(1, out int value, out string? error).ShouldBeTrue(error);
+            return ValueTask.FromResult(LuauReturn.Ok(value + 1));
+        });
+        _state.Globals.Set("next", func);
+
+        int result = await _state.Load("return next(41)").ExecuteAsync<int>(
+            default,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_YieldsAndResumes_ShouldReturnValue()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (args, _) =>
+        {
+            args.TryReadNumber(1, out int value, out string? error).ShouldBeTrue(error);
+            int increment = await gate.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            return LuauReturn.Ok(value + increment);
+        });
+        _state.Globals.Set("add_later", func);
+
+        ValueTask<int> pending = _state.Load("return add_later(40)").ExecuteAsync<int>(
+            default,
+            TestContext.Current.CancellationToken
+        );
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult(2);
+        int result = await pending;
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_MultiplePendingOperations_ShouldResumeIndependently()
+    {
+        var gates = new[]
+        {
+            new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        int callIndex = -1;
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (args, _) =>
+        {
+            args.TryReadNumber(1, out int value, out string? error).ShouldBeTrue(error);
+            int index = Interlocked.Increment(ref callIndex);
+            int increment = await gates[index].Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            return LuauReturn.Ok(value + increment);
+        });
+        _state.Globals.Set("add_later", func);
+
+        ValueTask<int> first = _state.Load("return add_later(10)").ExecuteAsync<int>(
+            default,
+            TestContext.Current.CancellationToken
+        );
+        ValueTask<int> second = _state.Load("return add_later(20)").ExecuteAsync<int>(
+            default,
+            TestContext.Current.CancellationToken
+        );
+
+        first.IsCompleted.ShouldBeFalse();
+        second.IsCompleted.ShouldBeFalse();
+
+        gates[1].SetResult(22);
+        (await second).ShouldBe(42);
+
+        first.IsCompleted.ShouldBeFalse();
+        gates[0].SetResult(32);
+        (await first).ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_PCall_ShouldCatchAsyncException()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (_, _) =>
+        {
+            await gate.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("boom from async callback");
+        });
+        _state.Globals.Set("explode", func);
+
+        ValueTask<(bool, string)> pending = _state
+            .Load(
+                """
+                local ok, err = pcall(explode)
+                return ok, tostring(err)
+                """
+            )
+            .ExecuteAsync<bool, string>(default, TestContext.Current.CancellationToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult();
+        (bool ok, string error) = await pending;
+
+        ok.ShouldBeFalse();
+        error.ShouldContain("managed function callback failed");
+        error.ShouldContain("boom from async callback");
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_UnhandledAsyncException_ShouldBecomeLuaException()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (_, _) =>
+        {
+            await gate.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("boom from async callback");
+        });
+        _state.Globals.Set("explode", func);
+
+        ValueTask pending = _state.Load("explode()").ExecuteAsync(default, TestContext.Current.CancellationToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult();
+        LuaException exception = await Should.ThrowAsync<LuaException>(async () => await pending.AsTask());
+        exception.Message.ShouldContain("managed function callback failed");
+        exception.Message.ShouldContain("boom from async callback");
+    }
+
+    [Fact]
+    public unsafe void LuauStateMarshal_ReturnAsyncCallbackResultMarker_WhenResultPushThrows_ShouldReturnErrorMarker()
+    {
+        int topBefore = Darp.Luau.Native.LuauNative.lua_gettop(_state.L);
+        try
+        {
+            LuauReturn result = LuauReturn.Ok(
+                IntoLuau.FromUserdata(static _ => throw new InvalidOperationException("push failed"))
+            );
+
+            int returnCount = LuauStateMarshal.ReturnAsyncCallbackResultMarker(_state, _state.L, result);
+
+            returnCount.ShouldBe(2);
+            Darp.Luau.Native.LuauNative.lua_toboolean(_state.L, topBefore + 1).ShouldBe(0);
+            LuauStateMarshal.TryGetString(_state.L, topBefore + 2, out ReadOnlySpan<byte> error).ShouldBeTrue();
+            System.Text.Encoding.UTF8.GetString(error).ShouldContain("push failed");
+        }
+        finally
+        {
+            Darp.Luau.Native.LuauNative.lua_settop(_state.L, topBefore);
+        }
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_LuauArgs_ShouldBeInvalidAfterCallbackYields()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ObjectDisposedException? observedException = null;
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (args, _) =>
+        {
+            await gate.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            observedException = Should.Throw<ObjectDisposedException>(() =>
+                args.TryReadNumber(1, out int _, out string? _)
+            );
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("read_later", func);
+
+        ValueTask pending = _state.Load("read_later(42)").ExecuteAsync(default, TestContext.Current.CancellationToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult();
+        await pending;
+        observedException.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_ShouldNotResumeLuauOnCompletionThread()
+    {
+        int invokingThreadId = Environment.CurrentManagedThreadId;
+        var gate = new TaskCompletionSource();
+        var completionThread = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = _state.CreateAsyncFunctionBuilder(async (_, _) =>
+        {
+            await gate.Task.ConfigureAwait(false);
+            return LuauReturn.Ok();
+        });
+        using LuauFunction currentThread = _state.CreateFunctionBuilder(static _ =>
+            LuauReturn.Ok(Environment.CurrentManagedThreadId)
+        );
+        _state.Globals.Set("wait", wait);
+        _state.Globals.Set("current_thread", currentThread);
+
+        ValueTask<int> pending = _state
+            .Load(
+                """
+                wait()
+                return current_thread()
+                """
+            )
+            .ExecuteAsync<int>(default, TestContext.Current.CancellationToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        var thread = new Thread(() =>
+        {
+            completionThread.SetResult(Environment.CurrentManagedThreadId);
+            gate.SetResult();
+        });
+        thread.Start();
+
+        int completionThreadId = await completionThread.Task.WaitAsync(TestContext.Current.CancellationToken);
+        int resumeThreadId = await pending;
+        thread.Join();
+
+        resumeThreadId.ShouldBe(invokingThreadId);
+        resumeThreadId.ShouldNotBe(completionThreadId);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_ExternalCancellation_ShouldCancelOuterOperation()
+    {
+        using var cts = new CancellationTokenSource();
+        using LuauFunction func = _state.CreateAsyncFunctionBuilder(async (_, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("wait", func);
+
+        ValueTask pending = _state.Load("wait()").ExecuteAsync(default, cts.Token);
+
+        pending.IsCompleted.ShouldBeFalse();
+        await cts.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(async () => await pending.AsTask());
+    }
+
+    [Fact]
+    public async Task Chunk_ExecuteAsync_WithPreCanceledToken_ShouldNotRetainAsyncFrame()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        ulong baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
+        int baselineActiveFrames = CountActiveAsyncFrames(_state);
+
+        ValueTask pending = _state.Load("return 1").ExecuteAsync(default, cts.Token);
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await pending.AsTask());
+        CountActiveAsyncFrames(_state).ShouldBe(baselineActiveFrames);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
+    }
+
+    [Fact]
+    public async Task CSharpFunction_AsyncBuilder_DisposedState_ShouldFaultPendingOperation()
+    {
+        var state = new LuauState();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        LuauFunction func = state.CreateAsyncFunctionBuilder(async (_, _) =>
+        {
+            await gate.Task.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            return LuauReturn.Ok();
+        });
+        state.Globals.Set("wait", func);
+
+        ValueTask pending = state.Load("wait()").ExecuteAsync(default, CancellationToken.None);
+
+        pending.IsCompleted.ShouldBeFalse();
+        state.Dispose();
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await pending.AsTask());
+        gate.SetResult();
+        func.Dispose();
+    }
+
+    private static int CountActiveAsyncFrames(LuauState state)
+    {
+        var field = typeof(LuauState).GetField(
+            "_activeAsyncFrames",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+        );
+        field.ShouldNotBeNull();
+        object? value = field.GetValue(state);
+        value.ShouldNotBeNull();
+        return ((System.Collections.ICollection)value).Count;
+    }
+
+    [Fact]
     public void CSharpFunction_ResultObject_FromCoroutine_ShouldReturnValue()
     {
         using LuauFunction func = _state.CreateFunctionBuilder(static args =>

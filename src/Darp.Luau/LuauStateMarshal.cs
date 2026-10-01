@@ -41,6 +41,36 @@ internal static class LuauStateMarshal
         return ReturnError(state, callbackError);
     }
 
+    public static unsafe int ReturnAsyncCallbackResultMarker(LuauState state, lua_State* luaState, LuauReturn result)
+    {
+        int markerIndex = lua_gettop(luaState) + 1;
+        lua_pushboolean(luaState, 1);
+        try
+        {
+            if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
+            {
+                lua_settop(luaState, markerIndex - 1);
+                return ReturnAsyncCallbackErrorMarker(luaState, error);
+            }
+
+            lua_pushinteger(luaState, outputCount);
+            lua_insert(luaState, markerIndex + 1);
+            return outputCount + 2;
+        }
+        catch (Exception exception)
+        {
+            lua_settop(luaState, markerIndex - 1);
+            return ReturnAsyncCallbackErrorMarker(luaState, $"{exception.GetType().Name}: {exception.Message}");
+        }
+    }
+
+    public static unsafe int ReturnAsyncCallbackErrorMarker(lua_State* luaState, string? error)
+    {
+        lua_pushboolean(luaState, 0);
+        PushString(luaState, error);
+        return 2;
+    }
+
     public static unsafe int ReturnSuccess(lua_State* state, int outputCount)
     {
         if (outputCount < 0)

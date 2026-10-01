@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal.Async;
 using Darp.Luau.Internal;
 using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
@@ -22,7 +24,12 @@ public sealed unsafe class LuauState : IDisposable
     private readonly ulong _globalsHandle;
     private readonly UserdataRegistrationCache _cache;
     private ulong _nextCallFrameId;
+    private readonly object _callFramesLock = new();
     private readonly HashSet<ulong> _activeCallFrameIds = [];
+    private readonly object _asyncFramesLock = new();
+    private readonly List<LuauAsyncCoroutineFrameBase> _activeAsyncFrames = [];
+    private readonly LuauAsyncWorkQueue _asyncWorkQueue = new();
+    private LuauAsyncCoroutineFrameBase? _currentAsyncFrame;
 
     private LuauModuleRequirer? _moduleRequirer;
 
@@ -229,17 +236,71 @@ public sealed unsafe class LuauState : IDisposable
         if (id == 0)
             id = unchecked(++_nextCallFrameId);
 
-        _activeCallFrameIds.Add(id);
+        lock (_callFramesLock)
+            _activeCallFrameIds.Add(id);
         return new LuauCallFrame(this, id);
     }
 
     internal void ThrowIfLuauCallFrameDisposed(ulong id)
     {
-        if (!_activeCallFrameIds.Contains(id))
-            throw new ObjectDisposedException(nameof(LuauArgs), "The Luau argument frame is no longer valid.");
+        lock (_callFramesLock)
+        {
+            if (!_activeCallFrameIds.Contains(id))
+                throw new ObjectDisposedException(nameof(LuauArgs), "The Luau argument frame is no longer valid.");
+        }
     }
 
-    internal void EndLuauCallFrame(ulong id) => _activeCallFrameIds.Remove(id);
+    internal void EndLuauCallFrame(ulong id)
+    {
+        lock (_callFramesLock)
+            _activeCallFrameIds.Remove(id);
+    }
+
+    internal void EnqueueAsyncWork(Action work) => _asyncWorkQueue.Enqueue(work);
+
+    internal void RegisterAsyncFrame(LuauAsyncCoroutineFrameBase frame)
+    {
+        lock (_asyncFramesLock)
+            _activeAsyncFrames.Add(frame);
+    }
+
+    internal void UnregisterAsyncFrame(LuauAsyncCoroutineFrameBase frame)
+    {
+        lock (_asyncFramesLock)
+            _activeAsyncFrames.Remove(frame);
+    }
+
+    internal LuauAsyncFrameScope EnterAsyncFrame(LuauAsyncCoroutineFrameBase frame)
+    {
+        if (_currentAsyncFrame is not null)
+            throw new InvalidOperationException("LuauState is already running async work.");
+        _currentAsyncFrame = frame;
+        return new LuauAsyncFrameScope(this, frame);
+    }
+
+    internal bool TryGetCurrentAsyncFrame(lua_State* luaState, [NotNullWhen(true)] out LuauAsyncCoroutineFrameBase? frame)
+    {
+        frame = _currentAsyncFrame;
+        return frame is not null && (nint)frame.Thread == (nint)luaState;
+    }
+
+    internal readonly struct LuauAsyncFrameScope : IDisposable
+    {
+        private readonly LuauState _state;
+        private readonly LuauAsyncCoroutineFrameBase _frame;
+
+        public LuauAsyncFrameScope(LuauState state, LuauAsyncCoroutineFrameBase frame)
+        {
+            _state = state;
+            _frame = frame;
+        }
+
+        public void Dispose()
+        {
+            if (ReferenceEquals(_state._currentAsyncFrame, _frame))
+                _state._currentAsyncFrame = null;
+        }
+    }
 
     /// <summary> Create a new table </summary>
     /// <returns> The resulting table </returns>
@@ -324,8 +385,8 @@ public sealed unsafe class LuauState : IDisposable
     /// <param name="onCalled">Callback that reads its inputs from <see cref="LuauArgs"/> and asynchronously returns a <see cref="LuauReturn"/>.</param>
     /// <returns>The created <see cref="LuauFunction"/>.</returns>
     /// <remarks>
-    /// This scaffolds async callback registration. Until async execution is implemented, invoking the returned function
-    /// through a sync execution path returns a Lua error.
+    /// Invoke the registered function through LuauChunk.ExecuteAsync. A sync execution path returns a Lua error.
+    /// Read stack-backed arguments before the callback yields; LuauArgs is invalid after an incomplete await.
     /// </remarks>
     public LuauFunction CreateAsyncFunctionBuilder(LuauAsyncFunctionBuilder onCalled)
     {
@@ -342,10 +403,48 @@ public sealed unsafe class LuauState : IDisposable
         GCHandle handle = TrackCallbackContext(context);
         fixed (byte* pDebugName = "managed function\0"u8)
         {
-            PushNativeCallback(&FunctionBuilderCallback, (void*)GCHandle.ToIntPtr(handle), pDebugName);
+            if (context.IsAsync)
+            {
+                lua_pushlightuserdata(L, (void*)GCHandle.ToIntPtr(handle));
+                lua_pushcclosurek(L, &FunctionBuilderAsyncCallback, pDebugName, 1, &FunctionBuilderAsyncContinuation);
+                PushAsyncFunctionWrapper();
+            }
+            else
+            {
+                PushNativeCallback(&FunctionBuilderCallback, (void*)GCHandle.ToIntPtr(handle), pDebugName);
+            }
         }
         ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauFunction(this, reference);
+    }
+
+    private void PushAsyncFunctionWrapper()
+    {
+        const string wrapperSource =
+            """
+            return function(dispatch)
+                return function(...)
+                    local ok, countOrError, a, b, c, d = dispatch(...)
+                    if not ok then
+                        error(countOrError, 0)
+                    end
+                    if countOrError == 0 then
+                        return
+                    elseif countOrError == 1 then
+                        return a
+                    elseif countOrError == 2 then
+                        return a, b
+                    elseif countOrError == 3 then
+                        return a, b, c
+                    end
+                    return a, b, c, d
+                end
+            end
+            """;
+
+        LuauNativeMethods.CompileLoadAndCall(L, Encoding.UTF8.GetBytes(wrapperSource), "=async-wrapper\0"u8, 1);
+        lua_insert(L, -2);
+        lua_call(L, 1, 1);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -368,6 +467,57 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int FunctionBuilderAsyncCallback(lua_State* luaState)
+    {
+        ArgumentNullException.ThrowIfNull(luaState);
+        int topBeforeCallback = lua_gettop(luaState);
+        try
+        {
+            void* ctx = lua_tolightuserdata(luaState, (int)lua_upvalueindex(1));
+            var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+            if (handle.Target is not FunctionBuilderCallbackContext context)
+            {
+                lua_pushboolean(luaState, 0);
+                LuauStateMarshal.PushString(luaState, "managed function callback context is invalid");
+                return 2;
+            }
+
+            return context.Invoke(luaState);
+        }
+        catch (Exception exception)
+        {
+            lua_settop(luaState, topBeforeCallback);
+            lua_pushboolean(luaState, 0);
+            LuauStateMarshal.PushString(
+                luaState,
+                $"managed function callback failed: {exception.GetType().Name}: {exception.Message}"
+            );
+            return 2;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int FunctionBuilderAsyncContinuation(lua_State* luaState, int status)
+    {
+        _ = status;
+        ArgumentNullException.ThrowIfNull(luaState);
+
+        void* ctx = lua_tolightuserdata(luaState, (int)lua_upvalueindex(1));
+        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+        if (handle.Target is not FunctionBuilderCallbackContext context)
+            return LuauStateMarshal.ReturnAsyncCallbackErrorMarker(luaState, "managed function callback context is invalid");
+        if (!context.State.TryGetCurrentAsyncFrame(luaState, out LuauAsyncCoroutineFrameBase? asyncFrame))
+        {
+            return LuauStateMarshal.ReturnAsyncCallbackErrorMarker(
+                luaState,
+                "async managed function continuation has no active async frame"
+            );
+        }
+
+        return asyncFrame.PushCallbackCompletion(luaState);
+    }
+
     private sealed class FunctionBuilderCallbackContext
     {
         private readonly LuauState _state;
@@ -388,15 +538,21 @@ public sealed unsafe class LuauState : IDisposable
 
         public bool IsAsync => _onCalledAsync is not null;
 
+        public LuauState State => _state;
+
         public int Invoke(lua_State* luaState)
         {
             if (!_state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
             if (IsAsync)
-                return LuauStateMarshal.ReturnError(
-                    luaState,
-                    "async managed function requires async Luau execution; use ExecuteAsync or InvokeAsync"
-                );
+            {
+                return !_state.TryGetCurrentAsyncFrame(luaState, out LuauAsyncCoroutineFrameBase? asyncFrame)
+                    ? PushAsyncErrorMarker(
+                        luaState,
+                        "async managed function requires async Luau execution; use ExecuteAsync or InvokeAsync"
+                    )
+                    : InvokeAsync(luaState, asyncFrame);
+            }
 
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
@@ -443,6 +599,103 @@ public sealed unsafe class LuauState : IDisposable
 #endif
                 return returnCount;
             }
+        }
+
+        private int InvokeAsync(lua_State* luaState, LuauAsyncCoroutineFrameBase asyncFrame)
+        {
+            int numberOfParameters = lua_gettop(luaState);
+            int topBeforeInvoke = lua_gettop(luaState);
+            LuauCallFrame frame = _state.BeginLuauCallFrame();
+            try
+            {
+                var args = new LuauArgs(luaState, numberOfParameters, firstParameterStackIndex: 1, frame);
+                ValueTask<LuauReturn> pending = _onCalledAsync!(args, asyncFrame.CancellationToken);
+                if (pending.IsCompleted)
+                {
+                    try
+                    {
+                        LuauReturn result = pending.GetAwaiter().GetResult();
+                        frame.Dispose();
+                        return PushCompletedAsyncResult(luaState, topBeforeInvoke, result);
+                    }
+                    catch (Exception exception)
+                    {
+                        frame.Dispose();
+                        lua_settop(luaState, topBeforeInvoke);
+                        return PushAsyncErrorMarker(
+                            luaState,
+                            $"managed function callback failed: {exception.GetType().Name}: {exception.Message}"
+                        );
+                    }
+                }
+
+                if (!asyncFrame.TryBeginPendingCallback())
+                {
+                    frame.Dispose();
+                    lua_settop(luaState, topBeforeInvoke);
+                    return PushAsyncErrorMarker(luaState, "async managed function callback is already pending");
+                }
+
+                frame.Dispose();
+#pragma warning disable CA2025 // Stack arguments are invalidated before yielding; continuation cleanup is idempotent.
+                _ = ContinueAsyncCallbackAsync(pending.AsTask(), asyncFrame, frame);
+#pragma warning restore CA2025
+                return lua_yield(luaState, 0);
+            }
+            catch (Exception exception)
+            {
+                frame.Dispose();
+                lua_settop(luaState, topBeforeInvoke);
+                return PushAsyncErrorMarker(
+                    luaState,
+                    $"managed function callback failed: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
+        }
+
+        private static int PushAsyncErrorMarker(lua_State* luaState, string? error)
+        {
+            return LuauStateMarshal.ReturnAsyncCallbackErrorMarker(luaState, error);
+        }
+
+        private int PushCompletedAsyncResult(lua_State* luaState, int topBeforeInvoke, LuauReturn result)
+        {
+            _ = topBeforeInvoke;
+            return LuauStateMarshal.ReturnAsyncCallbackResultMarker(_state, luaState, result);
+        }
+
+        [SuppressMessage(
+            "Reliability",
+            "CA2025",
+            Justification = "The call frame is invalidated before yielding. Repeated disposal by completion cleanup is safe."
+        )]
+        private static Task ContinueAsyncCallbackAsync(
+            Task<LuauReturn> task,
+            LuauAsyncCoroutineFrameBase asyncFrame,
+            LuauCallFrame callFrame
+        )
+        {
+            return task.ContinueWith(
+                static (completedTask, state) =>
+                {
+                    var (asyncFrame, callFrame) = ((LuauAsyncCoroutineFrameBase, LuauCallFrame))state!;
+                    try
+                    {
+                        LuauReturn result = completedTask.GetAwaiter().GetResult();
+                        callFrame.Dispose();
+                        asyncFrame.EnqueueCallbackResult(result);
+                    }
+                    catch (Exception exception)
+                    {
+                        callFrame.Dispose();
+                        asyncFrame.EnqueueCallbackException(exception);
+                    }
+                },
+                (asyncFrame, callFrame),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            );
         }
     }
 
@@ -578,6 +831,11 @@ public sealed unsafe class LuauState : IDisposable
     {
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
+        LuauAsyncCoroutineFrameBase[] activeAsyncFrames;
+        lock (_asyncFramesLock)
+            activeAsyncFrames = [.. _activeAsyncFrames];
+        foreach (LuauAsyncCoroutineFrameBase frame in activeAsyncFrames)
+            frame.CompleteDisposed();
         _cache.Dispose();
         _moduleRequirer?.Dispose();
         _moduleRequirer = null;
