@@ -177,7 +177,13 @@ Host modules are loaded from Luau with `require("game")`. Generated and manual m
 
 ![Mean time per operation of Darp.Luau, NuLua, NLua and Lua-CSharp in five scenarios](https://raw.githubusercontent.com/rosslight/Darp.Luau/benchmark-results/libraries-time.svg)
 
-The chart shows the latest run of the library comparison on a GitHub-hosted runner. Absolute times depend on the runner, so compare the libraries within one scenario. All measurements, including allocations, are on the [`benchmark-results`](https://github.com/rosslight/Darp.Luau/tree/benchmark-results) branch, and the benchmarks themselves are in [`benchmarks`](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks).
+Compared with:
+
+- [NuLua](https://github.com/nuskey8/NuLua) (Unified Lua5.x/LuaJIT/Luau bindings for .NET and Unity) - tested v0.1.0, Luau
+- [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET) - tested v1.7.9, Lua 5.4
+- [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity) - tested v0.5.7, Lua 5.2 in .NET
+
+Latest run on a GitHub-hosted runner. See the [full results](https://github.com/rosslight/Darp.Luau/tree/benchmark-results) and the [benchmark code](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks).
 
 ## Current boundaries
 

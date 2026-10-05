@@ -41,9 +41,7 @@ jobs:
           {
             echo "# Benchmark results"
             echo
-            echo "Darp.Luau compared with other Lua libraries for .NET, measured by the [benchmarks](https://github.com/${GITHUB_REPOSITORY}/tree/main/benchmarks) at commit [\`${GITHUB_SHA::7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) in [this run]($RUN_URL)."
-            echo
-            echo "The numbers come from a shared GitHub-hosted runner. Absolute values change from run to run, so compare the libraries within one scenario."
+            echo "[Benchmarks](https://github.com/${GITHUB_REPOSITORY}/tree/main/benchmarks) at commit [\`${GITHUB_SHA::7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}), measured in [this run]($RUN_URL) on a GitHub-hosted runner."
             echo
             echo "![Mean time per operation](libraries-time.svg)"
             echo
