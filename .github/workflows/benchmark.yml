@@ -1,8 +1,8 @@
 name: Benchmark
 
+# Runs for every pull request, whatever its target branch, so that each layer of a stack is compared with its parent.
 on:
   pull_request:
-    branches: [ "main" ]
 
 permissions:
   contents: read
@@ -43,17 +43,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           PULL_REQUEST: ${{ github.event.pull_request.number }}
+          TARGET_BRANCH: ${{ github.base_ref }}
         run: |
           marker='<!-- darp-luau-benchmark-report -->'
+          results=BenchmarkDotNet.Artifacts/results
           {
             echo "$marker"
-            echo "## Benchmark: this pull request against \`${{ github.base_ref }}\`"
+            echo "## Benchmark: this pull request against \`$TARGET_BRANCH\`"
             echo
-            if grep -q "Benchmarks with issues" BenchmarkDotNet.Artifacts/results/*-report-github.md; then
-              echo "> The target branch could not be measured with this pull request's benchmarks, most likely because the API they use changed. Rows marked \`NA\` have no comparison."
+            cat $results/*-report-comparison.md
+            echo
+            if grep -q "Benchmarks with issues" $results/*-report-github.md; then
+              echo "> The target branch could not be measured with this pull request's benchmarks, most likely because the API they use changed."
               echo
             fi
-            cat BenchmarkDotNet.Artifacts/results/*-report-github.md
+            echo "<details><summary>Full BenchmarkDotNet report</summary>"
+            echo
+            cat $results/*-report-github.md
+            echo
+            echo "</details>"
           } > benchmark-report.md
           cat benchmark-report.md >> "$GITHUB_STEP_SUMMARY"
 

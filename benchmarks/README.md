@@ -25,11 +25,15 @@ dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks -- --filter '*' 
 
 NuGet caches packages by version. Use a new version each time you pack a different baseline.
 
-The `Baseline` rows are the other commit and the `Current` rows are the working tree.
-`Ratio` and `Alloc Ratio` compare the two, and the `MannWhitney` column says whether a time difference is statistically significant.
-If the baseline does not compile against the current benchmarks, its rows show `NA`.
+The run writes two reports to `BenchmarkDotNet.Artifacts/results`:
+
+- `*-report-comparison.md` has one row per benchmark: baseline, current, the change, and whether the time difference is statistically significant.
+- `*-report-github.md` is the full BenchmarkDotNet table. The `Baseline` rows are the other commit and the `Current` rows are the working tree.
+
+If the baseline does not compile against the current benchmarks, its values are missing and the row says `no comparison`.
 
 ## In CI
 
-The `Benchmark` workflow runs this comparison for every pull request against its target branch and posts the table as a comment.
-It never fails the build. Timings on shared runners are noisy, so read the `MannWhitney` verdict before the ratio. Allocations are exact.
+The `Benchmark` workflow runs this comparison for every pull request against its target branch.
+It posts the one-row-per-benchmark table as a comment, with the full report folded below it, and updates that comment on every push.
+It never fails the build. Timings on shared runners are noisy, so trust the verdict more than the percentage. Allocations are exact.

@@ -27,6 +27,7 @@ internal static class BenchmarkConfig
             ?? throw new InvalidOperationException(
                 $"{BaselineFeedVariable} must be set with {BaselineVersionVariable}."
             );
+        StatisticalTestColumn timeVerdict = StatisticalTestColumn.CreateDefault();
         return config
             .AddJob(
                 job.WithMsBuildArguments(
@@ -37,7 +38,8 @@ internal static class BenchmarkConfig
                     .AsBaseline()
             )
             .AddJob(job.WithId("Current"))
-            .AddColumn(StatisticalTestColumn.CreateDefault())
+            .AddColumn(timeVerdict)
+            .AddExporter(new ComparisonExporter(timeVerdict))
             .HideColumns(Column.Arguments)
             .WithOrderer(new PairedJobsOrderer());
     }
