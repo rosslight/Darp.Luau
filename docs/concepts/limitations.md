@@ -5,7 +5,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 ## Current boundaries
 
 - The main package currently targets `net10.0`.
-- `LuauState` executes source through `Load(...).Execute(...)`. There is no `DoFile(...)` helper at the moment.
+- `LuauState` executes source through `Load(...).Execute(...)` or `LoadFile(path).Execute(...)`. There is no separate `DoFile(...)` helper.
 - `LuauState` is not thread-safe.
 - Owned references and borrowed views are bound to a single `LuauState`; cross-state usage is invalid.
 - `CreateFunction(...)` depends on generator interception, must be called directly, and has no runtime fallback.
@@ -26,7 +26,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - If you want file-based script loading, use `LoadFile(path)` for entry scripts.
 - If you want file-backed modules, call `EnableScriptModules()` and execute the entry script with `LoadFile(path)`, which assigns the required `@...` chunk name automatically.
 - If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionBuilder(...)`.
-- Prefer source-generated modules and userdata for fixed host APIs. Fall back to manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` when the generated model is too narrow.
+- Start with source-generated modules and userdata for fixed host APIs. Use manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` for shapes the generated model cannot express.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.
 - If you need long-lived access to callback values, promote borrowed `*View` values to owned references before the callback returns.
 

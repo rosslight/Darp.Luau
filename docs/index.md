@@ -22,7 +22,7 @@ This documentation is organized around the way you use the library in practice:
 - Borrowed `*View` types such as `LuauTableView` and `LuauFunctionView` are callback-scoped.
 - `CreateFunction(...)` is the normal typed callback API, but it must be called directly so the generator can intercept it.
 - `[LuauModule]` and `[LuauUserdata]` are the recommended source-generated paths for exposing fixed host APIs.
-- `RegisterModule(...)`, `CreateFunctionBuilder(...)`, and manual `ILuauUserData<T>` implementations are fallback APIs when generation is not flexible enough.
+- `RegisterModule(...)`, `CreateFunctionBuilder(...)`, and manual `ILuauUserData<T>` implementations are the manual APIs for shapes a generated type cannot express.
 
 See [Concepts](concepts/index.md).
 
@@ -69,7 +69,7 @@ Chunks can also return values directly to managed code. Use `Load(...).Execute<T
 
 If a chunk should keep its own globals, create an environment table with `CreateEnvironment()` and pass it through `WithEnvironment(...)`.
 
-If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call file-backed `require(...)`, first call `EnableScriptModules()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
+If you want file-based execution, use `LoadFile(path)`. It names the chunk after the script path, so if that script should be able to call file-backed `require(...)`, you only need to call `EnableScriptModules()` first.
 
 See [Modules and require](features/modules.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
 

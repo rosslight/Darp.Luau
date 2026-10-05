@@ -240,6 +240,6 @@ See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownershi
 
 - Expose a small, stable script-facing surface instead of mirroring your full managed type.
 - Prefer generated `[LuauUserdata]` declarations for regular property and method surfaces.
-- Fall back to manual `ILuauUserData<T>` only when you need behavior the generator cannot express.
+- Use manual `ILuauUserData<T>` when you need behavior the generator cannot express.
 - Keep validation and error messages intentional inside the hooks.
 - Prefer tables for plain data and userdata for identity or behavior.
