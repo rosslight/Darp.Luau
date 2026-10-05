@@ -24,7 +24,8 @@ internal sealed class ComparisonExporter(StatisticalTestColumn timeVerdict) : Ex
         [
             .. summary
                 .BenchmarksCases.Where(benchmarkCase => !summary.IsBaseline(benchmarkCase))
-                .Select(benchmarkCase => Compare(summary, benchmarkCase)),
+                .Select(benchmarkCase => Compare(summary, benchmarkCase))
+                .OrderBy(comparison => comparison.Benchmark, StringComparer.Ordinal),
         ];
 
         logger.WriteLine(Summarize(comparisons));
