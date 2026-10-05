@@ -4,9 +4,6 @@ name: Benchmark libraries
 # The README shows the chart from that branch, so it always shows the latest run. Started by hand.
 on:
   workflow_dispatch:
-  # TEMPORARY: lets the workflow run before it exists on the default branch. Remove before merging.
-  push:
-    branches: [ "build/add-library-comparison" ]
 
 permissions:
   contents: write
