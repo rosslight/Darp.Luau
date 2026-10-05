@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Testing.Platform.Logging;
 using Shouldly;
 
 namespace Darp.Luau.Generator.Tests;
@@ -137,7 +136,6 @@ public sealed class IncrementalPipelineTests
     private static CSharpCompilation CreateCompilation(string source, CSharpParseOptions parseOptions)
     {
         VerifyHelper.AddReferenceAssemblyMarker<LuauState>();
-        VerifyHelper.AddReferenceAssemblyMarker<ILogger>();
 
         SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(
             SourceText.From(source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')),

@@ -6,7 +6,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Testing.Platform.Logging;
 using Shouldly;
 
 namespace Darp.Luau.Generator.Tests;
@@ -18,7 +17,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
@@ -36,7 +34,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
@@ -62,7 +59,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
@@ -94,7 +90,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
             [],
@@ -116,7 +111,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
             [],
@@ -135,7 +129,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             [source],
             [],
@@ -165,7 +158,6 @@ public static class VerifyHelper
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
             [],
@@ -186,7 +178,6 @@ public static class VerifyHelper
     public static async Task VerifyCreateFunctionWithGeneratedExportsSucceeds(string source)
     {
         AddReferenceAssemblyMarker<LuauState>();
-        AddReferenceAssemblyMarker<ILogger>();
 
         CSharpParseOptions parseOptions = CSharpParseOptions
             .Default.WithLanguageVersion(LanguageVersion.CSharp13)
