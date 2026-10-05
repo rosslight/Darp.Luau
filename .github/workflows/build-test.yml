@@ -33,7 +33,7 @@ jobs:
           show-changed-lines-only: true
 
       - name: Publish runtime tests with Native AOT
-        run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -o ./artifacts/native-aot-tests
+        run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r linux-x64 -o ./artifacts/native-aot-tests
       - name: Test Native AOT
         working-directory: ./artifacts/native-aot-tests
         run: ./Darp.Luau.Tests
