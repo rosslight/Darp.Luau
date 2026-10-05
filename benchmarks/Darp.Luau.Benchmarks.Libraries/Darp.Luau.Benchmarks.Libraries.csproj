@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Luau.Generator</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="LuaCSharp" Version="0.5.7" />
+    <PackageReference Include="NLua" Version="1.7.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Darp.Luau\Darp.Luau.csproj" />
+    <ProjectReference
+      Include="..\..\src\Darp.Luau.Generator\Darp.Luau.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <!--
+      NuLua ships a native Luau library with the same file name as Darp.Luau. Its benchmarks live in their own
+      assembly, which BenchmarkDotNet builds into a separate executable. Its native assets must stay out of this one.
+    -->
+    <ProjectReference
+      Include="..\Darp.Luau.Benchmarks.Libraries.NuLua\Darp.Luau.Benchmarks.Libraries.NuLua.csproj"
+      ExcludeAssets="native"
+    />
+  </ItemGroup>
+</Project>

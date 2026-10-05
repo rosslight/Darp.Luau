@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="NuLua" Version="0.1.0" />
+    <PackageReference Include="NuLua.Luau" Version="0.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Darp.Luau.Benchmarks.Libraries\Scenario.cs" Link="Scenario.cs" />
+  </ItemGroup>
+</Project>

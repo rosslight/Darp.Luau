@@ -1,14 +1,19 @@
 # Benchmarks
 
-Benchmarks for the core paths of Darp.Luau, built with [BenchmarkDotNet](https://benchmarkdotnet.org/).
+Two sets of benchmarks, both built with [BenchmarkDotNet](https://benchmarkdotnet.org/):
 
-## Run against the working tree
+- `Darp.Luau.Benchmarks` measures the core paths of Darp.Luau and compares a change with its target branch.
+- `Darp.Luau.Benchmarks.Libraries` compares Darp.Luau with other Lua libraries for .NET.
+
+## Core paths
+
+### Run against the working tree
 
 ```bash
 dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks -- --filter '*'
 ```
 
-## Compare against another commit
+### Compare against another commit
 
 The comparison measures two versions of the library with the same benchmark code in one run.
 The other version is packed into a local feed and selected through two environment variables.
@@ -32,8 +37,33 @@ The run writes two reports to `BenchmarkDotNet.Artifacts/results`:
 
 If the baseline does not compile against the current benchmarks, its values are missing and the row says `no comparison`.
 
-## In CI
+### In CI
 
 The `Benchmark` workflow runs this comparison for every pull request against its target branch.
 It posts the one-row-per-benchmark table as a comment, with the full report folded below it, and updates that comment on every push.
 It never fails the build. Timings on shared runners are noisy, so trust the verdict more than the percentage. Allocations are exact.
+
+## Comparison with other libraries
+
+```bash
+dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --filter '*'
+```
+
+Every library runs the same five scenarios, defined in `Scenario.cs`, with the API its documentation recommends:
+
+| Library | Runs | Notes |
+| --- | --- | --- |
+| Darp.Luau | Luau | |
+| [NuLua](https://github.com/nuskey8/NuLua) | Luau | Same virtual machine as Darp.Luau, so the difference is the binding. |
+| [NLua](https://github.com/NLua/NLua) | Lua 5.4 | |
+| [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) | Lua 5.2, implemented in C# | Has only an asynchronous API. |
+
+The scenarios stay within what Lua 5.2, Lua 5.4 and Luau have in common. Only "Run a script" measures the virtual machine itself; the others measure the boundary between C# and Lua.
+
+Besides the BenchmarkDotNet reports, the run writes `*-report-time.svg` and `*-report-allocations.svg` to `BenchmarkDotNet.Artifacts/results`.
+
+NuLua's Luau backend ships a native library with the same file name as Darp.Luau's. Its benchmarks therefore live in their own project, `Darp.Luau.Benchmarks.Libraries.NuLua`, which BenchmarkDotNet builds into a separate executable.
+
+### Publishing
+
+The `Benchmark libraries` workflow is started by hand. It runs the comparison and commits the charts and the full table to the `benchmark-results` branch. The repository README shows the time chart from that branch, so it always shows the latest run.
