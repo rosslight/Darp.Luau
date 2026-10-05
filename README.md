@@ -206,7 +206,6 @@ Planned before 1.0:
 - Luau type definitions generated for the host API
 - More than four arguments and return values, including variadics
 - Script modules from sources other than disk
-- The runtime test suite passing when published with NativeAOT
 - Consistent naming, such as `LuauException` and `ILuauUserdata<T>`
 
 Later:
