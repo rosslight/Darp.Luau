@@ -143,7 +143,7 @@ This is the reusable path. `LuauChunk` itself does not retain compiled state.
 
 ## Current boundaries
 
-- There is no file-based helper today; if you want `DoFile(...)` behavior, read the file in managed code and pass the contents to `Load(...)`.
+- `LoadFile(path)` creates a chunk from a script on disk and names it after the file path. There is no separate `DoFile(...)` helper.
 - `ToFunction()` is the explicit reusable path; plain chunk execution recompiles on each call.
 
 ## Error behavior

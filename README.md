@@ -175,7 +175,42 @@ Host modules are loaded from Luau with `require("game")`. Generated and manual m
 
 ## Current boundaries
 
-- `Load(...).Execute(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
+- `Load(...).Execute(...)` is the script execution API today. Use `LoadFile(path)` to load an entry script from disk.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
 - Higher-level async/thread orchestration is not part of the current surface yet.
+
+## Roadmap
+
+Darp.Luau is pre-1.0 and breaking changes are still expected. The aim before 1.0 is breadth: basic support for every larger Luau concept before completing any single one.
+
+Planned before 1.0:
+
+- Coroutines as host values, with async managed callbacks and async invocation on top of them
+- A basic set of userdata metamethods
+- Interrupting a running script
+- An opt-in sandbox with read-only libraries and globals
+- Structured errors with script location, traceback, and the original managed exception
+- Luau type definitions generated for the host API
+- More than four arguments and return values, including variadics
+- Script modules from sources other than disk
+- The runtime test suite passing when published with NativeAOT
+- A benchmark suite that runs in CI
+- Consistent naming, such as `LuauException` and `ILuauUserdata<T>`
+
+Later:
+
+- Metatables on plain tables from the host
+- Vectors as host values
+- Memory limits, garbage-collector control, and isolation for untrusted scripts
+- Compiler options, precompiled bytecode, and native code generation
+- Converting C# objects to and from tables
+
+## Non-goals
+
+- A thread-safe `LuauState`. The host is responsible for using a state from one thread at a time.
+- Sharing Luau-backed references between states.
+- Target frameworks older than `net10.0`. Going forward, only .NET versions that are in service are supported.
+- Game-engine runtimes such as Unity or Godot.
+- Debugger and profiler hooks.
+- Type-checking scripts from the host. Use the generated type definitions with editor tooling instead.
