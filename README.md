@@ -173,6 +173,12 @@ Host modules are loaded from Luau with `require("game")`. Generated and manual m
 - `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values.
 - Reference-backed values belong to one `LuauState`; cross-state usage is invalid.
 
+## Benchmarks
+
+![Mean time per operation of Darp.Luau, NuLua, NLua and Lua-CSharp in five scenarios](https://raw.githubusercontent.com/rosslight/Darp.Luau/benchmark-results/libraries-time.svg)
+
+The chart shows the latest run of the library comparison on a GitHub-hosted runner. Absolute times depend on the runner, so compare the libraries within one scenario. All measurements, including allocations, are on the [`benchmark-results`](https://github.com/rosslight/Darp.Luau/tree/benchmark-results) branch, and the benchmarks themselves are in [`benchmarks`](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks).
+
 ## Current boundaries
 
 - `Load(...).Execute(...)` is the script execution API today. Use `LoadFile(path)` to load an entry script from disk.
