@@ -20,3 +20,6 @@ src/Darp.Lua.Net/lib
 # Verify
 *.received.*
 *.received/
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/

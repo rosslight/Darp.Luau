@@ -1,0 +1,80 @@
+name: Benchmark
+
+# Runs for every pull request, whatever its target branch, so that each layer of a stack is compared with its parent.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: benchmark-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Compare against target branch
+    runs-on: ubuntu-24.04
+    env:
+      DARP_LUAU_BASELINE_VERSION: 0.0.0-baseline
+      DARP_LUAU_BASELINE_FEED: ${{ github.workspace }}/tmp/benchmark-feed
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout target branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: tmp/benchmark-baseline
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+
+      # The checkout is removed after packing: BenchmarkDotNet looks for the benchmark project by name below the
+      # repository root and stops when it finds the target branch's copy as well.
+      - name: Pack target branch as baseline
+        run: |
+          dotnet pack tmp/benchmark-baseline/src/Darp.Luau/Darp.Luau.csproj -c Release \
+            -o "$DARP_LUAU_BASELINE_FEED" -p:Version="$DARP_LUAU_BASELINE_VERSION"
+          rm -rf tmp/benchmark-baseline
+
+      # Both versions are measured in one run on the same machine, so that differences between runners cancel out.
+      - name: Run benchmarks
+        run: dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks -- --filter '*' --join
+
+      - name: Report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          TARGET_BRANCH: ${{ github.base_ref }}
+        run: |
+          marker='<!-- darp-luau-benchmark-report -->'
+          results=BenchmarkDotNet.Artifacts/results
+          {
+            echo "$marker"
+            echo "## Benchmark: this pull request against \`$TARGET_BRANCH\`"
+            echo
+            cat $results/*-report-comparison.md
+            echo
+            if grep -q "Benchmarks with issues" $results/*-report-github.md; then
+              echo "> The target branch could not be measured with this pull request's benchmarks, most likely because the API they use changed."
+              echo
+            fi
+            echo "<details><summary>Full BenchmarkDotNet report</summary>"
+            echo
+            cat $results/*-report-github.md
+            echo
+            echo "</details>"
+          } > benchmark-report.md
+          cat benchmark-report.md >> "$GITHUB_STEP_SUMMARY"
+
+          # Pull requests from forks get a read-only token; the step summary is the report then.
+          comment_id=$(gh api "repos/$REPOSITORY/issues/$PULL_REQUEST/comments" --paginate \
+            --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty")
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$REPOSITORY/issues/comments/$comment_id" -F body=@benchmark-report.md > /dev/null \
+              || echo "::warning::Could not update the benchmark comment."
+          else
+            gh api --method POST "repos/$REPOSITORY/issues/$PULL_REQUEST/comments" -F body=@benchmark-report.md > /dev/null \
+              || echo "::warning::Could not create the benchmark comment."
+          fi

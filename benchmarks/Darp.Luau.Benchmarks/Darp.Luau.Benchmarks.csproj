@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Luau.Generator</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <!-- Default: benchmark the library in this working tree. -->
+  <ItemGroup Condition="'$(DarpLuauBaselineVersion)' == ''">
+    <ProjectReference Include="..\..\src\Darp.Luau\Darp.Luau.csproj" />
+    <ProjectReference
+      Include="..\..\src\Darp.Luau.Generator\Darp.Luau.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+
+  <!-- Baseline job: benchmark a packed version of the library, which brings its own generator. -->
+  <ItemGroup Condition="'$(DarpLuauBaselineVersion)' != ''">
+    <PackageReference Include="Darp.Luau" Version="$(DarpLuauBaselineVersion)" />
+  </ItemGroup>
+</Project>

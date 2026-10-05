@@ -195,7 +195,6 @@ Planned before 1.0:
 - More than four arguments and return values, including variadics
 - Script modules from sources other than disk
 - The runtime test suite passing when published with NativeAOT
-- A benchmark suite that runs in CI
 - Consistent naming, such as `LuauException` and `ILuauUserdata<T>`
 
 Later:
