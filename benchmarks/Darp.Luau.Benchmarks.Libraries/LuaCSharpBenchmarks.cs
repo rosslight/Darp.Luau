@@ -6,7 +6,7 @@ namespace Darp.Luau.Benchmarks.Libraries;
 
 /// <summary> Lua-CSharp only has an asynchronous API, so its benchmarks are asynchronous. </summary>
 [BenchmarkCategory(Library.LuaCSharp)]
-public class LuaCSharpBenchmarks
+public class LuaCSharpBenchmarks : IDisposable
 {
     private readonly LuaState _state = LuaState.Create();
     private readonly LuaValue _add;
@@ -33,28 +33,35 @@ public class LuaCSharpBenchmarks
     }
 
     [Benchmark(Description = Scenario.CreateState)]
-    public LuaState CreateState()
+    public void CreateState()
     {
-        var state = LuaState.Create();
+        using LuaState state = LuaState.Create();
         state.OpenStandardLibraries();
-        return state;
     }
 
     [Benchmark(Description = Scenario.CallLuaFunction)]
-    public async ValueTask<double> CallLuaFunction() => (await _state.CallAsync(_add, [1, 2]))[0].Read<double>();
+    public async ValueTask<double> CallLuaFunction() =>
+        (await _state.CallAsync(_add, [Scenario.AddLeft, Scenario.AddRight]))[0].Read<double>();
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
     public async ValueTask<double> CallManagedFunction() =>
-        (await _state.CallAsync(_callManagedAdd, [Scenario.ManagedCallsPerInvoke]))[0].Read<double>();
+        (await _state.CallAsync(_callManagedAdd, [Scenario.ManagedCalls]))[0].Read<double>();
 
     [Benchmark(Description = Scenario.TableSetAndGet)]
     public double TableSetAndGet()
     {
-        _table["key"] = 42;
+        _table["key"] = Scenario.TableValue;
         return _table["key"].Read<double>();
     }
 
     [Benchmark(Description = Scenario.RunScript)]
     public async ValueTask<double> RunScript() =>
         (await _state.CallAsync(_fib, [Scenario.FibonacciInput]))[0].Read<double>();
+
+    [GlobalCleanup]
+    public void Dispose()
+    {
+        _state.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

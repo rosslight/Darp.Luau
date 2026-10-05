@@ -41,15 +41,15 @@ public class NuLuaBenchmarks : IDisposable
     }
 
     [Benchmark(Description = Scenario.CallLuaFunction)]
-    public double CallLuaFunction() => _add.Invoke(1, 2)[0].Read<double>();
+    public double CallLuaFunction() => _add.Invoke(Scenario.AddLeft, Scenario.AddRight)[0].Read<double>();
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
-    public double CallManagedFunction() => _callManagedAdd.Invoke(Scenario.ManagedCallsPerInvoke)[0].Read<double>();
+    public double CallManagedFunction() => _callManagedAdd.Invoke(Scenario.ManagedCalls)[0].Read<double>();
 
     [Benchmark(Description = Scenario.TableSetAndGet)]
     public double TableSetAndGet()
     {
-        _table["key"] = 42;
+        _table["key"] = Scenario.TableValue;
         return _table["key"].Read<double>();
     }
 

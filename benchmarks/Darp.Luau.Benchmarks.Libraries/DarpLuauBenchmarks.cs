@@ -31,15 +31,15 @@ public class DarpLuauBenchmarks : IDisposable
     }
 
     [Benchmark(Description = Scenario.CallLuaFunction)]
-    public double CallLuaFunction() => _add.Invoke<double>(1, 2);
+    public double CallLuaFunction() => _add.Invoke<double>(Scenario.AddLeft, Scenario.AddRight);
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
-    public double CallManagedFunction() => _callManagedAdd.Invoke<double>(Scenario.ManagedCallsPerInvoke);
+    public double CallManagedFunction() => _callManagedAdd.Invoke<double>(Scenario.ManagedCalls);
 
     [Benchmark(Description = Scenario.TableSetAndGet)]
     public double TableSetAndGet()
     {
-        _table.Set("key", 42);
+        _table.Set("key", Scenario.TableValue);
         return _table.GetNumber("key");
     }
 

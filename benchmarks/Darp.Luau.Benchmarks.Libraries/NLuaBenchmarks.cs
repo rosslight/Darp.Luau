@@ -1,4 +1,3 @@
-using System.Globalization;
 using BenchmarkDotNet.Attributes;
 
 namespace Darp.Luau.Benchmarks.Libraries;
@@ -33,23 +32,21 @@ public class NLuaBenchmarks : IDisposable
     }
 
     [Benchmark(Description = Scenario.CallLuaFunction)]
-    public double CallLuaFunction() => ToDouble(_add.Call(1, 2));
+    public double CallLuaFunction() => (double)_add.Call(Scenario.AddLeft, Scenario.AddRight)[0];
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
-    public double CallManagedFunction() => ToDouble(_callManagedAdd.Call(Scenario.ManagedCallsPerInvoke));
+    public double CallManagedFunction() => (double)_callManagedAdd.Call(Scenario.ManagedCalls)[0];
 
     [Benchmark(Description = Scenario.TableSetAndGet)]
     public double TableSetAndGet()
     {
-        _table["key"] = 42;
-        return Convert.ToDouble(_table["key"], CultureInfo.InvariantCulture);
+        // The object indexer reads a plain key. The string indexer would parse "key" as a dotted path on every access.
+        _table[(object)"key"] = Scenario.TableValue;
+        return (double)_table[(object)"key"];
     }
 
     [Benchmark(Description = Scenario.RunScript)]
-    public double RunScript() => ToDouble(_fib.Call(Scenario.FibonacciInput));
-
-    /// <summary> Lua 5.4 returns integers as <see cref="long"/> and floats as <see cref="double"/>. </summary>
-    private static double ToDouble(object[] results) => Convert.ToDouble(results[0], CultureInfo.InvariantCulture);
+    public double RunScript() => (double)_fib.Call(Scenario.FibonacciInput)[0];
 
     [GlobalCleanup]
     public void Dispose()

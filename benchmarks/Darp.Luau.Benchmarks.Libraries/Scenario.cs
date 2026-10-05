@@ -18,11 +18,11 @@ internal static class Library
 /// </summary>
 internal static class Scenario
 {
-    public const string CreateState = "Create a state";
+    public const string CreateState = "Create and dispose a state";
     public const string CallLuaFunction = "Call a Lua function from C#";
     public const string CallManagedFunction = "Call a C# function from Lua";
     public const string TableSetAndGet = "Set and get a table field";
-    public const string RunScript = "Run a script: fib(20)";
+    public const string RunScript = "Run fib(20) in Lua";
 
     /// <summary> All scenarios, in the order they are reported. </summary>
     public static readonly string[] All =
@@ -37,8 +37,23 @@ internal static class Scenario
     /// <summary> Number of calls into managed code that <see cref="Script"/>'s <c>call_managed_add</c> makes. </summary>
     public const int ManagedCallsPerInvoke = 1000;
 
+    // Every number crosses the boundary as a floating-point value. Lua 5.4 has an integer subtype and would
+    // otherwise do integer arithmetic where the other runtimes use floating point.
+
+    /// <summary> Arguments of <c>add</c> in <see cref="CallLuaFunction"/>. </summary>
+    public const double AddLeft = 1.0;
+
+    /// <inheritdoc cref="AddLeft"/>
+    public const double AddRight = 2.0;
+
+    /// <summary> Argument of <c>call_managed_add</c> in <see cref="CallManagedFunction"/>. </summary>
+    public const double ManagedCalls = ManagedCallsPerInvoke;
+
+    /// <summary> Value written and read back in <see cref="TableSetAndGet"/>. </summary>
+    public const double TableValue = 42.0;
+
     /// <summary> Argument of <c>fib</c> in <see cref="RunScript"/>. </summary>
-    public const int FibonacciInput = 20;
+    public const double FibonacciInput = 20.0;
 
     /// <summary> The script shared by all libraries. It stays within what Lua 5.2, Lua 5.4 and Luau have in common. </summary>
     public const string Script = """
@@ -48,7 +63,8 @@ internal static class Scenario
 
         function call_managed_add(n)
             local sum = 0
-            for i = 1, n do
+            -- Starting at 1.0 makes Lua 5.4 count in floating point, like the other runtimes.
+            for i = 1.0, n do
                 sum = sum + managed_add(i, i)
             end
             return sum
