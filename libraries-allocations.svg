@@ -92,5 +92,5 @@
 <path class="context" d="M158,461 h98 a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h-98 z"/>
 <text class="value primary" x="266" y="472">21.8 KB<tspan class="muted">  13×</tspan></text>
 <line class="axis" x1="157.5" y1="384" x2="157.5" y2="480"/>
-<text class="footnote muted" x="24" y="512">2026-10-05 · AMD EPYC 9V74 80-Core Processor · .NET 10.0.12 · The factor after a value compares it with Darp.Luau.</text>
+<text class="footnote muted" x="24" y="512">2026-10-05 · AMD EPYC 9V45 96-Core Processor · .NET 10.0.12 · The factor after a value compares it with Darp.Luau.</text>
 </svg>
