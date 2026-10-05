@@ -19,8 +19,9 @@ The comparison measures two versions of the library with the same benchmark code
 The other version is packed into a local feed and selected through two environment variables.
 
 ```bash
-git worktree add tmp/benchmark-baseline origin/main
-dotnet pack tmp/benchmark-baseline/src/Darp.Luau/Darp.Luau.csproj -c Release \
+# Outside this repository: BenchmarkDotNet must not find a second copy of the benchmark project below the root.
+git worktree add ../darp-luau-baseline origin/main
+dotnet pack ../darp-luau-baseline/src/Darp.Luau/Darp.Luau.csproj -c Release \
   -o tmp/benchmark-feed -p:Version=0.0.0-baseline.1
 
 export DARP_LUAU_BASELINE_VERSION=0.0.0-baseline.1
@@ -41,7 +42,7 @@ If the baseline does not compile against the current benchmarks, its values are 
 
 The `Benchmark` workflow runs this comparison for every pull request against its target branch.
 It posts the one-row-per-benchmark table as a comment, with the full report folded below it, and updates that comment on every push.
-It never fails the build. Timings on shared runners are noisy, so trust the verdict more than the percentage. Allocations are exact.
+A slower benchmark never fails the build; the job only fails when the benchmarks could not run at all. Timings on shared runners are noisy, so trust the verdict more than the percentage. Allocations are exact.
 
 ## Comparison with other libraries
 

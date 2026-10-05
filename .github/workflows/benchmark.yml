@@ -29,10 +29,13 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
 
+      # The checkout is removed after packing: BenchmarkDotNet looks for the benchmark project by name below the
+      # repository root and stops when it finds the target branch's copy as well.
       - name: Pack target branch as baseline
         run: |
           dotnet pack tmp/benchmark-baseline/src/Darp.Luau/Darp.Luau.csproj -c Release \
             -o "$DARP_LUAU_BASELINE_FEED" -p:Version="$DARP_LUAU_BASELINE_VERSION"
+          rm -rf tmp/benchmark-baseline
 
       # Both versions are measured in one run on the same machine, so that differences between runners cancel out.
       - name: Run benchmarks
