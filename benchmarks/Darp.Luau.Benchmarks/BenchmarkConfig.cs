@@ -15,12 +15,11 @@ internal static class BenchmarkConfig
 
     public static IConfig Create()
     {
-        Job job = Job.Default.WithWarmupCount(5).WithIterationCount(15);
         ManualConfig config = DefaultConfig.Instance.AddDiagnoser(MemoryDiagnoser.Default);
 
         string? baselineVersion = Environment.GetEnvironmentVariable(BaselineVersionVariable);
         if (string.IsNullOrEmpty(baselineVersion))
-            return config.AddJob(job.WithId("Current"));
+            return config.AddJob(Job.Default.WithId("Current"));
 
         string baselineFeed =
             Environment.GetEnvironmentVariable(BaselineFeedVariable)
@@ -30,14 +29,14 @@ internal static class BenchmarkConfig
         StatisticalTestColumn timeVerdict = StatisticalTestColumn.CreateDefault();
         return config
             .AddJob(
-                job.WithMsBuildArguments(
+                Job.Default.WithMsBuildArguments(
                         $"/p:DarpLuauBaselineVersion={baselineVersion}",
                         $"/p:RestoreAdditionalProjectSources=\"{baselineFeed}\""
                     )
                     .WithId("Baseline")
                     .AsBaseline()
             )
-            .AddJob(job.WithId("Current"))
+            .AddJob(Job.Default.WithId("Current"))
             .AddColumn(timeVerdict)
             .AddExporter(new ComparisonExporter(timeVerdict))
             .HideColumns(Column.Arguments)
