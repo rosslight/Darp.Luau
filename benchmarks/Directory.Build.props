@@ -1,0 +1,9 @@
+<Project>
+  <!--
+    BenchmarkDotNet builds the benchmark project once per job. A job that benchmarks a packed
+    baseline restores a different dependency graph, so it needs its own intermediate directory.
+  -->
+  <PropertyGroup Condition="'$(DarpLuauBaselineVersion)' != ''">
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\baseline\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
