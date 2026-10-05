@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Darp.Luau.Benchmarks.Libraries.NuLua/Darp.Luau.Benchmarks.Libraries.NuLua.csproj" />
+    <Project Path="benchmarks/Darp.Luau.Benchmarks.Libraries/Darp.Luau.Benchmarks.Libraries.csproj" />
     <Project Path="benchmarks/Darp.Luau.Benchmarks/Darp.Luau.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/src/">

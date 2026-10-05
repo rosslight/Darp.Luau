@@ -1,0 +1,61 @@
+name: Benchmark libraries
+
+# Compares Darp.Luau with other Lua libraries for .NET and publishes the charts to the benchmark-results branch.
+# The README shows the chart from that branch, so it always shows the latest run. Started by hand.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: benchmark-libraries
+
+jobs:
+  publish:
+    name: Run and publish
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+
+      - name: Run benchmarks
+        run: dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --filter '*'
+
+      - name: Publish results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          results=BenchmarkDotNet.Artifacts/results
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # The branch holds only results. It is created on the first run.
+          if ! git clone --quiet --depth 1 --branch benchmark-results "$remote" published; then
+            git init --quiet --initial-branch benchmark-results published
+          fi
+
+          cp $results/*-report-time.svg published/libraries-time.svg
+          cp $results/*-report-allocations.svg published/libraries-allocations.svg
+          {
+            echo "# Benchmark results"
+            echo
+            echo "[Benchmarks](https://github.com/${GITHUB_REPOSITORY}/tree/main/benchmarks) at commit [\`${GITHUB_SHA::7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}), measured in [this run]($RUN_URL) on a GitHub-hosted runner."
+            echo
+            echo "![Mean time per operation](libraries-time.svg)"
+            echo
+            echo "![Managed memory allocated per operation](libraries-allocations.svg)"
+            echo
+            echo "## All measurements"
+            echo
+            cat $results/*-report-github.md
+          } > published/README.md
+          cat published/README.md >> "$GITHUB_STEP_SUMMARY"
+
+          cd published
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit --quiet --message "Benchmark results for ${GITHUB_SHA::7}"
+          git push --quiet "$remote" benchmark-results
