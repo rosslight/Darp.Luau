@@ -188,7 +188,8 @@ public sealed unsafe class LuauState : IDisposable
     internal bool OwnsThread(lua_State* luaState)
     {
         ArgumentNullException.ThrowIfNull(luaState);
-        return (nint)lua_mainthread(luaState) == (nint)L;
+        // Most calls run on the main thread; only coroutines pay for the lookup.
+        return luaState == L || lua_mainthread(luaState) == L;
     }
 
     private static bool IsReservedModuleName(string name) =>
