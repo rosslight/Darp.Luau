@@ -388,6 +388,7 @@ public sealed unsafe class LuauState : IDisposable
                     if (CoroutineDriver.TryAwait(luaState, result))
                         return DARP_LUAU_CALLBACK_YIELD;
 
+                    result.Release();
                     int rejectedReturnCount = LuauStateMarshal.ReturnError(
                         luaState,
                         CoroutineDriver.AwaitRejectedError

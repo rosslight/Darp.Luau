@@ -413,8 +413,8 @@ public readonly struct LuauValue : IDisposable
                 {
                     ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
                     var temp = new LuauCoroutine(_state, newHandle);
-                    value = Unsafe.As<LuauCoroutine, T>(ref temp)!;
-                    return true;
+                    value = Unsafe.As<LuauCoroutine, T>(ref temp);
+                    return value is not null;
                 }
                 return false;
             case LuauValueType.Userdata:

@@ -105,7 +105,7 @@ public readonly struct LuauReturn
     /// <para>
     /// A pending result suspends the calling coroutine until <paramref name="pending"/> completes. This requires an
     /// async host invocation: <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
-    /// Anywhere else, the script receives a Luau error.
+    /// Anywhere else, the script receives a Luau error; the work keeps running and its result is dropped.
     /// </para>
     /// <para>
     /// Read every argument before the first <c>await</c>: <see cref="LuauArgs"/> and borrowed views end with the
@@ -128,8 +128,13 @@ public readonly struct LuauReturn
     internal Task<LuauReturn>? Pending => _pending;
 
     /// <summary> Unwraps the result of completed pending work. A result that is pending itself is rejected. </summary>
-    internal static LuauReturn FromCompleted(LuauReturn result) =>
-        result.IsPending ? Error("nested await: the result of LuauReturn.Await must not be pending itself") : result;
+    internal static LuauReturn FromCompleted(LuauReturn result)
+    {
+        if (!result.IsPending)
+            return result;
+        result.Release();
+        return Error("nested await: the result of LuauReturn.Await must not be pending itself");
+    }
 
     /// <summary> Pushes return values when this result is successful. </summary>
     /// <param name="state">Target state that receives the return values.</param>
@@ -154,6 +159,7 @@ public readonly struct LuauReturn
         outputCount = 0;
         if (IsPending)
         {
+            Release();
             error = "LuauReturn.Await is only supported as the result of a managed function";
             return false;
         }
@@ -177,8 +183,25 @@ public readonly struct LuauReturn
     }
 
     /// <summary> Gives up this result without pushing it and releases captured references. </summary>
-    /// <remarks> A pending result owns no captured references; its work is left to complete on its own. </remarks>
-    internal void Release() => _buffer.Release();
+    /// <remarks> A pending result owns no captured references; its work keeps running and only a fault is observed. </remarks>
+    internal void Release()
+    {
+        if (_pending is null)
+        {
+            _buffer.Release();
+            return;
+        }
+
+        // A pending result is dropped while its work keeps running. Its result is never pushed, so whatever it
+        // captured stays tracked until the state is disposed; only a fault is observed here, without touching the
+        // state from the thread that completes the work.
+        _ = _pending.ContinueWith(
+            static task => _ = task.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
+    }
 
     private readonly struct IntoLuauCopiedBuffer(
         int length,

@@ -204,6 +204,46 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
+    public async Task RejectedAwait_WorkCompletingLaterWithAnOwnedReference_ShouldBeDropped()
+    {
+        // Completes inline on the thread that sets the result, so the late work runs while the test owns the state.
+        var gate = new TaskCompletionSource();
+        LuauState state = _state;
+        using LuauFunction late = _state.CreateFunctionBuilder(_ =>
+        {
+            LuauTable table = state.CreateTable();
+            return LuauReturn.Await(ReturnLaterAsync(table, gate.Task));
+        });
+        _state.Globals.Set("late", late);
+
+        (bool ok, string error) = _state
+            .Load(
+                """
+                local ok, err = pcall(late)
+                return ok, tostring(err)
+                """
+            )
+            .Execute<bool, string>();
+        gate.SetResult();
+        await Task.Yield();
+
+        ok.ShouldBeFalse();
+        error.ShouldContain(AwaitRejectedMessage);
+        _state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
+        return;
+
+        static async ValueTask<LuauReturn> ReturnLaterAsync(LuauTable table, Task gate)
+        {
+            using (table)
+            {
+                await gate;
+                table.Set("value", 42);
+                return LuauReturn.Ok(table);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Await_InsideScriptCoroutine_ShouldBeALuaError()
     {
         using LuauFunction wait = SetAsyncGlobal("wait", (_, _) => new ValueTask<LuauReturn>(_never.Task));

@@ -76,12 +76,18 @@ internal static unsafe class LuauFunctionInvokeCore
         CancellationToken cancellationToken
     )
     {
-        RegistryReferenceTracker.TrackedReference function = state.GetTrackedReferenceOrThrow(functionHandle);
-        LuauSynchronizationContext context = state.AsyncContext;
+        LuauSynchronizationContext context = state
+            .GetTrackedReferenceOrThrow(functionHandle)
+            .ValidateInternal()
+            .AsyncContext;
         if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
         {
             using (turn)
+            {
+                // Resolved again inside the turn: until it began, another turn may have run.
+                RegistryReferenceTracker.TrackedReference function = state.GetTrackedReferenceOrThrow(functionHandle);
                 return InvokeInTurn(function, args, resultSelector, cancellationToken);
+            }
         }
 
         return QueueInvocation(
