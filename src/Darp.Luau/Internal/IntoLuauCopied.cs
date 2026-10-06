@@ -5,7 +5,7 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal;
 
-internal readonly ref struct IntoLuauCopied
+internal readonly struct IntoLuauCopied
 {
     private enum Kind
     {

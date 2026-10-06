@@ -11,8 +11,14 @@ namespace Darp.Luau;
 /// </summary>
 /// <remarks>
 /// The default value represents an error with message <c>Unknown error</c>.
+/// A result is consumed once: its values are pushed to Luau.
 /// </remarks>
-public readonly ref struct LuauReturn
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "A callback result owns captured values and is consumed once; value equality is meaningless."
+)]
+public readonly struct LuauReturn
 {
     private readonly IntoLuauCopiedBuffer _buffer;
     private readonly string? _error;
@@ -31,14 +37,13 @@ public readonly ref struct LuauReturn
         IntoLuau value4 = default
     )
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(valueCount, 0);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(valueCount, IntoLuauCopiedBuffer.MaxLength);
+        // Only occupied slots are captured, so returning one value does not capture and later release four.
         _buffer = new IntoLuauCopiedBuffer(
             valueCount,
-            value1.CaptureCopied(),
-            value2.CaptureCopied(),
-            value3.CaptureCopied(),
-            value4.CaptureCopied()
+            valueCount > 0 ? value1.CaptureCopied() : default,
+            valueCount > 1 ? value2.CaptureCopied() : default,
+            valueCount > 2 ? value3.CaptureCopied() : default,
+            valueCount > 3 ? value4.CaptureCopied() : default
         );
         IsOk = true;
     }
@@ -106,42 +111,19 @@ public readonly ref struct LuauReturn
         [NotNullWhen(false)] out string? error
     )
     {
+        outputCount = 0;
         if (!IsOk)
         {
-            outputCount = 0;
             error = _error ?? "Unknown error";
             return false;
         }
 
         error = null;
-        outputCount = _buffer.Length;
         try
         {
-            switch (outputCount)
-            {
-                case 0:
-                    return true;
-                case 1:
-                    _buffer.Element0.Push(state, luaState);
-                    return true;
-                case 2:
-                    _buffer.Element0.Push(state, luaState);
-                    _buffer.Element1.Push(state, luaState);
-                    return true;
-                case 3:
-                    _buffer.Element0.Push(state, luaState);
-                    _buffer.Element1.Push(state, luaState);
-                    _buffer.Element2.Push(state, luaState);
-                    return true;
-                case 4:
-                    _buffer.Element0.Push(state, luaState);
-                    _buffer.Element1.Push(state, luaState);
-                    _buffer.Element2.Push(state, luaState);
-                    _buffer.Element3.Push(state, luaState);
-                    return true;
-                default:
-                    throw new InvalidOperationException("Invalid number of return values.");
-            }
+            _buffer.Push(state, luaState);
+            outputCount = _buffer.Length;
+            return true;
         }
         finally
         {
@@ -149,7 +131,7 @@ public readonly ref struct LuauReturn
         }
     }
 
-    private readonly ref struct IntoLuauCopiedBuffer(
+    private readonly struct IntoLuauCopiedBuffer(
         int length,
         IntoLuauCopied element0,
         IntoLuauCopied element1,
@@ -157,20 +139,38 @@ public readonly ref struct LuauReturn
         IntoLuauCopied element3
     )
     {
-        public const int MaxLength = 4;
+        private const int MaxLength = 4;
 
-        public readonly int Length = length;
-        public readonly IntoLuauCopied Element0 = element0;
-        public readonly IntoLuauCopied Element1 = element1;
-        public readonly IntoLuauCopied Element2 = element2;
-        public readonly IntoLuauCopied Element3 = element3;
+        public readonly int Length = length is >= 0 and <= MaxLength
+            ? length
+            : throw new ArgumentOutOfRangeException(nameof(length));
+        private readonly IntoLuauCopied _element0 = element0;
+        private readonly IntoLuauCopied _element1 = element1;
+        private readonly IntoLuauCopied _element2 = element2;
+        private readonly IntoLuauCopied _element3 = element3;
+
+        public unsafe void Push(LuauState state, lua_State* luaState)
+        {
+            if (Length > 0)
+                _element0.Push(state, luaState);
+            if (Length > 1)
+                _element1.Push(state, luaState);
+            if (Length > 2)
+                _element2.Push(state, luaState);
+            if (Length > 3)
+                _element3.Push(state, luaState);
+        }
 
         public void Release()
         {
-            Element0.Release();
-            Element1.Release();
-            Element2.Release();
-            Element3.Release();
+            if (Length > 0)
+                _element0.Release();
+            if (Length > 1)
+                _element1.Release();
+            if (Length > 2)
+                _element2.Release();
+            if (Length > 3)
+                _element3.Release();
         }
     }
 }
