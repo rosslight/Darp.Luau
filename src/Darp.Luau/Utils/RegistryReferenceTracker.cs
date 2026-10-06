@@ -154,7 +154,7 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
             _state.ThrowIfDisposed();
             lua_State* L = _state.L;
-            lua_unref(L, _luaReference);
+            _ = lua_unref(L, _luaReference);
             _state.ReferenceTracker._releasedRegistryReferenceCount++;
         }
     }
