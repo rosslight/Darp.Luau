@@ -6,8 +6,8 @@ Darp.Luau makes lifetime rules explicit. Every Luau-backed value belongs to exac
 
 | Kind | Examples | Backing storage | Valid until |
 | --- | --- | --- | --- |
-| Owned references | `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, reference-backed `LuauValue` | tracked registry reference | you dispose it, or the state is disposed |
-| Borrowed views | `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, `LuauArgs`, `LuauArgsSingle` | current callback stack frame | the callback returns |
+| Owned references | `LuauTable`, `LuauFunction`, `LuauCoroutine`, `LuauString`, `LuauBuffer`, `LuauUserdata`, reference-backed `LuauValue` | tracked registry reference | you dispose it, or the state is disposed |
+| Borrowed views | `LuauTableView`, `LuauFunctionView`, `LuauCoroutineView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, `LuauArgs`, `LuauArgsSingle` | current callback stack frame | the callback returns |
 | Borrowed spans | `ReadOnlySpan<byte>` from string or buffer reads | Luau-owned memory | only while the aliased memory stays valid |
 | Managed copies | `string`, `byte[]`, numbers, booleans | managed memory | normal .NET lifetime |
 
@@ -28,7 +28,7 @@ using LuauFunction add = lua.Globals.GetLuauFunction("add");
 double value = add.Invoke<double>(1, 2);
 ```
 
-`LuauValue` also participates in this model. If it represents `table`, `function`, `string`, `userdata`, or `buffer`, it owns a tracked reference and should be disposed.
+`LuauValue` also participates in this model. If it represents `table`, `function`, `thread`, `string`, `userdata`, or `buffer`, it owns a tracked reference and should be disposed.
 
 That also applies to values returned from `InvokeMulti(...)` or `ExecuteMulti()`: dispose each returned `LuauValue` when it may be reference-backed.
 
@@ -57,6 +57,16 @@ This example uses `CreateFunctionBuilder(...)` because it exposes `LuauArgs` dir
 
 If you use a borrowed view after the callback frame ends, the library throws `ObjectDisposedException`.
 
+## Arguments across awaits
+
+A callback that returns `LuauReturn.Await(...)` has returned before the awaited work runs. Its `LuauArgs` and views have ended by then, even though the script is still waiting for the result.
+
+- Read every argument before you return `LuauReturn.Await(...)`.
+- Pass managed copies, or owned references created with `ToOwned()`, to the awaited work.
+- Dispose those owned references in the awaited work.
+
+`LuauArgs` and views are `ref struct` types, so the compiler already rejects capturing them in async methods. See [Coroutines](../features/coroutines.md#read-arguments-before-the-first-await).
+
 ## Borrowed spans are still borrowed
 
 Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryGetUtf8String`, `TryGetBuffer`, `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
@@ -83,7 +93,7 @@ If you later do `value.TryGet(out LuauTable tableCopy)`, you now have another ow
 
 - `LuauState.Globals` is backed by a pinned global-table reference. Disposing one `Globals` wrapper does not destroy the global environment; `lua.Globals` can produce another wrapper later.
 - The library rejects cross-state reference usage with `InvalidOperationException`.
-- `LuauState` itself is not thread-safe.
+- `LuauState` itself is not thread-safe. Async invocations continue on the thread that completes the awaited work unless a `SynchronizationContext` is present; see [Coroutines](../features/coroutines.md#threads).
 
 ## Practical rules
 
