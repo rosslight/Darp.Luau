@@ -176,7 +176,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             int newKeyRef = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
             if (_lastKeyRef != 0)
             {
-                lua_unref(L, _lastKeyRef);
+                _ = lua_unref(L, _lastKeyRef);
             }
             _lastKeyRef = newKeyRef;
 
@@ -194,7 +194,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         {
             if (_lastKeyRef != 0 && _state is not null && !_state.IsDisposed)
             {
-                lua_unref(_state.L, _lastKeyRef);
+                _ = lua_unref(_state.L, _lastKeyRef);
             }
             _lastKeyRef = 0;
             _current = default;
