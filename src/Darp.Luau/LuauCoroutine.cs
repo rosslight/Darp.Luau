@@ -310,9 +310,35 @@ public readonly struct LuauCoroutine : ILuauReference
         CancellationToken cancellationToken
     )
     {
-        _state.ThrowIfDisposed();
-        return CoroutineDriver
-            .StartResume(_state, _handle, args, allowsAwait: true, cancellationToken)
-            .RunAsync(resultSelector, yieldIsError: false);
+        LuauState state = _state.GetTrackedReferenceOrThrow(_handle).ValidateInternal();
+        LuauSynchronizationContext context = state.AsyncContext;
+        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        {
+            using (turn)
+            {
+                return LuauSynchronizationContext.Detach(
+                    CoroutineDriver
+                        .StartResume(state, _handle, args, allowsAwait: true, cancellationToken)
+                        .RunAsync(resultSelector, yieldIsError: false)
+                );
+            }
+        }
+
+        // Another thread executes the state: resume in a later turn, with copies of the arguments.
+        return QueueResume(state, _handle, IntoLuau.CaptureBorrowed(args), resultSelector, cancellationToken);
     }
+
+    // Separate from ResumeCoreAsync, so that only a queued resume allocates the closure.
+    private static ValueTask<TResult> QueueResume<TResult>(
+        LuauState state,
+        ulong handle,
+        IntoLuauCopied[] copiedArgs,
+        Func<LuauArgs, TResult> resultSelector,
+        CancellationToken cancellationToken
+    ) =>
+        state.AsyncContext.Queue(() =>
+            CoroutineDriver
+                .StartResume(state, handle, copiedArgs, allowsAwait: true, cancellationToken)
+                .RunAsync(resultSelector, yieldIsError: false)
+        );
 }

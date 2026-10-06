@@ -195,6 +195,38 @@ public readonly ref struct IntoLuau
         }
     }
 
+    /// <summary>
+    /// Captures this value without touching the state, so it can be pushed later by another thread's turn.
+    /// Reference-backed values stay owned by the caller and must stay alive until they are pushed.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown for borrowed views, which end with their callback.</exception>
+    internal IntoLuauCopied CaptureBorrowed()
+    {
+        switch (Type)
+        {
+            case Kind.Value:
+                return IntoLuauCopied.FromBorrowedValue(_luauValue);
+            case Kind.TrackedReference:
+                Debug.Assert(_trackedReference is not null);
+                return IntoLuauCopied.FromBorrowedReference(_trackedReference);
+            case Kind.StackReference:
+                throw new InvalidOperationException(
+                    "A borrowed view cannot be passed to an async call that waits for another thread using the state."
+                );
+            default:
+                return CaptureCopied();
+        }
+    }
+
+    /// <summary> Captures <paramref name="values"/> with <see cref="CaptureBorrowed()"/>. </summary>
+    internal static IntoLuauCopied[] CaptureBorrowed(scoped in RefEnumerable<IntoLuau> values)
+    {
+        var copies = new IntoLuauCopied[values.Length];
+        for (int i = 0; i < copies.Length; i++)
+            copies[i] = values[i].CaptureBorrowed();
+        return copies;
+    }
+
     internal IntoLuauCopied CaptureCopied()
     {
         switch (Type)

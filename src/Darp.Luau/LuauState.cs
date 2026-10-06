@@ -26,6 +26,9 @@ public sealed unsafe class LuauState : IDisposable
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
+    /// <summary> Runs async host calls and the continuations of their managed callbacks one turn at a time. </summary>
+    internal LuauSynchronizationContext AsyncContext { get; }
+
     private readonly List<GCHandle> _callbackHandles = [];
 
     /// <summary> The global table. Used as a entry point </summary>
@@ -53,10 +56,20 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
     /// <param name="builtinLibraries">Standard Luau libraries to load.</param>
     /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
+    /// <param name="hostSynchronizationContext">
+    /// A single-threaded dispatcher of the host, such as a UI thread's context. When given, continuations of async
+    /// managed callbacks run on it; otherwise they run on thread-pool threads, one at a time.
+    /// <see cref="SynchronizationContext.Current"/> is never captured implicitly.
+    /// </param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
-    public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
+    public LuauState(
+        LuauLibraries builtinLibraries,
+        ILuauFileSystem? virtualFileSystem = null,
+        SynchronizationContext? hostSynchronizationContext = null
+    )
     {
         _virtualFileSystem = virtualFileSystem ?? new FileSystem();
+        AsyncContext = new LuauSynchronizationContext(hostSynchronizationContext);
 
         L = luaL_newstate();
         if (L is null)

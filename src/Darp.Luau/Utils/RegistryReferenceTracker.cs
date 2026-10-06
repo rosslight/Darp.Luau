@@ -108,6 +108,9 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
         public bool IsPinned { get; } = isPinned;
 
+        /// <summary> Gets whether at least one handle still refers to this reference. </summary>
+        public bool IsTracked => _numberOfManagedRefs > 0;
+
         public LuauState ValidateInternal()
         {
             _state.ThrowIfDisposed();

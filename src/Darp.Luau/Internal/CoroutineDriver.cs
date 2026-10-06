@@ -74,24 +74,23 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* coroutine = GetCoroutine(state, coroutineHandle);
-        if (FromCoroutine(coroutine) is { _pending: not null })
-            throw new InvalidOperationException("coroutine is awaiting a managed callback");
-        LuauCoroutineStatus status = GetStatus(state, coroutine);
-        if (status is not LuauCoroutineStatus.Suspended)
-            throw new InvalidOperationException($"cannot resume a coroutine with status {status}");
-
+        lua_State* coroutine = GetResumableCoroutine(state, coroutineHandle);
         int argumentCount = PushArguments(state, coroutine, args);
-        ulong driverHandle = state.ReferenceTracker.CountRefOrThrow(coroutineHandle);
-        return new CoroutineDriver(
-            state,
-            coroutine,
-            driverHandle,
-            argumentCount,
-            allowsAwait,
-            minResultCount: 0,
-            cancellationToken
-        );
+        return CreateResumeDriver(state, coroutine, coroutineHandle, argumentCount, allowsAwait, cancellationToken);
+    }
+
+    /// <inheritdoc cref="StartResume(LuauState, ulong, in RefEnumerable{IntoLuau}, bool, CancellationToken)"/>
+    public static unsafe CoroutineDriver StartResume(
+        LuauState state,
+        ulong coroutineHandle,
+        IntoLuauCopied[] args,
+        bool allowsAwait,
+        CancellationToken cancellationToken
+    )
+    {
+        lua_State* coroutine = GetResumableCoroutine(state, coroutineHandle);
+        int argumentCount = PushArguments(state, coroutine, args);
+        return CreateResumeDriver(state, coroutine, coroutineHandle, argumentCount, allowsAwait, cancellationToken);
     }
 
     /// <summary>
@@ -109,10 +108,7 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* L = state.L;
-        lua_State* coroutine = lua_newthread(L); // [function, coroutine]
-        ulong coroutineHandle = state.ReferenceTracker.TrackAndPopRef(L, -1); // [function]
-        lua_xmove(L, coroutine, 1); // []
+        lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
         int argumentCount;
         try
         {
@@ -132,6 +128,78 @@ internal sealed class CoroutineDriver
             minResultCount,
             cancellationToken
         );
+    }
+
+    /// <inheritdoc cref="StartInvocation(LuauState, in RefEnumerable{IntoLuau}, int, CancellationToken)"/>
+    public static unsafe CoroutineDriver StartInvocation(
+        LuauState state,
+        IntoLuauCopied[] args,
+        int minResultCount,
+        CancellationToken cancellationToken
+    )
+    {
+        lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
+        int argumentCount;
+        try
+        {
+            argumentCount = PushArguments(state, coroutine, args);
+        }
+        catch
+        {
+            state.ReferenceTracker.ReleaseRef(coroutineHandle);
+            throw;
+        }
+        return new CoroutineDriver(
+            state,
+            coroutine,
+            coroutineHandle,
+            argumentCount,
+            allowsAwait: true,
+            minResultCount,
+            cancellationToken
+        );
+    }
+
+    private static unsafe lua_State* GetResumableCoroutine(LuauState state, ulong coroutineHandle)
+    {
+        lua_State* coroutine = GetCoroutine(state, coroutineHandle);
+        if (FromCoroutine(coroutine) is { _pending: not null })
+            throw new InvalidOperationException("coroutine is awaiting a managed callback");
+        LuauCoroutineStatus status = GetStatus(state, coroutine);
+        if (status is not LuauCoroutineStatus.Suspended)
+            throw new InvalidOperationException($"cannot resume a coroutine with status {status}");
+        return coroutine;
+    }
+
+    private static unsafe CoroutineDriver CreateResumeDriver(
+        LuauState state,
+        lua_State* coroutine,
+        ulong coroutineHandle,
+        int argumentCount,
+        bool allowsAwait,
+        CancellationToken cancellationToken
+    )
+    {
+        ulong driverHandle = state.ReferenceTracker.CountRefOrThrow(coroutineHandle);
+        return new CoroutineDriver(
+            state,
+            coroutine,
+            driverHandle,
+            argumentCount,
+            allowsAwait,
+            minResultCount: 0,
+            cancellationToken
+        );
+    }
+
+    /// <summary> Moves the function on top of the main stack onto a new coroutine. </summary>
+    private static unsafe lua_State* CreateInvocationCoroutine(LuauState state, out ulong coroutineHandle)
+    {
+        lua_State* L = state.L;
+        lua_State* coroutine = lua_newthread(L); // [function, coroutine]
+        coroutineHandle = state.ReferenceTracker.TrackAndPopRef(L, -1); // [function]
+        lua_xmove(L, coroutine, 1); // []
+        return coroutine;
     }
 
     /// <summary> Called by a managed callback that returned a pending result. </summary>
@@ -237,6 +305,22 @@ internal sealed class CoroutineDriver
         {
             End();
         }
+    }
+
+    private static unsafe int PushArguments(LuauState state, lua_State* coroutine, IntoLuauCopied[] args)
+    {
+        int topBeforePush = lua_gettop(coroutine);
+        try
+        {
+            foreach (IntoLuauCopied arg in args)
+                arg.Push(state, coroutine);
+        }
+        catch
+        {
+            lua_settop(coroutine, topBeforePush);
+            throw;
+        }
+        return args.Length;
     }
 
     private static unsafe int PushArguments(

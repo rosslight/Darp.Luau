@@ -63,8 +63,76 @@ internal static unsafe class LuauFunctionInvokeCore
         }
     }
 
-    /// <summary> Invokes the function on a new coroutine, so managed callbacks can await. </summary>
+    /// <summary> Invokes an owned function on a new coroutine, so managed callbacks can await. </summary>
+    /// <remarks>
+    /// Runs inline when the state is idle or the caller already executes a turn. Otherwise the start is queued with
+    /// copies of the arguments; reference arguments must stay alive until the returned task completes.
+    /// </remarks>
+    public static ValueTask<TR> InvokeAsync<TR>(
+        LuauState? state,
+        ulong functionHandle,
+        scoped in RefEnumerable<IntoLuau> args,
+        Func<LuauArgs, TR> resultSelector,
+        CancellationToken cancellationToken
+    )
+    {
+        RegistryReferenceTracker.TrackedReference function = state.GetTrackedReferenceOrThrow(functionHandle);
+        LuauSynchronizationContext context = state.AsyncContext;
+        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        {
+            using (turn)
+                return InvokeInTurn(function, args, resultSelector, cancellationToken);
+        }
+
+        return QueueInvocation(
+            state,
+            functionHandle,
+            IntoLuau.CaptureBorrowed(args),
+            resultSelector,
+            cancellationToken
+        );
+    }
+
+    // Separate from InvokeAsync, so that only a queued start allocates the closure.
+    private static ValueTask<TR> QueueInvocation<TR>(
+        LuauState state,
+        ulong functionHandle,
+        IntoLuauCopied[] copiedArgs,
+        Func<LuauArgs, TR> resultSelector,
+        CancellationToken cancellationToken
+    ) =>
+        state.AsyncContext.Queue(() =>
+        {
+            RegistryReferenceTracker.TrackedReference queuedFunction = state.GetTrackedReferenceOrThrow(functionHandle);
+            LuauState validState = queuedFunction.ValidateInternal();
+#pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
+            _ = queuedFunction.PushToTop();
+#pragma warning restore CA2000
+            return CoroutineDriver
+                .StartInvocation(validState, copiedArgs, minResultCount: 0, cancellationToken)
+                .RunAsync(resultSelector, yieldIsError: true);
+        });
+
+    /// <summary> Invokes a borrowed function on a new coroutine, so managed callbacks can await. </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when another thread executes the state: a borrowed view is only valid inside its callback's turn.
+    /// </exception>
     public static ValueTask<TR> InvokeAsync<T, TR>(
+        scoped in T? source,
+        scoped in RefEnumerable<IntoLuau> args,
+        Func<LuauArgs, TR> resultSelector,
+        CancellationToken cancellationToken
+    )
+        where T : IReferenceSource, allows ref struct
+    {
+        LuauState state = source.Validate();
+        if (!state.AsyncContext.TryEnter(out LuauSynchronizationContext.Turn turn))
+            throw new InvalidOperationException("A borrowed function can only be invoked during its callback.");
+        using (turn)
+            return InvokeInTurn(source, args, resultSelector, cancellationToken);
+    }
+
+    private static ValueTask<TR> InvokeInTurn<T, TR>(
         scoped in T? source,
         scoped in RefEnumerable<IntoLuau> args,
         Func<LuauArgs, TR> resultSelector,
@@ -79,9 +147,11 @@ internal static unsafe class LuauFunctionInvokeCore
 #pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
         _ = source.PushToTop();
 #pragma warning restore CA2000
-        return CoroutineDriver
-            .StartInvocation(state, args, minResultCount: 0, cancellationToken)
-            .RunAsync(resultSelector, yieldIsError: true);
+        return LuauSynchronizationContext.Detach(
+            CoroutineDriver
+                .StartInvocation(state, args, minResultCount: 0, cancellationToken)
+                .RunAsync(resultSelector, yieldIsError: true)
+        );
     }
 
     /// <summary> Completes when <paramref name="operation"/> completes, without its placeholder result. </summary>

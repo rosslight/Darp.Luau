@@ -6,7 +6,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 
 - The main package currently targets `net10.0`.
 - `LuauState` executes source through `Load(...).Execute(...)` or `LoadFile(path).Execute(...)`. There is no separate `DoFile(...)` helper.
-- `LuauState` is not thread-safe.
+- `LuauState` is not thread-safe. Async host calls serialize their own continuations, but the synchronous API does not check which thread calls it.
 - Owned references and borrowed views are bound to a single `LuauState`; cross-state usage is invalid.
 - `CreateFunction(...)` depends on generator interception, must be called directly, and has no runtime fallback.
 - `LuauFunction.Invoke(...)` currently accepts up to 4 arguments per call through `RefEnumerable<IntoLuau>`.

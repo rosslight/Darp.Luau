@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal;
@@ -18,6 +19,8 @@ internal readonly struct IntoLuauCopied
         Buffer,
         Value,
         UserdataFactory,
+        BorrowedValue,
+        BorrowedReference,
     }
 
     private readonly Kind _type;
@@ -28,6 +31,7 @@ internal readonly struct IntoLuauCopied
     private readonly byte[]? _buffer;
     private readonly LuauValue _value;
     private readonly Func<LuauState, LuauUserdata>? _factory;
+    private readonly RegistryReferenceTracker.TrackedReference? _reference;
 
     private IntoLuauCopied(bool valueBool) => (_type, _bool) = (Kind.Bool, valueBool);
 
@@ -61,6 +65,18 @@ internal readonly struct IntoLuauCopied
         _factory = factory;
     }
 
+    private IntoLuauCopied(LuauValue value, bool isOwned)
+    {
+        _type = isOwned ? Kind.Value : Kind.BorrowedValue;
+        _value = value;
+    }
+
+    private IntoLuauCopied(RegistryReferenceTracker.TrackedReference reference)
+    {
+        _type = Kind.BorrowedReference;
+        _reference = reference;
+    }
+
     internal static IntoLuauCopied FromBool(bool value) => new(value);
 
     internal static IntoLuauCopied FromNumber(double value) => new(value);
@@ -74,6 +90,13 @@ internal readonly struct IntoLuauCopied
     internal static IntoLuauCopied FromBuffer(byte[] value) => new(value);
 
     internal static IntoLuauCopied FromValue(LuauValue value) => new(value);
+
+    /// <summary> Refers to a value the caller keeps owning; it must stay alive until the copy is pushed. </summary>
+    internal static IntoLuauCopied FromBorrowedValue(LuauValue value) => new(value, isOwned: false);
+
+    /// <summary> Refers to a reference the caller keeps owning; it must stay alive until the copy is pushed. </summary>
+    internal static IntoLuauCopied FromBorrowedReference(RegistryReferenceTracker.TrackedReference reference) =>
+        new(reference);
 
     internal static IntoLuauCopied FromUserdataFactory(Func<LuauState, LuauUserdata> factory) => new(factory);
 
@@ -124,7 +147,23 @@ internal readonly struct IntoLuauCopied
                 lua_pushunsigned(L, (uint)_integer);
                 break;
             case Kind.Value:
+            case Kind.BorrowedValue:
                 _value.Push(L);
+                break;
+            case Kind.BorrowedReference:
+                Debug.Assert(_reference is not null);
+                if (!ReferenceEquals(state, _reference.ValidateInternal()))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+                if (!_reference.IsTracked)
+                    throw new ObjectDisposedException(
+                        nameof(LuauValue),
+                        "The argument was disposed before it was used."
+                    );
+#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
+                _ = _reference.PushToTop();
+#pragma warning restore CA2000
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);

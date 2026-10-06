@@ -380,16 +380,72 @@ public readonly ref struct LuauChunk
     )
     {
         LuauState state = GetState();
+        LuauSynchronizationContext context = state.AsyncContext;
+        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        {
+            using (turn)
+            {
 #if DEBUG
-        using var guard = new StackGuard(state.L, expectedDelta: 0);
+                using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
-        // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
-        // exactly like for Execute.
-        LoadCompiledChunk(state.L);
-        return CoroutineDriver
-            .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
-            .RunAsync(resultSelector, yieldIsError: true);
+                // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
+                // exactly like for Execute.
+                LoadCompiledChunk(state.L);
+                return LuauSynchronizationContext.Detach(
+                    CoroutineDriver
+                        .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
+                        .RunAsync(resultSelector, yieldIsError: true)
+                );
+            }
+        }
+
+        // Another thread executes the state: execute in a later turn, with copies of the source and arguments.
+        return QueueExecution(
+            state,
+            _compiler,
+            _sourceKind,
+            _charSource.ToString(),
+            _utf8Source.ToArray(),
+            _chunkName.ToString(),
+            _environmentHandle,
+            IntoLuau.CaptureBorrowed(args),
+            nResults,
+            resultSelector,
+            cancellationToken
+        );
     }
+
+    // Separate from ExecuteCoreAsync, so that only a queued execution allocates the closure.
+    private static unsafe ValueTask<TResult> QueueExecution<TResult>(
+        LuauState state,
+        LuauCompiler compiler,
+        LuauChunkSourceKind sourceKind,
+        string charSource,
+        byte[] utf8Source,
+        string chunkName,
+        ulong environmentHandle,
+        IntoLuauCopied[] copiedArgs,
+        int nResults,
+        Func<LuauArgs, TResult> resultSelector,
+        CancellationToken cancellationToken
+    ) =>
+        state.AsyncContext.Queue(() =>
+        {
+            var chunk = new LuauChunk(
+                state,
+                compiler,
+                sourceKind,
+                charSource,
+                utf8Source,
+                chunkName,
+                environmentHandle
+            );
+            state.ThrowIfDisposed();
+            chunk.LoadCompiledChunk(state.L);
+            return CoroutineDriver
+                .StartInvocation(state, copiedArgs, minResultCount: nResults, cancellationToken)
+                .RunAsync(resultSelector, yieldIsError: true);
+        });
 
     private unsafe void LoadCompiledChunk(lua_State* L)
     {
