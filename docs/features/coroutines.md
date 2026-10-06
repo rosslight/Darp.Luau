@@ -114,7 +114,10 @@ await coroutine.ResumeAsync([], cancellationToken);
 Everywhere else, an awaiting callback raises a Luau error that `pcall(...)` can catch:
 
 - during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`,
-- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`.
+- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`,
+- in userdata methods.
+
+The work of a rejected callback has already started and keeps running. Its result is dropped and a fault is ignored. Luau references the work captured stay alive until the state is disposed.
 
 ## Read arguments before the first await
 
@@ -170,25 +173,31 @@ A `LuauState` runs async work in turns: synchronous stretches of execution, of w
 - An async host call (`ExecuteAsync(...)`, `InvokeAsync(...)`, `ResumeAsync(...)`) on an idle state runs on the calling thread until the script finishes or waits for a callback. If nothing waits, the call completes without any thread switch.
 - Managed callbacks run inside that turn. While they run, the state installs its own `SynchronizationContext`, so every `await` in a callback's work captures it.
 - Code after such an `await` is queued and runs in a later turn, never while another turn executes Luau. It may therefore use the state: invoke Luau functions, create tables, or return owned references with `LuauReturn.Ok(...)`.
-- Queued turns run on a thread-pool thread, one after another. Pass a host dispatcher to run them on your own thread instead:
+- Queued turns run on a thread-pool thread, one after another.
+- An async host call that starts while another thread executes a turn is queued and starts in a later turn. Its arguments are copied when you call it; reference arguments such as a `LuauTable` must stay alive until the call completes.
+- An async host call completes inside a turn, but your code after `await lua.Load(...).ExecuteAsync(...)` is kept out of it: it runs on your own context, or on a thread-pool thread.
+
+### Host dispatcher
+
+Pass a single-threaded dispatcher, such as a UI thread's `SynchronizationContext`, to run all turns on that thread:
 
 ```csharp
-// On the UI thread: continuations of async callbacks run on the UI thread.
-var lua = new LuauState(LuauLibraries.All, hostSynchronizationContext: SynchronizationContext.Current);
+// On the UI thread: async calls and continuations of async callbacks run on the UI thread.
+var lua = new LuauState(LuauLibraries.All, null, SynchronizationContext.Current);
 ```
 
-The state never picks up `SynchronizationContext.Current` on its own: a context does not guarantee that it runs one thing at a time. Only pass a context that runs its work on a single thread.
-
-- An async host call that starts while another thread executes a turn is queued and starts in a later turn. Its arguments are copied when you call it; reference arguments such as a `LuauTable` must stay alive until the call completes.
-- The task returned by an async host call completes outside of the state's turns. Your code after `await lua.Load(...).ExecuteAsync(...)` runs on your own context, or on a thread-pool thread.
+- Start async calls on the dispatcher thread. Calls started on another thread are posted to the dispatcher and start there.
+- The state never picks up `SynchronizationContext.Current` on its own: a context does not guarantee that it runs one thing at a time. Only pass a context that runs its work on a single thread.
 
 ### Rules for the host
 
-The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does no bookkeeping. While an async host call is in flight, use the state only
+The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does no bookkeeping. Use it only
 
+- when no async host call is outstanding: await all of them first,
 - inside turns, that is, in managed callbacks and in the code after their captured `await`s, or
-- after you awaited the call, or
-- from the thread of the host dispatcher, when you passed one.
+- on the dispatcher thread, when you passed a host dispatcher.
+
+Without a host dispatcher, an outstanding async call may run its next turn on a thread-pool thread at any moment, so synchronous use from your own thread is not safe until you awaited it.
 
 Await in-flight async calls before you dispose the state. If the state is disposed between turns anyway, the pending call fails with `ObjectDisposedException`.
 
