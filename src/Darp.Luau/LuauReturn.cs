@@ -7,11 +7,11 @@ namespace Darp.Luau;
 /// <summary>
 /// Represents the return value of a managed Luau callback.
 /// Use <see cref="Ok()"/> or one of the <see cref="Ok(IntoLuau)"/> overloads for successful results,
-/// or <see cref="Error(string)"/> to return an error.
+/// <see cref="Error(string)"/> to return an error, or <see cref="Await(ValueTask{LuauReturn})"/> to finish later.
 /// </summary>
 /// <remarks>
 /// The default value represents an error with message <c>Unknown error</c>.
-/// A result is consumed once: its values are pushed to Luau.
+/// A result is consumed once: its values are pushed to Luau, or released when Luau can no longer receive them.
 /// </remarks>
 [SuppressMessage(
     "Performance",
@@ -22,9 +22,13 @@ public readonly struct LuauReturn
 {
     private readonly IntoLuauCopiedBuffer _buffer;
     private readonly string? _error;
+    private readonly Task<LuauReturn>? _pending;
 
     /// <summary> Gets whether this callback result is successful. </summary>
     public bool IsOk { get; }
+
+    /// <summary> Gets whether this callback result completes later. See <see cref="Await(ValueTask{LuauReturn})"/>. </summary>
+    public bool IsPending => _pending is not null;
 
     /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
     internal const string NotHandled = "__DARP_NOT_HANDLED__";
@@ -52,6 +56,12 @@ public readonly struct LuauReturn
     {
         IsOk = false;
         _error = error;
+    }
+
+    private LuauReturn(Task<LuauReturn> pending)
+    {
+        IsOk = false;
+        _pending = pending;
     }
 
     /// <summary> Creates a successful callback result with no return values. </summary>
@@ -86,10 +96,40 @@ public readonly struct LuauReturn
     /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
     public static LuauReturn Error(string error) => new(error);
 
+    /// <summary> Creates a callback result that completes when <paramref name="pending"/> completes. </summary>
+    /// <param name="pending">The work that produces the actual result.</param>
+    /// <returns>
+    /// The result of <paramref name="pending"/> when it has already completed successfully; otherwise a pending result.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// A pending result suspends the calling coroutine until <paramref name="pending"/> completes. This requires an
+    /// async host invocation: <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
+    /// Anywhere else, the script receives a Luau error.
+    /// </para>
+    /// <para>
+    /// Read every argument before the first <c>await</c>: <see cref="LuauArgs"/> and borrowed views end with the
+    /// callback. Promote values you need afterwards with <c>ToOwned()</c>.
+    /// </para>
+    /// <para>
+    /// Work that ends with <see cref="OperationCanceledException"/> cancels the host call and finishes the
+    /// coroutine. Any other exception becomes a Luau error at the call site.
+    /// </para>
+    /// </remarks>
+    public static LuauReturn Await(ValueTask<LuauReturn> pending) =>
+        pending.IsCompletedSuccessfully ? FromCompleted(pending.Result) : new LuauReturn(pending.AsTask());
+
     /// <summary>
     /// Creates a callback result that signals the member or method is not handled.
     /// </summary>
     public static LuauReturn NotHandledError => Error(NotHandled);
+
+    /// <summary> The work a pending result waits for, or <c>null</c>. </summary>
+    internal Task<LuauReturn>? Pending => _pending;
+
+    /// <summary> Unwraps the result of completed pending work. A result that is pending itself is rejected. </summary>
+    internal static LuauReturn FromCompleted(LuauReturn result) =>
+        result.IsPending ? Error("nested await: the result of LuauReturn.Await must not be pending itself") : result;
 
     /// <summary> Pushes return values when this result is successful. </summary>
     /// <param name="state">Target state that receives the return values.</param>
@@ -112,6 +152,11 @@ public readonly struct LuauReturn
     )
     {
         outputCount = 0;
+        if (IsPending)
+        {
+            error = "LuauReturn.Await is only supported as the result of a managed function";
+            return false;
+        }
         if (!IsOk)
         {
             error = _error ?? "Unknown error";
@@ -130,6 +175,10 @@ public readonly struct LuauReturn
             _buffer.Release();
         }
     }
+
+    /// <summary> Gives up this result without pushing it and releases captured references. </summary>
+    /// <remarks> A pending result owns no captured references; its work is left to complete on its own. </remarks>
+    internal void Release() => _buffer.Release();
 
     private readonly struct IntoLuauCopiedBuffer(
         int length,

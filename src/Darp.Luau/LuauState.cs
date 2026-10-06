@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -221,6 +222,33 @@ public sealed unsafe class LuauState : IDisposable
         return handle;
     }
 
+    /// <summary> Creates a coroutine that runs <paramref name="body"/> when it is first resumed. </summary>
+    /// <param name="body">The function the coroutine runs.</param>
+    /// <returns>The created coroutine, in status <see cref="LuauCoroutineStatus.Suspended"/>.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the state or <paramref name="body"/> is disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when <paramref name="body"/> belongs to a different state.</exception>
+    public LuauCoroutine CreateCoroutine(LuauFunction body)
+    {
+        this.ThrowIfDisposed();
+        _ = body.GetHandleOrThrow();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_State* coroutine = lua_newthread(L);
+        try
+        {
+            IntoLuau bodyValue = body;
+            bodyValue.Push(this, coroutine);
+        }
+        catch
+        {
+            lua_pop(L, 1);
+            throw;
+        }
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauCoroutine(this, reference);
+    }
+
     /// <summary> Create a new table </summary>
     /// <returns> The resulting table </returns>
     public LuauTable CreateTable()
@@ -322,8 +350,12 @@ public sealed unsafe class LuauState : IDisposable
 
     private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
     {
+        private readonly LuauState _state = state;
+        private readonly LuauFunctionBuilder _onCalled = onCalled;
+
         public int Invoke(lua_State* luaState)
         {
+            LuauState state = _state;
             if (!state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
 
@@ -335,8 +367,23 @@ public sealed unsafe class LuauState : IDisposable
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
-                LuauReturn result = onCalled(args);
+                LuauReturn result = _onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
+
+                if (result.IsPending)
+                {
+                    if (CoroutineDriver.TryAwait(luaState, result))
+                        return DARP_LUAU_CALLBACK_YIELD;
+
+                    int rejectedReturnCount = LuauStateMarshal.ReturnError(
+                        luaState,
+                        CoroutineDriver.AwaitRejectedError
+                    );
+#if DEBUG
+                    nestedGuard.OverwriteExpectedDelta(1);
+#endif
+                    return rejectedReturnCount;
+                }
 
                 if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
                 {

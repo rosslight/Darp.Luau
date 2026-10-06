@@ -156,6 +156,148 @@ public readonly ref struct LuauChunk
     public LuauValue[] ExecuteMulti(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: LuaMultRet, LuauFunctionInvokeCore.ResultSelectorMulti);
 
+    /// <summary> Compiles and executes the chunk on a coroutine, ignoring any return values. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <returns>A task that completes when the chunk has finished.</returns>
+    /// <remarks>
+    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the chunk until
+    /// their work completes. Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    public ValueTask ExecuteAsync(params RefEnumerable<IntoLuau> args) => ExecuteAsync(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteAsync(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask ExecuteAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+        LuauFunctionInvokeCore.WithoutResult(
+            ExecuteCoreAsync(args, nResults: 0, LuauFunctionInvokeCore.IgnoreResults, cancellationToken)
+        );
+
+    /// <summary> Compiles and executes the chunk on a coroutine and converts the first return value. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
+    /// <returns>The first Luau return value converted to <typeparamref name="TR"/>.</returns>
+    /// <remarks>
+    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the chunk until
+    /// their work completes. Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
+    public ValueTask<TR> ExecuteAsync<TR>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync<TR>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteAsync{TR}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<TR> ExecuteAsync<TR>(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+        ExecuteCoreAsync(args, nResults: 1, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
+
+    /// <summary> Compiles and executes the chunk on a coroutine and converts the first two return values. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <returns>The first two Luau return values converted to a tuple.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync<TR1, TR2>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteAsync{TR1, TR2}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) => ExecuteCoreAsync(args, nResults: 2, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>, cancellationToken);
+
+    /// <summary> Compiles and executes the chunk on a coroutine and converts the first three return values. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
+    /// <returns>The first three Luau return values converted to a tuple.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync<TR1, TR2, TR3>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteAsync{TR1, TR2, TR3}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) => ExecuteCoreAsync(args, nResults: 3, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>, cancellationToken);
+
+    /// <summary> Compiles and executes the chunk on a coroutine and converts the first four return values. </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR4">Managed return type to convert to.</typeparam>
+    /// <returns>The first four Luau return values converted to a tuple.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
+        ExecuteAsync<TR1, TR2, TR3, TR4>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteAsync{TR1, TR2, TR3, TR4}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
+        ExecuteCoreAsync(
+            args,
+            nResults: 4,
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>,
+            cancellationToken
+        );
+
+    /// <summary>
+    /// Compiles and executes the chunk on a coroutine and returns all Luau return values as raw
+    /// <see cref="LuauValue"/> instances.
+    /// </summary>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <returns>All Luau return values as an array.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
+    public ValueTask<LuauValue[]> ExecuteMultiAsync(params RefEnumerable<IntoLuau> args) =>
+        ExecuteMultiAsync(args, CancellationToken.None);
+
+    /// <inheritdoc cref="ExecuteMultiAsync(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<LuauValue[]> ExecuteMultiAsync(
+        RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) => ExecuteCoreAsync(args, nResults: 0, LuauFunctionInvokeCore.ResultSelectorMulti, cancellationToken);
+
     /// <summary> Compiles and loads the chunk as a reusable <see cref="LuauFunction"/>. </summary>
     /// <returns>The loaded chunk represented as a function.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
@@ -224,6 +366,29 @@ public readonly ref struct LuauChunk
         {
             lua_settop(L, topBeforeInvoke);
         }
+    }
+
+    /// <param name="args">The arguments passed to the chunk.</param>
+    /// <param name="nResults">Missing results up to this count are read as <c>nil</c>, like the sync overloads.</param>
+    /// <param name="resultSelector">Reads the results.</param>
+    /// <param name="cancellationToken">Passed to the work of awaiting managed callbacks.</param>
+    private unsafe ValueTask<TResult> ExecuteCoreAsync<TResult>(
+        RefEnumerable<IntoLuau> args,
+        int nResults,
+        Func<LuauArgs, TResult> resultSelector,
+        CancellationToken cancellationToken
+    )
+    {
+        LuauState state = GetState();
+#if DEBUG
+        using var guard = new StackGuard(state.L, expectedDelta: 0);
+#endif
+        // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
+        // exactly like for Execute.
+        LoadCompiledChunk(state.L);
+        return CoroutineDriver
+            .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
+            .RunAsync(resultSelector, yieldIsError: true);
     }
 
     private unsafe void LoadCompiledChunk(lua_State* L)

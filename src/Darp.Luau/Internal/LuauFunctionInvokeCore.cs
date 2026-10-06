@@ -63,6 +63,39 @@ internal static unsafe class LuauFunctionInvokeCore
         }
     }
 
+    /// <summary> Invokes the function on a new coroutine, so managed callbacks can await. </summary>
+    public static ValueTask<TR> InvokeAsync<T, TR>(
+        scoped in T? source,
+        scoped in RefEnumerable<IntoLuau> args,
+        Func<LuauArgs, TR> resultSelector,
+        CancellationToken cancellationToken
+    )
+        where T : IReferenceSource, allows ref struct
+    {
+        LuauState state = source.Validate();
+#if DEBUG
+        using var guard = new StackGuard(state.L, expectedDelta: 0);
+#endif
+#pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
+        _ = source.PushToTop();
+#pragma warning restore CA2000
+        return CoroutineDriver
+            .StartInvocation(state, args, minResultCount: 0, cancellationToken)
+            .RunAsync(resultSelector, yieldIsError: true);
+    }
+
+    /// <summary> Completes when <paramref name="operation"/> completes, without its placeholder result. </summary>
+    public static ValueTask WithoutResult(ValueTask<bool> operation)
+    {
+        if (!operation.IsCompletedSuccessfully)
+            return new ValueTask(operation.AsTask());
+        _ = operation.Result;
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary> Ignores all results. Used where no result is requested. </summary>
+    public static bool IgnoreResults(LuauArgs a) => false;
+
     public static TR ResultSelector<TR>(LuauArgs a) => a.Read<TR>(1);
 
     public static (TR1, TR2) ResultSelector<TR1, TR2>(LuauArgs a) => (a.Read<TR1>(1), a.Read<TR2>(2));

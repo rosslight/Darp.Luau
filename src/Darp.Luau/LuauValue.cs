@@ -37,7 +37,7 @@ public enum LuauValueType
     /// <summary>Represents a Lua function.</summary>
     Function,
 
-    /// <summary>Represents a Lua thread.</summary>
+    /// <summary>Represents a Luau coroutine. See <see cref="LuauCoroutine"/>.</summary>
     Thread,
 
     /// <summary>Represents a Lua userdata value.</summary>
@@ -136,6 +136,7 @@ public readonly struct LuauValue : IDisposable
                     is LuauValueType.String
                         or LuauValueType.Table
                         or LuauValueType.Function
+                        or LuauValueType.Thread
                         or LuauValueType.Userdata
                         or LuauValueType.Buffer
                 && _state.ReferenceTracker.HasRegistryReference(_union.ValueHandle)
@@ -405,6 +406,17 @@ public readonly struct LuauValue : IDisposable
                     return true;
                 }
                 return false;
+            case LuauValueType.Thread:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
+                if (typeof(T) == typeof(LuauCoroutine))
+                {
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauCoroutine(_state, newHandle);
+                    value = Unsafe.As<LuauCoroutine, T>(ref temp)!;
+                    return true;
+                }
+                return false;
             case LuauValueType.Userdata:
                 if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
                     return false;
@@ -478,6 +490,7 @@ public readonly struct LuauValue : IDisposable
             case LuauValueType.String
             or LuauValueType.Table
             or LuauValueType.Function
+            or LuauValueType.Thread
             or LuauValueType.Userdata
             or LuauValueType.Buffer:
                 if (_state is null)
@@ -526,6 +539,9 @@ public readonly struct LuauValue : IDisposable
             case lua_Type.LUA_TFUNCTION:
                 ulong referenceFunction = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
+            case lua_Type.LUA_TTHREAD:
+                ulong referenceThread = state.ReferenceTracker.TrackRef(L, index);
+                return new LuauValue(state, LuauValueType.Thread, new LuauValueUnion(referenceThread));
             case lua_Type.LUA_TUSERDATA:
                 ulong referenceUserdata = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Userdata, new LuauValueUnion(referenceUserdata));
@@ -549,6 +565,7 @@ public readonly struct LuauValue : IDisposable
             is not LuauValueType.String
                 and not LuauValueType.Table
                 and not LuauValueType.Function
+                and not LuauValueType.Thread
                 and not LuauValueType.Userdata
                 and not LuauValueType.Buffer
         )
@@ -579,6 +596,8 @@ public readonly struct LuauValue : IDisposable
                 return new LuauTable(_state, _union.ValueHandle).ToString();
             case LuauValueType.Function:
                 return new LuauFunction(_state, _union.ValueHandle).ToString();
+            case LuauValueType.Thread:
+                return new LuauCoroutine(_state, _union.ValueHandle).ToString();
             case LuauValueType.Userdata:
             {
                 _state.ThrowIfDisposed();

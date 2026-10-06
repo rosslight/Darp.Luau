@@ -263,6 +263,21 @@ public unsafe partial struct LuauTable
         return true;
     }
 
+    private bool TryGetLuauCoroutine(in IntoLuau key, out LuauCoroutine value, [NotNullWhen(false)] out string? error)
+    {
+        _state.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(_state.L, expectedDelta: 0);
+#endif
+        value = default;
+        if (!TryGetRequired(key, lua_Type.LUA_TTHREAD, out lua_State* L, out error))
+            return false;
+
+        value = new LuauCoroutine(_state, _state.ReferenceTracker.TrackRef(L, -1));
+        lua_pop(L, 2);
+        return true;
+    }
+
     private bool TryGetLuauString(in IntoLuau key, out LuauString value, [NotNullWhen(false)] out string? error)
     {
         _state.ThrowIfDisposed();
