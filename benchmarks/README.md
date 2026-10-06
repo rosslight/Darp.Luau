@@ -52,9 +52,9 @@ dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --f
 
 Darp.Luau is compared with:
 
-- [NuLua](https://github.com/nuskey8/NuLua) (Unified Lua5.x/LuaJIT/Luau bindings for .NET and Unity) - tested v0.1.0, Luau
-- [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET) - tested v1.7.9, Lua 5.4
-- [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity) - tested v0.5.7, Lua 5.2 in .NET
+- [NuLua](https://github.com/nuskey8/NuLua) (Unified Lua5.x/LuaJIT/Luau bindings for .NET and Unity)
+- [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET)
+- [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity)
 
 Every library runs the same five scenarios from `Scenario.cs`:
 
@@ -73,10 +73,10 @@ Rules that keep it comparable:
 - Each library is called through the high-level API from its documentation.
 - Allocations are managed memory only; memory allocated by a native Lua or Luau is not counted.
 
-The run also writes `*-report-time.svg` and `*-report-allocations.svg` to `BenchmarkDotNet.Artifacts/results`.
+The run also writes `*-report-chart.svg` to `BenchmarkDotNet.Artifacts/results`. It shows time and allocations side by side, and the version of every library, which it takes from the package references.
 
 NuLua's Luau backend ships a native library with the same file name as Darp.Luau's, so its benchmarks are a separate project that BenchmarkDotNet builds into its own executable.
 
 ### Publishing
 
-The `Benchmark libraries` workflow is started by hand and commits the charts and the full table to the `benchmark-results` branch. The repository README shows the time chart from there.
+The `Benchmark libraries` workflow is started by hand and commits the chart and the full table to the `benchmark-results` branch. The repository README shows the chart from there.

@@ -12,6 +12,11 @@
     <PackageReference Include="NuLua.Luau" Version="0.1.0" />
   </ItemGroup>
 
+  <!-- Records the version of every referenced package in the assembly, where the chart reads it from. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="@(PackageReference->'PackageVersion:%(Identity)')" Value="%(Version)" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="..\Darp.Luau.Benchmarks.Libraries\Scenario.cs" Link="Scenario.cs" />
   </ItemGroup>

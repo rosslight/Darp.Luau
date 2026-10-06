@@ -8,43 +8,15 @@ using BenchmarkDotNet.Running;
 
 namespace Darp.Luau.Benchmarks.Libraries;
 
-/// <summary> Draws one measure of all libraries in all scenarios as an SVG chart. </summary>
+/// <summary> Draws the time and the allocations of all libraries in all scenarios as one SVG chart. </summary>
 internal sealed class ChartExporter : ExporterBase
 {
-    private readonly string _fileNameSuffix;
-    private readonly string _subtitle;
-    private readonly Func<BenchmarkReport, double?> _measure;
-    private readonly Func<double, string> _format;
+    private static readonly Measure[] Measures = [new("Mean time", FormatTime), new("Allocated", FormatBytes)];
 
-    private ChartExporter(
-        string fileNameSuffix,
-        string subtitle,
-        Func<BenchmarkReport, double?> measure,
-        Func<double, string> format
-    )
-    {
-        _fileNameSuffix = fileNameSuffix;
-        _subtitle = subtitle;
-        _measure = measure;
-        _format = format;
-    }
-
-    public static ChartExporter Time { get; } =
-        new("-time", "Mean time per operation. Lower is better.", report => report.ResultStatistics?.Mean, FormatTime);
-
-    public static ChartExporter Allocations { get; } =
-        new(
-            "-allocations",
-            "Managed memory allocated per operation. Lower is better.",
-            report =>
-                report.ResultStatistics is null
-                    ? null
-                    : report.GcStats.GetBytesAllocatedPerOperation(report.BenchmarkCase) ?? 0,
-            FormatBytes
-        );
+    public static ChartExporter Default { get; } = new();
 
     protected override string FileExtension => "svg";
-    protected override string FileNameSuffix => _fileNameSuffix;
+    protected override string FileNameSuffix => "-chart";
 
     public override void ExportToLog(Summary summary, ILogger logger)
     {
@@ -52,29 +24,70 @@ internal sealed class ChartExporter : ExporterBase
         [
             .. Scenario.All.Select(scenario => new Panel(
                 scenario,
-                [.. Library.All.Select(library => new Bar(library, Measure(summary, scenario, library)))]
+                [
+                    .. Library.All.Select(library =>
+                    {
+                        BenchmarkReport? report = FindReport(summary, scenario, library);
+                        return new Row(library, [MeanTime(report), Allocated(report)]);
+                    }),
+                ]
             )),
+        ];
+
+        Assembly benchmarks = typeof(DarpLuauBenchmarks).Assembly;
+        LegendEntry[] legend =
+        [
+            new(Library.DarpLuau, CommitOf(typeof(LuauState).Assembly), "Luau (native)"),
+            new(Library.NuLua, PackageVersion(typeof(NuLuaBenchmarks).Assembly, "NuLua"), "Luau (native)"),
+            new(Library.NLua, PackageVersion(benchmarks, "NLua"), "Lua 5.4 (native)"),
+            new(Library.LuaCSharp, PackageVersion(benchmarks, "LuaCSharp"), "Lua 5.2 (written in C#)"),
         ];
 
         var chart = new BarChart(
             title: $"{Library.DarpLuau} and other Lua libraries for .NET",
-            subtitle: _subtitle,
-            footnote: DescribeRun(summary),
+            subtitle: "Mean time and managed memory allocated per operation. Lower is better.",
+            footnotes:
+            [
+                $"Bars share a scale within one scenario. The factor after a value compares it with {Library.DarpLuau}.",
+                DescribeRun(summary),
+            ],
             highlightedLibrary: Library.DarpLuau
         );
-        logger.Write(chart.Render(panels, _format));
+        logger.Write(chart.Render(Measures, panels, legend));
     }
 
-    private double? Measure(Summary summary, string scenario, string library)
+    private static BenchmarkReport? FindReport(Summary summary, string scenario, string library)
     {
         BenchmarkCase? benchmarkCase = summary.BenchmarksCases.FirstOrDefault(candidate =>
             candidate.Descriptor.WorkloadMethod.GetCustomAttribute<BenchmarkAttribute>()?.Description == scenario
             && candidate.Descriptor.Categories.Contains(library)
         );
-        if (benchmarkCase is null)
-            return null;
-        BenchmarkReport? report = summary[benchmarkCase];
-        return report is null ? null : _measure(report);
+        return benchmarkCase is null ? null : summary[benchmarkCase];
+    }
+
+    private static double? MeanTime(BenchmarkReport? report) => report?.ResultStatistics?.Mean;
+
+    private static double? Allocated(BenchmarkReport? report) =>
+        report?.ResultStatistics is null
+            ? null
+            : report.GcStats.GetBytesAllocatedPerOperation(report.BenchmarkCase) ?? 0;
+
+    /// <summary> The version of a package referenced by a benchmark project, which the project records as assembly metadata. </summary>
+    private static string PackageVersion(Assembly benchmarks, string package) =>
+        benchmarks
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .First(metadata => metadata.Key == $"PackageVersion:{package}")
+            .Value
+        ?? "";
+
+    /// <summary> The commit Darp.Luau was built from. It is built from source, so it has no release version. </summary>
+    private static string CommitOf(Assembly assembly)
+    {
+        // Reported as "1.0.0+37c7c5d4e0..." when built inside a git repository.
+        string[] version = (
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? ""
+        ).Split('+');
+        return version.Length > 1 ? version[1][..Math.Min(7, version[1].Length)] : "";
     }
 
     private static string DescribeRun(Summary summary)
@@ -83,7 +96,7 @@ internal sealed class ChartExporter : ExporterBase
         string processor = summary.HostEnvironmentInfo.Cpu.Value.ProcessorName ?? "unknown processor";
         // Reported as ".NET 10.0.1 (10.0.1, 10.0.125.57005)"; the first part is enough.
         string runtime = summary.HostEnvironmentInfo.RuntimeVersion.Split(" (")[0];
-        return $"{date} · {processor} · {runtime} · The factor after a value compares it with {Library.DarpLuau}.";
+        return $"Measured {date} · {processor} · {runtime}";
     }
 
     private static string FormatTime(double nanoseconds)
