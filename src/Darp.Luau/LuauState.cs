@@ -56,16 +56,24 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
     /// <param name="builtinLibraries">Standard Luau libraries to load.</param>
     /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
+    /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
+    public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
+        : this(builtinLibraries, virtualFileSystem, hostSynchronizationContext: null) { }
+
+    /// <summary>Initializes a new LuauState whose async work runs on a host dispatcher.</summary>
+    /// <param name="builtinLibraries">Standard Luau libraries to load.</param>
+    /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
     /// <param name="hostSynchronizationContext">
-    /// A single-threaded dispatcher of the host, such as a UI thread's context. When given, continuations of async
-    /// managed callbacks run on it; otherwise they run on thread-pool threads, one at a time.
+    /// A single-threaded dispatcher of the host, such as a UI thread's context. When given, async host calls and
+    /// the continuations of async managed callbacks run on it: calls started on another thread are posted to it.
+    /// When <c>null</c>, they run on the calling thread and on thread-pool threads, one at a time.
     /// <see cref="SynchronizationContext.Current"/> is never captured implicitly.
     /// </param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
     public LuauState(
         LuauLibraries builtinLibraries,
-        ILuauFileSystem? virtualFileSystem = null,
-        SynchronizationContext? hostSynchronizationContext = null
+        ILuauFileSystem? virtualFileSystem,
+        SynchronizationContext? hostSynchronizationContext
     )
     {
         _virtualFileSystem = virtualFileSystem ?? new FileSystem();

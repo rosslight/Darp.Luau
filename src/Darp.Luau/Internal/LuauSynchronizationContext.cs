@@ -34,9 +34,12 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
 
     public LuauSynchronizationContext(SynchronizationContext? hostContext) => _hostContext = hostContext;
 
-    /// <summary> Enters a turn on the calling thread, unless another thread owns the state. </summary>
+    /// <summary>
+    /// Enters a turn on the calling thread, unless another thread owns the state or, with a host dispatcher, the
+    /// calling thread is not the dispatcher's.
+    /// </summary>
     /// <param name="turn">The turn to dispose when the synchronous part of the work is done.</param>
-    /// <returns><c>false</c> when another thread owns the state; queue the work with <see cref="Queue{T}"/>.</returns>
+    /// <returns><c>false</c> when the work must be queued with <see cref="Queue{T}"/>.</returns>
     public bool TryEnter(out Turn turn)
     {
         int currentThreadId = Environment.CurrentManagedThreadId;
@@ -44,6 +47,13 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         {
             turn = new Turn(this, isRoot: false);
             return true;
+        }
+
+        // With a host dispatcher, every turn runs on it. Dispatchers install themselves on their thread.
+        if (_hostContext is not null && !ReferenceEquals(Current, _hostContext))
+        {
+            turn = default;
+            return false;
         }
 
         using (_gate.EnterScope())

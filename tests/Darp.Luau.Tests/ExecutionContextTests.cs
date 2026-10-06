@@ -116,19 +116,32 @@ public sealed class ExecutionContextTests : IDisposable
     }
 
     [Fact]
-    public async Task HostDispatcher_ShouldRunAllContinuations()
+    public async Task HostDispatcher_ShouldRunCallsStartedElsewhereAndAllContinuationsOnItsThread()
     {
         using var dispatcher = new SingleThreadSynchronizationContext();
-        using var state = new LuauState(LuauLibraries.All, hostSynchronizationContext: dispatcher);
+        using var state = new LuauState(LuauLibraries.All, null, dispatcher);
+        var callbackThreads = new ConcurrentBag<int>();
         var continuationThreads = new ConcurrentBag<int>();
         using LuauFunction record = state.CreateFunctionBuilder(_ =>
-            LuauReturn.Await(RecordAsync(continuationThreads))
-        );
+        {
+            callbackThreads.Add(Environment.CurrentManagedThreadId);
+            return LuauReturn.Await(RecordAsync(continuationThreads));
+        });
         state.Globals.Set("record", record);
 
+        // Started off the dispatcher: posted to it.
+        Environment.CurrentManagedThreadId.ShouldNotBe(dispatcher.ThreadId);
         await state.Load("record() record()").ExecuteAsync([], TestToken);
-        await dispatcher.Run(() => state.Load("record()").ExecuteAsync([], TestToken).AsTask());
+        // Started on the dispatcher: admitted inline, and completes synchronously without awaiting callbacks.
+        await dispatcher.Run(async () =>
+        {
+            ValueTask<int> completed = state.Load("return 1").ExecuteAsync<int>([], TestToken);
+            completed.IsCompletedSuccessfully.ShouldBeTrue();
+            await state.Load("record()").ExecuteAsync([], TestToken);
+        });
 
+        callbackThreads.Count.ShouldBe(3);
+        callbackThreads.ShouldAllBe(threadId => threadId == dispatcher.ThreadId);
         continuationThreads.Count.ShouldBe(6);
         continuationThreads.ShouldAllBe(threadId => threadId == dispatcher.ThreadId);
         return;
