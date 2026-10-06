@@ -1,6 +1,6 @@
 name: Benchmark libraries
 
-# Compares Darp.Luau with other Lua libraries for .NET and publishes the charts to the benchmark-results branch.
+# Compares Darp.Luau with other Lua libraries for .NET and publishes the chart to the benchmark-results branch.
 # The README shows the chart from that branch, so it always shows the latest run. Started by hand.
 on:
   workflow_dispatch:
@@ -36,16 +36,15 @@ jobs:
             git init --quiet --initial-branch benchmark-results published
           fi
 
-          cp $results/*-report-time.svg published/libraries-time.svg
-          cp $results/*-report-allocations.svg published/libraries-allocations.svg
+          cp $results/*-report-chart.svg published/libraries.svg
+          # Charts of earlier versions of this workflow.
+          rm -f published/libraries-time.svg published/libraries-allocations.svg
           {
             echo "# Benchmark results"
             echo
             echo "[Benchmarks](https://github.com/${GITHUB_REPOSITORY}/tree/main/benchmarks) at commit [\`${GITHUB_SHA::7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}), measured in [this run]($RUN_URL) on a GitHub-hosted runner."
             echo
-            echo "![Mean time per operation](libraries-time.svg)"
-            echo
-            echo "![Managed memory allocated per operation](libraries-allocations.svg)"
+            echo "![Mean time and managed memory allocated per operation](libraries.svg)"
             echo
             echo "## All measurements"
             echo

@@ -4,9 +4,9 @@ namespace Darp.Luau.Benchmarks.Libraries;
 internal static class Library
 {
     public const string DarpLuau = "Darp.Luau";
-    public const string NuLua = "NuLua (Luau)";
-    public const string NLua = "NLua (Lua 5.4)";
-    public const string LuaCSharp = "Lua-CSharp (Lua 5.2)";
+    public const string NuLua = "NuLua";
+    public const string NLua = "NLua";
+    public const string LuaCSharp = "Lua-CSharp";
 
     /// <summary> All libraries, in the order they are reported. </summary>
     public static readonly string[] All = [DarpLuau, NuLua, NLua, LuaCSharp];
