@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -11,11 +12,24 @@ namespace Darp.Luau;
 /// </summary>
 internal static class LuauStateMarshal
 {
-    public static unsafe int ReturnResult(lua_State* state, LuaResult<int, string> result)
+    /// <summary>
+    /// Finishes a native callback with the result of its managed callback: returns its values, raises its error, or
+    /// suspends the coroutine until its pending work completes.
+    /// </summary>
+    public static unsafe int ReturnCallbackResult(LuauState state, lua_State* luaState, in LuauReturn result)
     {
-        return result.TryGetValue(out int value, out string? error)
-            ? ReturnSuccess(state, value)
-            : ReturnError(state, error);
+        if (result.IsPending)
+        {
+            if (CoroutineDriver.TryAwait(luaState, result))
+                return DARP_LUAU_CALLBACK_YIELD;
+
+            result.Release();
+            return ReturnError(luaState, CoroutineDriver.AwaitRejectedError);
+        }
+
+        return result.TryPushValues(state, luaState, out int outputCount, out string? error)
+            ? ReturnSuccess(luaState, outputCount)
+            : ReturnError(luaState, error);
     }
 
     public static unsafe int ReturnError(lua_State* state, ReadOnlySpan<byte> message)
