@@ -55,14 +55,14 @@ public class LuaCSharpBenchmarks : IDisposable
         _fib = _state.Environment["fib"];
     }
 
-    [Benchmark(Description = Scenario.CreateState)]
+    [Benchmark(Description = Scenario.CreateState, OperationsPerInvoke = 1)]
     public void CreateState()
     {
         using LuaState state = LuaState.Create();
         state.OpenStandardLibraries();
     }
 
-    [Benchmark(Description = Scenario.CallLuaFunction)]
+    [Benchmark(Description = Scenario.CallLuaFunction, OperationsPerInvoke = 1)]
     public async ValueTask<double> CallLuaFunction() =>
         (await _state.CallAsync(_add, [Scenario.AddLeft, Scenario.AddRight]))[0].Read<double>();
 
@@ -70,7 +70,7 @@ public class LuaCSharpBenchmarks : IDisposable
     public async ValueTask<double> CallManagedFunction() =>
         (await _state.CallAsync(_callManagedAdd, [Scenario.ManagedCalls]))[0].Read<double>();
 
-    [Benchmark(Description = Scenario.CallLuaFunctionAsync)]
+    [Benchmark(Description = Scenario.CallLuaFunctionAsync, OperationsPerInvoke = 1)]
     public ValueTask<double> CallLuaFunctionAsync() => CallLuaFunction();
 
     [Benchmark(
@@ -87,14 +87,14 @@ public class LuaCSharpBenchmarks : IDisposable
     public async ValueTask<double> CallManagedFunctionAsyncYielding() =>
         (await _state.CallAsync(_callManagedAddAsync, [Scenario.ManagedCalls, _managedAddYielding]))[0].Read<double>();
 
-    [Benchmark(Description = Scenario.TableSetAndGet)]
+    [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
     {
         _table["key"] = Scenario.TableValue;
         return _table["key"].Read<double>();
     }
 
-    [Benchmark(Description = Scenario.RunScript)]
+    [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
     public async ValueTask<double> RunScript() =>
         (await _state.CallAsync(_fib, [Scenario.FibonacciInput]))[0].Read<double>();
 

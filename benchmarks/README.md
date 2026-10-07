@@ -84,6 +84,8 @@ To run only the async scenarios:
 dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --filter '*Async*'
 ```
 
+Every benchmark declares `OperationsPerInvoke` explicitly. It is `1` for a single Lua call, table set/get pair, Fibonacci calculation or state creation/disposal. The managed-callback benchmarks invoke one Lua loop containing `Scenario.ManagedCallsPerInvoke` (1000) callbacks, so they declare that count for both synchronous and async callbacks. BenchmarkDotNet divides the measured time and allocations by this count; the loop and outer invocation costs remain included in the per-callback result.
+
 Rules that keep it comparable:
 
 - All numbers are passed as floating-point values, so Lua 5.4 does not switch to integer arithmetic.

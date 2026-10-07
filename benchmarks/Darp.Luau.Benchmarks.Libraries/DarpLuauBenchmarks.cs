@@ -46,19 +46,19 @@ public class DarpLuauBenchmarks : IDisposable
         _table = _state.CreateTable();
     }
 
-    [Benchmark(Description = Scenario.CreateState)]
+    [Benchmark(Description = Scenario.CreateState, OperationsPerInvoke = 1)]
     public void CreateState()
     {
         using var state = new LuauState();
     }
 
-    [Benchmark(Description = Scenario.CallLuaFunction)]
+    [Benchmark(Description = Scenario.CallLuaFunction, OperationsPerInvoke = 1)]
     public double CallLuaFunction() => _add.Invoke<double>(Scenario.AddLeft, Scenario.AddRight);
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
     public double CallManagedFunction() => _callManagedAdd.Invoke<double>(Scenario.ManagedCalls);
 
-    [Benchmark(Description = Scenario.CallLuaFunctionAsync)]
+    [Benchmark(Description = Scenario.CallLuaFunctionAsync, OperationsPerInvoke = 1)]
     public ValueTask<double> CallLuaFunctionAsync() => _add.InvokeAsync<double>(Scenario.AddLeft, Scenario.AddRight);
 
     [Benchmark(
@@ -81,14 +81,14 @@ public class DarpLuauBenchmarks : IDisposable
         return LuauReturn.Ok(a + b);
     }
 
-    [Benchmark(Description = Scenario.TableSetAndGet)]
+    [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
     {
         _table.Set("key", Scenario.TableValue);
         return _table.GetNumber("key");
     }
 
-    [Benchmark(Description = Scenario.RunScript)]
+    [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
     public double RunScript() => _fib.Invoke<double>(Scenario.FibonacciInput);
 
     [GlobalCleanup]

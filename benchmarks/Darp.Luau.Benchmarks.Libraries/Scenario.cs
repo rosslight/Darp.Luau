@@ -40,7 +40,10 @@ internal static class Scenario
         CreateState,
     ];
 
-    /// <summary> Number of calls into managed code that <see cref="Script"/>'s <c>call_managed_add</c> makes. </summary>
+    /// <summary>
+    /// Number of callbacks in one invocation of <c>call_managed_add</c> or <c>call_managed_add_async</c>.
+    /// Their benchmarks set OperationsPerInvoke to this count to report time and allocations per callback.
+    /// </summary>
     public const int ManagedCallsPerInvoke = 1000;
 
     // Every number crosses the boundary as a floating-point value. Lua 5.4 has an integer subtype and would

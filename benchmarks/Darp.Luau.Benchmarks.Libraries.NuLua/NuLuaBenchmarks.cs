@@ -45,20 +45,20 @@ public class NuLuaBenchmarks : IDisposable
         _table = _state.CreateTable();
     }
 
-    [Benchmark(Description = Scenario.CreateState)]
+    [Benchmark(Description = Scenario.CreateState, OperationsPerInvoke = 1)]
     public void CreateState()
     {
         using LuauState state = LuauState.Create();
         state.OpenLibraries();
     }
 
-    [Benchmark(Description = Scenario.CallLuaFunction)]
+    [Benchmark(Description = Scenario.CallLuaFunction, OperationsPerInvoke = 1)]
     public double CallLuaFunction() => _add.Invoke(Scenario.AddLeft, Scenario.AddRight)[0].Read<double>();
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
     public double CallManagedFunction() => _callManagedAdd.Invoke(Scenario.ManagedCalls)[0].Read<double>();
 
-    [Benchmark(Description = Scenario.CallLuaFunctionAsync)]
+    [Benchmark(Description = Scenario.CallLuaFunctionAsync, OperationsPerInvoke = 1)]
     public async ValueTask<double> CallLuaFunctionAsync() =>
         (await _add.InvokeAsync(new LuaValue[] { Scenario.AddLeft, Scenario.AddRight }))[0].Read<double>();
 
@@ -70,14 +70,14 @@ public class NuLuaBenchmarks : IDisposable
         (await _callManagedAddAsync.InvokeAsync(new LuaValue[] { Scenario.ManagedCalls, _managedAddCompleted }))[0]
             .Read<double>();
 
-    [Benchmark(Description = Scenario.TableSetAndGet)]
+    [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
     {
         _table["key"] = Scenario.TableValue;
         return _table["key"].Read<double>();
     }
 
-    [Benchmark(Description = Scenario.RunScript)]
+    [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
     public double RunScript() => _fib.Invoke(Scenario.FibonacciInput)[0].Read<double>();
 
     [GlobalCleanup]
