@@ -90,4 +90,4 @@ jobs:
         run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests /warnaserror
       - name: Test Native AOT
         working-directory: ./artifacts/native-aot-tests
-        run: ./Darp.Luau.Tests${{ runner.os == 'Windows' && '.exe' || '' }} -parallelMode none -reporter verbose
+        run: ./Darp.Luau.Tests${{ runner.os == 'Windows' && '.exe' || '' }}
