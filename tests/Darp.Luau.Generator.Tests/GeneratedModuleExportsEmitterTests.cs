@@ -32,6 +32,29 @@ public sealed class GeneratedModuleExportsEmitterTests
     }
 
     [Fact]
+    public async Task StaticModule_WithAwaitableFunction_ShouldAwaitIt()
+    {
+        const string code = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauModule("net")]
+            public static partial class NetModule
+            {
+                [LuauMember("fetch")]
+                public static async Task<string> FetchAsync(string url, CancellationToken cancellationToken)
+                {
+                    await Task.Delay(1, cancellationToken);
+                    return url;
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task StaticModule_WithMethodNameCollidingWithGeneratedLocal_ShouldGenerateQualifiedCall()
     {
         const string code = """

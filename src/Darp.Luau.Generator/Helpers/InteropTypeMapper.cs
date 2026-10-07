@@ -171,6 +171,9 @@ internal static class InteropTypeMapper
             case "global::Darp.Luau.LuauUserdataView":
                 mapping = new InteropType(LuauInteropKind.LuauUserdataView, isNullable, null);
                 return true;
+            case "global::System.Threading.CancellationToken":
+                mapping = new InteropType(LuauInteropKind.CancellationToken, isNullable, null);
+                return true;
             default:
                 mapping = default;
                 return false;
@@ -202,6 +205,13 @@ internal static class InteropTypeMapper
 
     public static bool SupportsUsage(InteropType mapping, LuauInteropTypeUsage usage)
     {
+        if (mapping.Type is LuauInteropKind.CancellationToken)
+        {
+            return usage
+                is LuauInteropTypeUsage.ModuleFunctionParameter
+                    or LuauInteropTypeUsage.UserdataMethodParameter;
+        }
+
         return usage switch
         {
             LuauInteropTypeUsage.ModuleFunctionReturn or LuauInteropTypeUsage.UserdataMethodReturn =>

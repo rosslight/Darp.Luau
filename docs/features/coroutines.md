@@ -91,6 +91,7 @@ For the script, `fetch(url)` is a normal call that returns the body. While the w
 - If the work has already completed successfully, `LuauReturn.Await(...)` returns its result directly and the script does not suspend.
 - The work completes with `LuauReturn.Ok(...)` or `LuauReturn.Error(...)` like a sync callback.
 - A userdata method can await in the same way: return `LuauReturn.Await(...)` from `OnMethodCall`. Property reads and writes cannot await.
+- Generated `[LuauModule]` functions and `[LuauUserdata]` methods await by returning `Task` or `ValueTask`. See [Generated async methods](userdata.md#generated-async-methods).
 
 ## Run scripts that await
 

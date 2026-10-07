@@ -24,6 +24,14 @@ internal enum LuauExportPropertyAccess
     ReadWrite = 3,
 }
 
+/// <summary> The awaitable an exported method returns. Luau receives its result. </summary>
+internal enum AwaitableReturnKind
+{
+    None,
+    Task,
+    ValueTask,
+}
+
 internal sealed record SourceOrigin(string DisplayName, Location Location);
 
 internal sealed record DiscoveredExportType(
@@ -93,7 +101,8 @@ internal sealed record NormalizedPropertyAccessor(InteropType Type);
 
 internal sealed record NormalizedMethodContract(
     ImmutableEquatableArray<InteropType> Parameters,
-    ImmutableEquatableArray<InteropType> ReturnTypes
+    ImmutableEquatableArray<InteropType> ReturnTypes,
+    AwaitableReturnKind Awaitable
 );
 
 internal sealed record ValidatedExportType(NormalizedExportType Type, ValidatedModuleExportNode? ModuleRoot);
@@ -137,7 +146,8 @@ internal sealed record GeneratedExportMethodIr(
     string LuauName,
     ImmutableEquatableArray<string> PathSegments,
     ImmutableEquatableArray<InteropType> Parameters,
-    ImmutableEquatableArray<InteropType> ReturnTypes
+    ImmutableEquatableArray<InteropType> ReturnTypes,
+    AwaitableReturnKind Awaitable
 ) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
 
 internal sealed record GeneratedExportAccessorIr(InteropType Type);

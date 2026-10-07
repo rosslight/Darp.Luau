@@ -226,6 +226,28 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task NestedAwaitableReturnAndCancellationTokenProperty_ShouldFail()
+    {
+        const string code = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player
+            {
+                [LuauMember("token")]
+                public CancellationToken Token { get; set; }
+
+                [LuauMember("load")]
+                public Task<Task<int>> LoadAsync() => Task.FromResult(Task.FromResult(1));
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task ModuleFunctionByteSpanReturn_ShouldFail()
     {
         const string code = """

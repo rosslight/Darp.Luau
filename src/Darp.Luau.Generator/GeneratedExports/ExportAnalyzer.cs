@@ -263,7 +263,8 @@ internal static class ExportAnalyzer
                 location,
                 diagnostics,
                 out ImmutableEquatableArray<InteropType> parameters,
-                out ImmutableEquatableArray<InteropType> returns
+                out ImmutableEquatableArray<InteropType> returns,
+                out AwaitableReturnKind awaitable
             )
         )
         {
@@ -276,7 +277,7 @@ internal static class ExportAnalyzer
             exportedName,
             pathSegments,
             discoveredMethod.Origin,
-            new NormalizedMethodContract(parameters, returns)
+            new NormalizedMethodContract(parameters, returns, awaitable)
         );
     }
 
@@ -398,9 +399,11 @@ internal static class ExportAnalyzer
         Location location,
         List<Diagnostic> diagnostics,
         out ImmutableEquatableArray<InteropType> parameters,
-        out ImmutableEquatableArray<InteropType> returns
+        out ImmutableEquatableArray<InteropType> returns,
+        out AwaitableReturnKind awaitable
     )
     {
+        awaitable = GetAwaitableKind(method.ReturnType, out ITypeSymbol? awaitedType);
         if (method.IsGenericMethod)
         {
             ReportUnsupportedMethodShape(
@@ -495,7 +498,8 @@ internal static class ExportAnalyzer
             parameterBuilder.Add(parameterMapping);
         }
 
-        if (!TryMapMethodReturns(method, exportedTypeKind, context, location, diagnostics, out returns))
+        ITypeSymbol? returnType = awaitable is AwaitableReturnKind.None ? method.ReturnType : awaitedType;
+        if (!TryMapMethodReturns(method, returnType, exportedTypeKind, context, location, diagnostics, out returns))
         {
             parameters = ImmutableEquatableArray<InteropType>.Empty;
             return false;
@@ -505,8 +509,32 @@ internal static class ExportAnalyzer
         return true;
     }
 
+    /// <summary>
+    /// Recognizes <c>Task</c> and <c>ValueTask</c>. <paramref name="awaitedType"/> is the type they produce, or
+    /// <c>null</c> when they produce nothing.
+    /// </summary>
+    private static AwaitableReturnKind GetAwaitableKind(ITypeSymbol type, out ITypeSymbol? awaitedType)
+    {
+        awaitedType = null;
+        if (
+            type is not INamedTypeSymbol { Name: "Task" or "ValueTask", Arity: 0 or 1 } namedType
+            || namedType.ContainingNamespace.ToDisplayString() != "System.Threading.Tasks"
+        )
+        {
+            return AwaitableReturnKind.None;
+        }
+
+        if (namedType.Arity == 1)
+            awaitedType = namedType.TypeArguments[0];
+        return namedType.Name == "Task" ? AwaitableReturnKind.Task : AwaitableReturnKind.ValueTask;
+    }
+
+    /// <summary>
+    /// Maps <paramref name="returnType"/>, the type Luau receives. It is <c>null</c> when an awaitable produces nothing.
+    /// </summary>
     private static bool TryMapMethodReturns(
         IMethodSymbol method,
+        ITypeSymbol? returnType,
         LuauExportedTypeKind exportedTypeKind,
         LuauApiSymbols context,
         Location location,
@@ -514,7 +542,7 @@ internal static class ExportAnalyzer
         out ImmutableEquatableArray<InteropType> returns
     )
     {
-        if (method.ReturnType.SpecialType == SpecialType.System_Void)
+        if (returnType is null or { SpecialType: SpecialType.System_Void })
         {
             returns = ImmutableEquatableArray<InteropType>.Empty;
             return true;
@@ -525,12 +553,12 @@ internal static class ExportAnalyzer
             exportedTypeKind == LuauExportedTypeKind.Module
                 ? LuauInteropTypeUsage.ModuleFunctionReturn
                 : LuauInteropTypeUsage.UserdataMethodReturn;
-        if (method.ReturnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
+        if (returnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
         {
             if (
                 !TryMapReturnType(
                     method,
-                    method.ReturnType,
+                    returnType,
                     "return value",
                     returnUsage,
                     context,

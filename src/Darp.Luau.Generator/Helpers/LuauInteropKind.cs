@@ -32,4 +32,6 @@ internal enum LuauInteropKind
     LuauBufferView,
     LuauUserdataView,
     ManagedUserdata,
+
+    CancellationToken, // no Luau argument: the token of the async host call
 }

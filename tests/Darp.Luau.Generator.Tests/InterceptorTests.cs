@@ -500,6 +500,24 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task CancellationTokenParameter_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+            using System.Threading;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((int p1, CancellationToken cancellationToken) => p1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
     public async Task InvalidManagedUserdataType_ShouldFail()
     {
         const string code = """

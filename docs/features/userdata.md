@@ -78,12 +78,34 @@ Use `Access = LuauPropertyAccess.ReadOnly`, `WriteOnly`, or `ReadWrite` when the
 
 Generated read-only properties return an error when Luau tries to assign them. Generated write-only properties return an error when Luau tries to read them.
 
+### Generated async methods
+
+A method that returns `Task`, `Task<T>`, `ValueTask`, or `ValueTask<T>` suspends the script until it completes. Luau receives the awaited result:
+
+```csharp
+[LuauMember("save")]
+public async Task<bool> SaveAsync(string slot, CancellationToken cancellationToken)
+{
+    await File.WriteAllTextAsync($"{slot}.txt", Score.ToString(), cancellationToken);
+    return true;
+}
+```
+
+```lua
+local saved = player:save("slot1")
+```
+
+A `CancellationToken` parameter is not a Luau argument. It receives the token of the async host call.
+
+Run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. See [Coroutines](coroutines.md#async-managed-callbacks) for errors, cancellation, and threading.
+
 ### Generated userdata rules
 
 Generated userdata supports:
 
 - instance properties with supported stored value types,
 - instance methods with fixed supported signatures,
+- methods that return `Task` or `ValueTask`, and `CancellationToken` parameters,
 - generated or manual managed userdata as supported property, parameter, and return types,
 - generated userdata types as `CreateFunction(...)` parameters and returns.
 

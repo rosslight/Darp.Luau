@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction((int p1, CancellationToken cancellationToken) => p1);
+                                      ^^^^^^^^^^^^^^^^^
+    }
+*/
+ : (7,38)-(7,55),
+      Message: Type 'System.Threading.CancellationToken' used for parameter 'arg2' is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
