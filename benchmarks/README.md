@@ -66,7 +66,7 @@ Every library runs the same five synchronous workloads from `Scenario.cs`:
 | Run fib(20) in Lua | Executing an already compiled recursive function. |
 | Create and dispose a state | Creating a state with the library's default standard libraries, and disposing it. |
 
-Darp.Luau, NuLua and Lua-CSharp also run three async scenarios:
+The async comparisons cover three scenarios. Darp.Luau and Lua-CSharp run all three; NuLua runs async invocation and completed callbacks:
 
 | Scenario | What is measured |
 | --- | --- |
@@ -75,6 +75,8 @@ Darp.Luau, NuLua and Lua-CSharp also run three async scenarios:
 | Call an async C# function from Lua (yielding) | The same loop, with each managed `add` awaiting `Task.Yield()`, divided by 1000. Includes scheduling and continuation overhead. |
 
 The async loop receives its callback as an argument. Darp.Luau uses `CreateFunctionBuilder` with `LuauReturn.Await` and `InvokeAsync`; NuLua uses an async `CreateFunction` callback and `InvokeAsync`; Lua-CSharp uses an async `LuaFunction` and `CallAsync`. Lua-CSharp's API is async for the original workloads too, so its two plain `add` scenarios measure the same operation. NLua is not measured in the async scenarios and appears as `not measured` in the chart.
+
+NuLua 0.1.0's Luau backend crashes during repeated yielding callbacks in this workload, on both Windows and Linux. Its yielding scenario is excluded and appears as `not measured`. The [initial publication run](https://github.com/rosslight/Darp.Luau/actions/runs/37635836690) records the failed benchmark. A standalone Lua loop calling a NuLua async callback also reproduces the native crash.
 
 To run only the async scenarios:
 
@@ -90,6 +92,8 @@ Rules that keep it comparable:
 - Allocations are managed memory only; memory allocated by a native Lua or Luau is not counted.
 
 The run also writes `*-report-chart.svg` to `BenchmarkDotNet.Artifacts/results`. It shows time and allocations side by side, and the version of every library, which it takes from the package references.
+
+If a selected benchmark fails to produce measurements, the command exits with an error so the publication workflow does not replace the chart with incomplete results.
 
 NuLua's Luau backend ships a native library with the same file name as Darp.Luau's, so its benchmarks are a separate project that BenchmarkDotNet builds into its own executable.
 

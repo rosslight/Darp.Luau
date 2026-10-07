@@ -13,7 +13,6 @@ public class NuLuaBenchmarks : IDisposable
     private readonly LuaFunction _callManagedAdd;
     private readonly LuaFunction _callManagedAddAsync;
     private readonly LuaFunction _managedAddCompleted;
-    private readonly LuaFunction _managedAddYielding;
     private readonly LuaFunction _fib;
     private readonly LuaTable _table;
 
@@ -36,16 +35,6 @@ public class NuLuaBenchmarks : IDisposable
             {
                 state.Push(args[0].Read<double>() + args[1].Read<double>());
                 return ValueTask.FromResult(1);
-            }
-        );
-        _managedAddYielding = _state.CreateFunction(
-            async (state, args, _) =>
-            {
-                double a = args[0].Read<double>();
-                double b = args[1].Read<double>();
-                await Task.Yield();
-                state.Push(a + b);
-                return 1;
             }
         );
 
@@ -81,14 +70,6 @@ public class NuLuaBenchmarks : IDisposable
         (await _callManagedAddAsync.InvokeAsync(new LuaValue[] { Scenario.ManagedCalls, _managedAddCompleted }))[0]
             .Read<double>();
 
-    [Benchmark(
-        Description = Scenario.CallManagedFunctionAsyncYielding,
-        OperationsPerInvoke = Scenario.ManagedCallsPerInvoke
-    )]
-    public async ValueTask<double> CallManagedFunctionAsyncYielding() =>
-        (await _callManagedAddAsync.InvokeAsync(new LuaValue[] { Scenario.ManagedCalls, _managedAddYielding }))[0]
-            .Read<double>();
-
     [Benchmark(Description = Scenario.TableSetAndGet)]
     public double TableSetAndGet()
     {
@@ -104,7 +85,6 @@ public class NuLuaBenchmarks : IDisposable
     {
         _callManagedAddAsync.Dispose();
         _managedAddCompleted.Dispose();
-        _managedAddYielding.Dispose();
         _state.Dispose();
         GC.SuppressFinalize(this);
     }

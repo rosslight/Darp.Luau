@@ -203,7 +203,7 @@ Compared with:
 - [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET)
 - [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity)
 
-The benchmarks cover synchronous workloads and async invocation, including managed callbacks that complete immediately or await `Task.Yield()`. Async scenarios compare Darp.Luau, NuLua and Lua-CSharp; NLua is not measured in those scenarios. See [how to run the benchmarks](benchmarks/README.md).
+The benchmarks cover synchronous workloads and async invocation, including managed callbacks that complete immediately or await `Task.Yield()`. Darp.Luau and Lua-CSharp run all async scenarios; NuLua runs async invocation and completed callbacks. NLua is not measured in the async scenarios. See [how to run the benchmarks and the NuLua yielding limitation](benchmarks/README.md).
 
 Latest run on a GitHub-hosted runner; the chart names the versions that were measured. See the [full results](https://github.com/rosslight/Darp.Luau/tree/benchmark-results) and the [benchmark code](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks).
 
