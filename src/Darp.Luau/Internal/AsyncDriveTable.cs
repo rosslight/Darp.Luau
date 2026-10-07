@@ -15,7 +15,8 @@ internal sealed class AsyncDriveTable
 {
     private const int NoSlot = -1;
 
-    private Slot[] _slots = new Slot[4];
+    // Empty until the first async drive, so that a state without async calls does not pay for the slots.
+    private Slot[] _slots = [];
     private int _usedSlotCount;
     private int _firstFreeSlot = NoSlot;
 
@@ -31,7 +32,7 @@ internal sealed class AsyncDriveTable
         else
         {
             if (_usedSlotCount == _slots.Length)
-                Array.Resize(ref _slots, _slots.Length * 2);
+                Array.Resize(ref _slots, Math.Max(4, _slots.Length * 2));
             slot = _usedSlotCount++;
         }
         _slots[slot] = new Slot { CancellationToken = cancellationToken };
