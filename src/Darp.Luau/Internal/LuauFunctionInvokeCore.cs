@@ -106,18 +106,39 @@ internal static unsafe class LuauFunctionInvokeCore
         IntoLuauCopied[] copiedArgs,
         Func<LuauArgs, TR> resultSelector,
         CancellationToken cancellationToken
-    ) =>
-        state.AsyncContext.Queue(() =>
+    )
+    {
+        ulong queuedHandle = state.ReferenceTracker.CountRefOrThrow(functionHandle);
+        try
         {
-            RegistryReferenceTracker.TrackedReference queuedFunction = state.GetTrackedReferenceOrThrow(functionHandle);
-            LuauState validState = queuedFunction.ValidateInternal();
+            return state.AsyncContext.Queue(() =>
+            {
+                try
+                {
+                    RegistryReferenceTracker.TrackedReference queuedFunction = state.GetTrackedReferenceOrThrow(
+                        queuedHandle
+                    );
+                    LuauState validState = queuedFunction.ValidateInternal();
 #pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
-            _ = queuedFunction.PushToTop();
+                    _ = queuedFunction.PushToTop();
 #pragma warning restore CA2000
-            return CoroutineDriver
-                .StartInvocation(validState, copiedArgs, minResultCount: 0, cancellationToken)
-                .RunAsync(resultSelector, yieldIsError: true);
-        });
+                    return CoroutineDriver
+                        .StartInvocation(validState, copiedArgs, minResultCount: 0, cancellationToken)
+                        .RunAsync(resultSelector, yieldIsError: true);
+                }
+                finally
+                {
+                    // StartInvocation moves the function onto its own rooted coroutine.
+                    state.ReferenceTracker.ReleaseRef(queuedHandle);
+                }
+            });
+        }
+        catch
+        {
+            state.ReferenceTracker.ReleaseRef(queuedHandle);
+            throw;
+        }
+    }
 
     /// <summary> Invokes a borrowed function on a new coroutine, so managed callbacks can await. </summary>
     /// <exception cref="InvalidOperationException">

@@ -157,6 +157,83 @@ public sealed class ExecutionContextTests : IDisposable
     }
 
     [Fact]
+    public async Task ResumeAsync_QueuedOnHostDispatcher_ShouldRetainDisposedHandleUntilStarted()
+    {
+        using var dispatcher = new SingleThreadSynchronizationContext();
+        using var state = new LuauState(LuauLibraries.All, null, dispatcher);
+        using LuauFunction function = state.Load("return ...").ToFunction();
+        ulong baseline = state.MemoryStatistics.ActiveRegistryReferences;
+        using LuauCoroutine coroutine = state.CreateCoroutine(function);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Task blocking = dispatcher.Run(() =>
+        {
+            entered.Set();
+            release.Wait(TestToken);
+            return Task.CompletedTask;
+        });
+        ValueTask<int> operation;
+        try
+        {
+            entered.Wait(TestToken);
+            Environment.CurrentManagedThreadId.ShouldNotBe(dispatcher.ThreadId);
+            operation = coroutine.ResumeAsync<int>([42], TestToken);
+            operation.IsCompleted.ShouldBeFalse();
+            coroutine.Dispose();
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await blocking;
+        (await operation).ShouldBe(42);
+        await dispatcher.Run(() =>
+        {
+            state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baseline);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
+    public async Task InvokeAsync_QueuedOnHostDispatcher_ShouldRetainDisposedHandleUntilStarted()
+    {
+        using var dispatcher = new SingleThreadSynchronizationContext();
+        using var state = new LuauState(LuauLibraries.All, null, dispatcher);
+        ulong baseline = state.MemoryStatistics.ActiveRegistryReferences;
+        using LuauFunction function = state.Load("return ...").ToFunction();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        Task blocking = dispatcher.Run(() =>
+        {
+            entered.Set();
+            release.Wait(TestToken);
+            return Task.CompletedTask;
+        });
+        ValueTask<int> operation;
+        try
+        {
+            entered.Wait(TestToken);
+            Environment.CurrentManagedThreadId.ShouldNotBe(dispatcher.ThreadId);
+            operation = function.InvokeAsync<int>([42], TestToken);
+            operation.IsCompleted.ShouldBeFalse();
+            function.Dispose();
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await blocking;
+        (await operation).ShouldBe(42);
+        await dispatcher.Run(() =>
+        {
+            state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baseline);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public async Task NestedCalls_FromCallbacksAndTheirContinuations_ShouldWork()
     {
         using LuauFunction echo = _state.CreateFunctionBuilder(args =>

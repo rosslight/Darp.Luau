@@ -337,10 +337,30 @@ public readonly struct LuauCoroutine : ILuauReference
         IntoLuauCopied[] copiedArgs,
         Func<LuauArgs, TResult> resultSelector,
         CancellationToken cancellationToken
-    ) =>
-        state.AsyncContext.Queue(() =>
-            CoroutineDriver
-                .StartResume(state, handle, copiedArgs, allowsAwait: true, cancellationToken)
-                .RunAsync(resultSelector, yieldIsError: false)
-        );
+    )
+    {
+        ulong queuedHandle = state.ReferenceTracker.CountRefOrThrow(handle);
+        try
+        {
+            return state.AsyncContext.Queue(() =>
+            {
+                try
+                {
+                    return CoroutineDriver
+                        .StartResume(state, queuedHandle, copiedArgs, allowsAwait: true, cancellationToken)
+                        .RunAsync(resultSelector, yieldIsError: false);
+                }
+                finally
+                {
+                    // StartResume takes its own root; the queued reference is no longer needed.
+                    state.ReferenceTracker.ReleaseRef(queuedHandle);
+                }
+            });
+        }
+        catch
+        {
+            state.ReferenceTracker.ReleaseRef(queuedHandle);
+            throw;
+        }
+    }
 }
