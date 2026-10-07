@@ -29,6 +29,9 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> Runs async host calls and the continuations of their managed callbacks one turn at a time. </summary>
     internal LuauSynchronizationContext AsyncContext { get; }
 
+    /// <summary> The async host calls in progress, for the managed callbacks they run. </summary>
+    internal AsyncDriveTable AsyncDrives { get; } = new();
+
     private readonly List<GCHandle> _callbackHandles = [];
 
     /// <summary> The global table. Used as a entry point </summary>
@@ -393,7 +396,7 @@ public sealed unsafe class LuauState : IDisposable
 
                 if (result.IsPending)
                 {
-                    if (CoroutineDriver.TryAwait(luaState, result))
+                    if (CoroutineDriver.TryAwait(state, luaState, result))
                         return DARP_LUAU_CALLBACK_YIELD;
 
                     result.Release();
