@@ -95,6 +95,195 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
         return LuauFunctionInvokeCore.Invoke(_reference, args, LuauFunctionInvokeCore.ResultSelectorMulti);
     }
 
+    /// <summary> Invokes the function asynchronously and ignores any return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <returns>A task that completes when the function has returned.</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    public ValueTask InvokeAsync(params RefEnumerable<IntoLuau> args) => InvokeAsync(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeAsync(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask InvokeAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+        LuauFunctionInvokeCore.WithoutResult(
+            LuauFunctionInvokeCore.InvokeAsync(
+                _reference,
+                args,
+                LuauFunctionInvokeCore.IgnoreResults,
+                cancellationToken
+            )
+        );
+
+    /// <summary> Invokes the function asynchronously and converts the first return value. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
+    /// <returns>The first return value converted to <typeparamref name="TR"/>.</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<TR> InvokeAsync<TR>(params RefEnumerable<IntoLuau> args) =>
+        InvokeAsync<TR>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeAsync{TR}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<TR> InvokeAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+        LuauFunctionInvokeCore.InvokeAsync(
+            _reference,
+            args,
+            LuauFunctionInvokeCore.ResultSelector<TR>,
+            cancellationToken
+        );
+
+    /// <summary> Invokes the function asynchronously and converts the first two return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <returns>Two return values (additional values will be ignored).</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2)> InvokeAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
+        InvokeAsync<TR1, TR2>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeAsync{TR1, TR2}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2)> InvokeAsync<TR1, TR2>(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
+        LuauFunctionInvokeCore.InvokeAsync(
+            _reference,
+            args,
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2>,
+            cancellationToken
+        );
+
+    /// <summary> Invokes the function asynchronously and converts the first three return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
+    /// <returns>Three return values (additional values will be ignored).</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2, TR3)> InvokeAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
+        InvokeAsync<TR1, TR2, TR3>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeAsync{TR1, TR2, TR3}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2, TR3)> InvokeAsync<TR1, TR2, TR3>(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
+        LuauFunctionInvokeCore.InvokeAsync(
+            _reference,
+            args,
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>,
+            cancellationToken
+        );
+
+    /// <summary> Invokes the function asynchronously and converts the first four return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR4">Managed return type to convert to.</typeparam>
+    /// <returns>Four return values (additional values will be ignored).</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    public ValueTask<(TR1, TR2, TR3, TR4)> InvokeAsync<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
+        InvokeAsync<TR1, TR2, TR3, TR4>(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeAsync{TR1, TR2, TR3, TR4}(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<(TR1, TR2, TR3, TR4)> InvokeAsync<TR1, TR2, TR3, TR4>(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
+        LuauFunctionInvokeCore.InvokeAsync(
+            _reference,
+            args,
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>,
+            cancellationToken
+        );
+
+    /// <summary> Invokes the function asynchronously and returns all Luau return values as raw <see cref="LuauValue"/> instances. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <returns>All Luau return values as an array.</returns>
+    /// <remarks>
+    /// The function runs on a new coroutine, so managed callbacks may return
+    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// Without such a callback, the returned task is already completed.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
+    public ValueTask<LuauValue[]> InvokeMultiAsync(params RefEnumerable<IntoLuau> args) =>
+        InvokeMultiAsync(args, CancellationToken.None);
+
+    /// <inheritdoc cref="InvokeMultiAsync(RefEnumerable{IntoLuau})"/>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <param name="cancellationToken">
+    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// </param>
+    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    public ValueTask<LuauValue[]> InvokeMultiAsync(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
+        LuauFunctionInvokeCore.InvokeAsync(
+            _reference,
+            args,
+            LuauFunctionInvokeCore.ResultSelectorMulti,
+            cancellationToken
+        );
+
     /// <inheritdoc/>
     public LuauFunction ToOwned()
     {

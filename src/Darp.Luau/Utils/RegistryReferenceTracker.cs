@@ -108,6 +108,9 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
         public bool IsPinned { get; } = isPinned;
 
+        /// <summary> Gets whether at least one handle still refers to this reference. </summary>
+        public bool IsTracked => _numberOfManagedRefs > 0;
+
         public LuauState ValidateInternal()
         {
             _state.ThrowIfDisposed();
@@ -154,7 +157,7 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
             _state.ThrowIfDisposed();
             lua_State* L = _state.L;
-            lua_unref(L, _luaReference);
+            _ = lua_unref(L, _luaReference);
             _state.ReferenceTracker._releasedRegistryReferenceCount++;
         }
     }

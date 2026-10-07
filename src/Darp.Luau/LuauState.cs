@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -24,6 +25,9 @@ public sealed unsafe class LuauState : IDisposable
     private LuauModuleRequirer? _moduleRequirer;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
+
+    /// <summary> Runs async host calls and the continuations of their managed callbacks one turn at a time. </summary>
+    internal LuauSynchronizationContext AsyncContext { get; }
 
     private readonly List<GCHandle> _callbackHandles = [];
 
@@ -54,8 +58,26 @@ public sealed unsafe class LuauState : IDisposable
     /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
     public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
+        : this(builtinLibraries, virtualFileSystem, hostSynchronizationContext: null) { }
+
+    /// <summary>Initializes a new LuauState whose async work runs on a host dispatcher.</summary>
+    /// <param name="builtinLibraries">Standard Luau libraries to load.</param>
+    /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
+    /// <param name="hostSynchronizationContext">
+    /// A single-threaded dispatcher of the host, such as a UI thread's context. When given, async host calls and
+    /// the continuations of async managed callbacks run on it: calls started on another thread are posted to it.
+    /// When <c>null</c>, they run on the calling thread and on thread-pool threads, one at a time.
+    /// <see cref="SynchronizationContext.Current"/> is never captured implicitly.
+    /// </param>
+    /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
+    public LuauState(
+        LuauLibraries builtinLibraries,
+        ILuauFileSystem? virtualFileSystem,
+        SynchronizationContext? hostSynchronizationContext
+    )
     {
         _virtualFileSystem = virtualFileSystem ?? new FileSystem();
+        AsyncContext = new LuauSynchronizationContext(hostSynchronizationContext);
 
         L = luaL_newstate();
         if (L is null)
@@ -188,7 +210,8 @@ public sealed unsafe class LuauState : IDisposable
     internal bool OwnsThread(lua_State* luaState)
     {
         ArgumentNullException.ThrowIfNull(luaState);
-        return (nint)lua_mainthread(luaState) == (nint)L;
+        // Most calls run on the main thread; only coroutines pay for the lookup.
+        return luaState == L || lua_mainthread(luaState) == L;
     }
 
     private static bool IsReservedModuleName(string name) =>
@@ -218,6 +241,33 @@ public sealed unsafe class LuauState : IDisposable
         var handle = GCHandle.Alloc(context);
         _callbackHandles.Add(handle);
         return handle;
+    }
+
+    /// <summary> Creates a coroutine that runs <paramref name="body"/> when it is first resumed. </summary>
+    /// <param name="body">The function the coroutine runs.</param>
+    /// <returns>The created coroutine, in status <see cref="LuauCoroutineStatus.Suspended"/>.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the state or <paramref name="body"/> is disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when <paramref name="body"/> belongs to a different state.</exception>
+    public LuauCoroutine CreateCoroutine(LuauFunction body)
+    {
+        this.ThrowIfDisposed();
+        _ = body.GetHandleOrThrow();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_State* coroutine = lua_newthread(L);
+        try
+        {
+            IntoLuau bodyValue = body;
+            bodyValue.Push(this, coroutine);
+        }
+        catch
+        {
+            lua_pop(L, 1);
+            throw;
+        }
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauCoroutine(this, reference);
     }
 
     /// <summary> Create a new table </summary>
@@ -321,8 +371,12 @@ public sealed unsafe class LuauState : IDisposable
 
     private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
     {
+        private readonly LuauState _state = state;
+        private readonly LuauFunctionBuilder _onCalled = onCalled;
+
         public int Invoke(lua_State* luaState)
         {
+            LuauState state = _state;
             if (!state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
 
@@ -334,8 +388,24 @@ public sealed unsafe class LuauState : IDisposable
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
-                LuauReturn result = onCalled(args);
+                LuauReturn result = _onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
+
+                if (result.IsPending)
+                {
+                    if (CoroutineDriver.TryAwait(luaState, result))
+                        return DARP_LUAU_CALLBACK_YIELD;
+
+                    result.Release();
+                    int rejectedReturnCount = LuauStateMarshal.ReturnError(
+                        luaState,
+                        CoroutineDriver.AwaitRejectedError
+                    );
+#if DEBUG
+                    nestedGuard.OverwriteExpectedDelta(1);
+#endif
+                    return rejectedReturnCount;
+                }
 
                 if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
                 {

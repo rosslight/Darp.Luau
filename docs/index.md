@@ -207,6 +207,7 @@ See [Modules and require](features/modules.md) for generated modules, manual `Re
 - [Lifetimes and ownership](concepts/lifetimes.md)
 - [Type mapping](concepts/type-mapping.md)
 - [Functions](features/functions.md)
+- [Coroutines](features/coroutines.md)
 - [Strings](features/strings.md)
 - [Buffers](features/buffers.md)
 - [Tables](features/tables.md)

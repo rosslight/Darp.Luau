@@ -35,20 +35,17 @@ internal static class LuauStateMarshal
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe int ReturnCallbackException(lua_State* state, string callbackName, Exception exception)
-    {
-        string callbackError = $"{callbackName} callback failed: {exception.GetType().Name}: {exception.Message}";
-        return ReturnError(state, callbackError);
-    }
+    public static unsafe int ReturnCallbackException(lua_State* state, string callbackName, Exception exception) =>
+        ReturnError(state, FormatCallbackException(exception, callbackName));
+
+    /// <summary> Formats an exception thrown by a managed callback as the Luau error message the script receives. </summary>
+    public static string FormatCallbackException(Exception exception, string callbackName = "managed function") =>
+        $"{callbackName} callback failed: {exception.GetType().Name}: {exception.Message}";
 
     public static unsafe int ReturnSuccess(lua_State* state, int outputCount)
     {
         if (outputCount < 0)
-            throw new ArgumentOutOfRangeException(
-                nameof(outputCount),
-                outputCount,
-                "Output count cannot be negative."
-            );
+            throw new ArgumentOutOfRangeException(nameof(outputCount), outputCount, "Output count cannot be negative.");
         _ = state;
         return outputCount;
     }

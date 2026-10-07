@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -16,6 +17,23 @@ public readonly unsafe ref partial struct LuauArgs
 
     /// <summary> Gets the number of arguments supplied by the Lua caller. </summary>
     public int ArgumentCount { get; }
+
+    /// <summary>
+    /// Gets the cancellation token of the async host call that runs this callback, such as
+    /// <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CancellationToken.None"/> outside an async host call. Pass it to the work a callback returns with
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/>.
+    /// </remarks>
+    public CancellationToken CancellationToken
+    {
+        get
+        {
+            _state.ThrowIfDisposed();
+            return CoroutineDriver.FromCoroutine(_luaState)?.CancellationToken ?? CancellationToken.None;
+        }
+    }
 
     /// <summary>
     /// Initializes a new argument view over a specific call-frame window.
@@ -370,6 +388,32 @@ public readonly unsafe ref partial struct LuauArgs
             return false;
 
         value = new LuauFunctionView(_state, L, stackIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauCoroutineView"/>.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauCoroutineView"/> when successful.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <returns>
+    /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TTHREAD"/>; otherwise <c>false</c>.
+    /// </returns>
+    public bool TryReadLuauCoroutine(
+        int parameterIndex,
+        out LuauCoroutineView value,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        value = default;
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+            return false;
+        if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTHREAD, out error))
+            return false;
+
+        value = new LuauCoroutineView(_state, L, stackIndex);
         return true;
     }
 

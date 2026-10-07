@@ -468,6 +468,14 @@ public partial struct LuauTable
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauFunction"/>.</summary>
     public bool TryGetLuauFunction(IntoLuau key, out LuauFunction value) => TryGetLuauFunction(key, out value, out _);
 
+    /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauCoroutine"/>.</summary>
+    public LuauCoroutine GetLuauCoroutine(IntoLuau key) =>
+        TryGetLuauCoroutine(key, out LuauCoroutine value, out string? error) ? value : throw CreateReadException(error);
+
+    /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauCoroutine"/>.</summary>
+    public bool TryGetLuauCoroutine(IntoLuau key, out LuauCoroutine value) =>
+        TryGetLuauCoroutine(key, out value, out _);
+
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauString"/>.</summary>
     public LuauString GetLuauString(IntoLuau key) =>
         TryGetLuauString(key, out LuauString value, out string? error) ? value : throw CreateReadException(error);

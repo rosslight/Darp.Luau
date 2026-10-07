@@ -6,7 +6,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 
 - The main package currently targets `net10.0`.
 - `LuauState` executes source through `Load(...).Execute(...)` or `LoadFile(path).Execute(...)`. There is no separate `DoFile(...)` helper.
-- `LuauState` is not thread-safe.
+- `LuauState` is not thread-safe. Async host calls serialize their own continuations, but the synchronous API does not check which thread calls it: without a host dispatcher, use it only when no async call is outstanding or inside a turn.
 - Owned references and borrowed views are bound to a single `LuauState`; cross-state usage is invalid.
 - `CreateFunction(...)` depends on generator interception, must be called directly, and has no runtime fallback.
 - `LuauFunction.Invoke(...)` currently accepts up to 4 arguments per call through `RefEnumerable<IntoLuau>`.
@@ -18,8 +18,10 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Generated exports currently emit runtime C# glue only. Luau type-file output is not a documented shipped feature yet.
 - File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
-- Managed interop is documented for strings, numbers, booleans, tables, functions, userdata, and buffers. Vector and thread values are not documented as managed interop surfaces yet.
-- Higher-level async, coroutine orchestration, and thread-based host APIs are not documented as finished features.
+- Managed interop is documented for strings, numbers, booleans, tables, functions, coroutines, userdata, and buffers. Vector values are not documented as a managed interop surface yet.
+- Async managed callbacks are available through `CreateFunctionBuilder(...)` and `LuauReturn.Await(...)`. Generator-backed `CreateFunction(...)` does not support `Task`-returning delegates yet, and userdata hooks cannot await.
+- An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. Coroutines that scripts create and resume themselves get a Luau error instead; there is no scheduler for them.
+- `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
 
 ## What this means in practice
 

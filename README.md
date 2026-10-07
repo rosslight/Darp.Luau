@@ -14,6 +14,7 @@
 - Clear lifetime guarantees both stability and performance
 - Simple API through source-generated interceptors
 - Host modules and managed userdata
+- Coroutines and async managed callbacks
 - Support for `linux`,`windows`,`macos` on both `x64`,`arm64`
 
 ## Quick start
@@ -93,6 +94,25 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 
 `CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
 
+A builder callback can also return `LuauReturn.Await(...)` with work that completes later. Run scripts that call it with `ExecuteAsync(...)` or `InvokeAsync(...)`; the script waits for the work without blocking a thread:
+
+```csharp
+using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
+    args.TryReadNumber(1, out int milliseconds, out string? error)
+        ? LuauReturn.Await(DelayAsync(milliseconds))
+        : LuauReturn.Error(error)
+);
+lua.Globals.Set("delay", delay);
+
+await lua.Load("delay(100)").ExecuteAsync();
+
+static async ValueTask<LuauReturn> DelayAsync(int milliseconds)
+{
+    await Task.Delay(milliseconds);
+    return LuauReturn.Ok();
+}
+```
+
 ## Work with tables
 
 ```csharp
@@ -169,8 +189,8 @@ Host modules are loaded from Luau with `require("game")`. Generated and manual m
 
 ## Ownership and lifetime
 
-- `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.
-- `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values.
+- `LuauTable`, `LuauFunction`, `LuauCoroutine`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.
+- `LuauTableView`, `LuauFunctionView`, `LuauCoroutineView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values. Read them before a callback awaits.
 - Reference-backed values belong to one `LuauState`; cross-state usage is invalid.
 
 ## Benchmarks
@@ -189,8 +209,8 @@ Latest run on a GitHub-hosted runner; the chart names the versions that were mea
 
 - `Load(...).Execute(...)` is the script execution API today. Use `LoadFile(path)` to load an entry script from disk.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
-- `LuauState` is not thread-safe.
-- Higher-level async/thread orchestration is not part of the current surface yet.
+- `LuauState` is not thread-safe. Continuations of async callbacks run one at a time on the thread pool, or on a host dispatcher passed to the constructor. Use the synchronous API only when no async call is outstanding or from inside a callback.
+- Async managed callbacks need an async host call (`ExecuteAsync`, `InvokeAsync`, `ResumeAsync`) and `CreateFunctionBuilder(...)`; `CreateFunction(...)` does not support `Task`-returning delegates yet.
 
 ## Roadmap
 
@@ -198,7 +218,7 @@ Darp.Luau is pre-1.0 and breaking changes are still expected. The aim before 1.0
 
 Planned before 1.0:
 
-- Coroutines as host values, with async managed callbacks and async invocation on top of them
+- `Task`-returning delegates in `CreateFunction(...)`
 - A basic set of userdata metamethods
 - Interrupting a running script
 - An opt-in sandbox with read-only libraries and globals

@@ -58,6 +58,7 @@ nav = [
   { "Features" = [
     { "Chunks" = "features/chunks.md" },
     { "Functions" = "features/functions.md" },
+    { "Coroutines" = "features/coroutines.md" },
     { "Tables" = "features/tables.md" },
     { "Userdata" = "features/userdata.md" },
     { "Buffers" = "features/buffers.md" },

@@ -30,6 +30,8 @@ The generic return type controls how the Luau return value is converted.
 
 If Luau raises an error, `Invoke<TR>(...)` throws `LuaException`. If the return value cannot be converted to `TR`, it throws `InvalidCastException`.
 
+Each `Invoke` overload has an `InvokeAsync` counterpart that lets managed callbacks await. See [Async callbacks](#async-callbacks).
+
 ## Expose managed callbacks with `CreateFunction(...)`
 
 Use `CreateFunction(...)` for supported fixed delegate signatures:
@@ -125,6 +127,30 @@ using LuauFunction invokeCallback = lua.CreateFunctionBuilder(static args =>
 
 Borrowed views are valid only while the current callback frame is active. See [Lifetimes and ownership](../concepts/lifetimes.md).
 For string- and buffer-specific callback shapes and ownership rules, see [Strings](strings.md) and [Buffers](buffers.md).
+
+## Async callbacks
+
+A callback built with `CreateFunctionBuilder(...)` can return `LuauReturn.Await(...)` with work that completes later. The script waits for it without blocking a thread:
+
+```csharp
+using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
+{
+    if (!args.TryReadNumber(1, out int milliseconds, out string? error))
+        return LuauReturn.Error(error);
+    return LuauReturn.Await(DelayAsync(milliseconds, args.CancellationToken));
+
+    static async ValueTask<LuauReturn> DelayAsync(int milliseconds, CancellationToken cancellationToken)
+    {
+        await Task.Delay(milliseconds, cancellationToken);
+        return LuauReturn.Ok();
+    }
+});
+lua.Globals.Set("delay", delay);
+
+await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
+```
+
+Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Read all arguments before you return `LuauReturn.Await(...)`. `CreateFunction(...)` does not support `Task`-returning delegates yet. See [Coroutines](coroutines.md).
 
 ## Error behavior
 

@@ -698,8 +698,22 @@ public sealed class ScriptModuleTests
         result.Type.ShouldBe(LuauValueType.Userdata);
     }
 
+    [Fact]
+    public void RequireCoroutine()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", """return require("./types/coroutine")"""),
+            ("./types/coroutine.luau", """return coroutine.create(function() return "foo" end)"""),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        using LuauCoroutine result = state.LoadFile("./main.luau").Execute<LuauCoroutine>();
+        result.Resume<string>().ShouldBe("foo");
+    }
+
     [Theory]
-    [InlineData("return coroutine.create(function() return \"foo\" end)")]
     [InlineData("return vector.create(1, 2, 3)")]
     public void RequireUnsupportedValueForLuauValue(string moduleSource)
     {

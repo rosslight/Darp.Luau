@@ -177,7 +177,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     public unsafe void Dispose()
     {
         if (!_state.IsDisposed && _identityMapReference != 0)
-            lua_unref(_state.L, _identityMapReference);
+            _ = lua_unref(_state.L, _identityMapReference);
 
         foreach (GCHandle handle in _registrations.Values)
         {
