@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/rosslight/Darp.Luau/compare/v0.2.0...v0.3.0) (2026-10-06)
+
+
+### Features
+
+* add library generator ([#19](https://github.com/rosslight/Darp.Luau/issues/19)) ([c4af33b](https://github.com/rosslight/Darp.Luau/commit/c4af33b77267cc66e9ed673abe86ea0b15866cba))
+* add userdata generator ([#21](https://github.com/rosslight/Darp.Luau/issues/21)) ([533d855](https://github.com/rosslight/Darp.Luau/commit/533d855b8e738bc015424e00fd7cdaea6dc5c439))
+* Move callbacks into native code ([#23](https://github.com/rosslight/Darp.Luau/issues/23)) ([3738a80](https://github.com/rosslight/Darp.Luau/commit/3738a80f197fec2f020932fd9eba55bc650a7758))
+
 ## [0.2.0](https://github.com/rosslight/darp-luau/compare/v0.1.1...v0.2.0) (2026-03-23)
 
 
