@@ -59,6 +59,26 @@ internal static class InteropTypeMapper
         return true;
     }
 
+    /// <summary>
+    /// Recognizes <c>Task</c> and <c>ValueTask</c>. <paramref name="awaitedType"/> is the type they produce, or
+    /// <c>null</c> when they produce nothing.
+    /// </summary>
+    public static AwaitableReturnKind GetAwaitableKind(ITypeSymbol type, out ITypeSymbol? awaitedType)
+    {
+        awaitedType = null;
+        if (
+            type is not INamedTypeSymbol { Name: "Task" or "ValueTask", Arity: 0 or 1 } namedType
+            || namedType.ContainingNamespace.ToDisplayString() != "System.Threading.Tasks"
+        )
+        {
+            return AwaitableReturnKind.None;
+        }
+
+        if (namedType.Arity == 1)
+            awaitedType = namedType.TypeArguments[0];
+        return namedType.Name == "Task" ? AwaitableReturnKind.Task : AwaitableReturnKind.ValueTask;
+    }
+
     public static bool TryMapType(ITypeSymbol type, out InteropType mapping)
     {
         bool isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
@@ -208,7 +228,8 @@ internal static class InteropTypeMapper
         if (mapping.Type is LuauInteropKind.CancellationToken)
         {
             return usage
-                is LuauInteropTypeUsage.ModuleFunctionParameter
+                is LuauInteropTypeUsage.CreateFunctionParameter
+                    or LuauInteropTypeUsage.ModuleFunctionParameter
                     or LuauInteropTypeUsage.UserdataMethodParameter;
         }
 

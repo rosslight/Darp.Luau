@@ -131,7 +131,8 @@ internal static class ModuleEmitter
         );
         writer.WriteLine("{");
         writer.Indent++;
-        ExportCallbackEmitter.WriteStaticMethodBody(writer, method);
+        string receiver = method.IsStatic ? method.ContainingTypeName : "this";
+        CallbackBodyEmitter.Write(writer, method.Signature, $"{receiver}.{method.ManagedName}");
 
         writer.Indent--;
         writer.WriteLine("});");

@@ -17,7 +17,6 @@ file static class CreateFunctionInterceptors
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-
             onLuaCall();
             return global::Darp.Luau.LuauReturn.Ok();
         }

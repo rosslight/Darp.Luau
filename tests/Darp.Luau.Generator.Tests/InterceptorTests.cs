@@ -500,17 +500,45 @@ public class InterceptorTests
     }
 
     [Fact]
-    public async Task CancellationTokenParameter_ShouldFail()
+    public async Task AwaitableReturnsAndCancellationTokenParameter()
     {
         const string code = """
             using Darp.Luau;
             using System.Threading;
+            using System.Threading.Tasks;
 
             public static class Hi
             {
                 public static void DoSomething(LuauState state)
                 {
-                    state.CreateFunction((int p1, CancellationToken cancellationToken) => p1);
+                    state.CreateFunction(
+                        async (int milliseconds, CancellationToken cancellationToken) =>
+                            await Task.Delay(milliseconds, cancellationToken)
+                    );
+                    state.CreateFunction(async (string name) =>
+                    {
+                        await Task.Yield();
+                        return name.Length == 0 ? null : name;
+                    });
+                    state.CreateFunction((int a, int b) => new ValueTask<(int Sum, int Difference)>((a + b, a - b)));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task NestedAwaitableReturn_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+            using System.Threading.Tasks;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(() => Task.FromResult(Task.FromResult(1)));
                 }
             }
             """;

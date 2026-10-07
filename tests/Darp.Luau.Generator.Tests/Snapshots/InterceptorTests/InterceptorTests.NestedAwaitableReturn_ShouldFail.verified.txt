@@ -3,12 +3,12 @@
     {
       Location: /*
     {
-        state.CreateFunction((int p1, CancellationToken cancellationToken) => p1);
-                                      ^^^^^^^^^^^^^^^^^
+        state.CreateFunction(() => Task.FromResult(Task.FromResult(1)));
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     }
 */
- : (7,38)-(7,55),
-      Message: Type 'System.Threading.CancellationToken' used for parameter 'arg2' is not supported for Luau parameter/return marshalling,
+ : (7,35)-(7,70),
+      Message: Type 'System.Threading.Tasks.Task<int>' used for the return value is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0002,
