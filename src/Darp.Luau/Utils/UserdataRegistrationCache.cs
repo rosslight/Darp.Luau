@@ -46,13 +46,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         _registrations.Add(typeof(T), handle);
         return handle;
 
-        static LuaResult<int, string> IndexCallbackManaged(LuauState state, lua_State* L, object? userdata)
+        static int IndexCallbackManaged(LuauState state, lua_State* L, object? userdata)
         {
             if (userdata is not T target)
-                return $"Expected userdata of type '{typeof(T).FullName}'.";
+                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
 
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                return "userdata index access requires a string member name";
+                return LuauStateMarshal.ReturnError(L, "userdata index access requires a string member name"u8);
 
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
@@ -61,19 +61,19 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
 
             if (result.TryPushValue(state, L, out string? error))
-                return 1;
+                return LuauStateMarshal.ReturnSuccess(L, 1);
             if (error == LuauReturn.NotHandled)
-                return 0;
-            return error;
+                return LuauStateMarshal.ReturnSuccess(L, 0);
+            return LuauStateMarshal.ReturnError(L, error);
         }
 
-        static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, lua_State* L, object? userdata)
+        static int NewIndexCallbackManaged(LuauState lua, lua_State* L, object? userdata)
         {
             if (userdata is not T target)
-                return $"Expected userdata of type '{typeof(T).FullName}'.";
+                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
 
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                return "userdata assignment requires a string member name";
+                return LuauStateMarshal.ReturnError(L, "userdata assignment requires a string member name"u8);
 
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
@@ -84,13 +84,10 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             var argsSingle = new LuauArgsSingle(args);
             LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
             if (!result.TryGetError(out string? error))
-            {
-                // Success
-                return 0;
-            }
+                return LuauStateMarshal.ReturnSuccess(L, 0);
             if (error == LuauReturn.NotHandled)
-                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
-            return error;
+                error = $"attempt to set unknown userdata member '{resolvedMemberName}'";
+            return LuauStateMarshal.ReturnError(L, error);
         }
 
         static int MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
@@ -125,20 +122,15 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
                 lua_settop(L, topBeforeInvoke);
 
-                if (result.IsPending)
+                if (result.IsNotHandled)
                 {
-                    if (CoroutineDriver.TryAwait(L, result))
-                        return DARP_LUAU_CALLBACK_YIELD;
-
-                    result.Release();
-                    return LuauStateMarshal.ReturnError(L, CoroutineDriver.AwaitRejectedError);
+                    return LuauStateMarshal.ReturnError(
+                        L,
+                        $"attempt to call unknown userdata method '{resolvedMethodName}'"
+                    );
                 }
 
-                if (result.TryPushValues(lua, L, out int outputCount, out string? error))
-                    return LuauStateMarshal.ReturnSuccess(L, outputCount);
-                if (error == LuauReturn.NotHandled)
-                    error = $"attempt to call unknown userdata method '{resolvedMethodName}'";
-                return LuauStateMarshal.ReturnError(L, error);
+                return LuauStateMarshal.ReturnCallbackResult(lua, L, result);
             }
             catch
             {
@@ -301,8 +293,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnIndexCallback(registration.State, L, userdata);
-            return LuauStateMarshal.ReturnResult(L, result);
+            return registration.OnIndexCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
         {
@@ -318,8 +309,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnNewIndexCallback(registration.State, L, userdata);
-            return LuauStateMarshal.ReturnResult(L, result);
+            return registration.OnNewIndexCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
         {
@@ -390,46 +380,10 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         LuauState State,
         UserdataCallbackRegistration.OnLuaCallback OnIndexCallback,
         UserdataCallbackRegistration.OnLuaCallback OnNewIndexCallback,
-        UserdataCallbackRegistration.OnLuaMethodCallback OnMethodCallback
+        UserdataCallbackRegistration.OnLuaCallback OnMethodCallback
     )
     {
-        public unsafe delegate LuaResult<int, string> OnLuaCallback(LuauState lua, lua_State* L, object? userdata);
-
-        /// <summary> Returns the result of the native callback itself, because a method may suspend its coroutine. </summary>
-        public unsafe delegate int OnLuaMethodCallback(LuauState lua, lua_State* L, object? userdata);
+        /// <summary> Returns the result of the native callback: a value count, an error, or a yield. </summary>
+        public unsafe delegate int OnLuaCallback(LuauState lua, lua_State* L, object? userdata);
     }
-}
-
-internal readonly ref struct LuaResult<T, TError>
-    where T : allows ref struct
-    where TError : allows ref struct
-{
-    private readonly T? _value;
-    private readonly TError? _error;
-
-    public bool IsOk { get; }
-
-    private LuaResult(bool isOk, T? value, TError? error)
-    {
-        IsOk = isOk;
-        _value = value;
-        _error = error;
-    }
-
-    public bool TryGetValue([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out TError? error)
-    {
-        if (IsOk)
-        {
-            value = _value!;
-            error = _error;
-            return true;
-        }
-        value = _value;
-        error = _error!;
-        return false;
-    }
-
-    public static implicit operator LuaResult<T, TError>(T value) => new(true, value, default);
-
-    public static implicit operator LuaResult<T, TError>(TError error) => new(false, default, error);
 }

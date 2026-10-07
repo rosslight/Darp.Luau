@@ -34,6 +34,9 @@ public readonly struct LuauReturn
     /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
     internal const string NotHandled = "__DARP_NOT_HANDLED__";
 
+    /// <summary> Gets whether this is <see cref="NotHandledError"/>. </summary>
+    internal bool IsNotHandled => _error == NotHandled;
+
     private LuauReturn(
         int valueCount,
         IntoLuau value1 = default,

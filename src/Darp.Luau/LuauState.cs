@@ -391,35 +391,17 @@ public sealed unsafe class LuauState : IDisposable
                 LuauReturn result = _onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
-                if (result.IsPending)
-                {
-                    if (CoroutineDriver.TryAwait(luaState, result))
-                        return DARP_LUAU_CALLBACK_YIELD;
-
-                    result.Release();
-                    int rejectedReturnCount = LuauStateMarshal.ReturnError(
-                        luaState,
-                        CoroutineDriver.AwaitRejectedError
-                    );
+                int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
 #if DEBUG
-                    nestedGuard.OverwriteExpectedDelta(1);
-#endif
-                    return rejectedReturnCount;
-                }
-
-                if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
-                {
-                    lua_settop(luaState, topBeforeInvoke);
-                    int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);
-#if DEBUG
-                    nestedGuard.OverwriteExpectedDelta(1);
-#endif
-                    return errorReturnCount;
-                }
-
-                int returnCount = LuauStateMarshal.ReturnSuccess(luaState, outputCount);
-#if DEBUG
-                nestedGuard.OverwriteExpectedDelta(returnCount);
+                // A yield leaves the stack as it is; an error leaves its message.
+                nestedGuard.OverwriteExpectedDelta(
+                    returnCount switch
+                    {
+                        DARP_LUAU_CALLBACK_YIELD => 0,
+                        < 0 => 1,
+                        _ => returnCount,
+                    }
+                );
 #endif
                 return returnCount;
             }
