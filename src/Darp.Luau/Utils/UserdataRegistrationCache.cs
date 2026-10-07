@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -92,10 +93,10 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             return error;
         }
 
-        static LuaResult<int, string> MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
+        static int MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
         {
             if (userdata is not T target)
-                return $"Expected userdata of type '{typeof(T).FullName}'.";
+                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
 
             int firstParameterStackIndex;
             int numberOfParameters;
@@ -111,7 +112,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
             else
             {
-                return "userdata method call requires a string method name";
+                return LuauStateMarshal.ReturnError(L, "userdata method call requires a string method name"u8);
             }
 
             int topBeforeInvoke = lua_gettop(L);
@@ -124,11 +125,20 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
                 lua_settop(L, topBeforeInvoke);
 
+                if (result.IsPending)
+                {
+                    if (CoroutineDriver.TryAwait(L, result))
+                        return DARP_LUAU_CALLBACK_YIELD;
+
+                    result.Release();
+                    return LuauStateMarshal.ReturnError(L, CoroutineDriver.AwaitRejectedError);
+                }
+
                 if (result.TryPushValues(lua, L, out int outputCount, out string? error))
-                    return outputCount;
+                    return LuauStateMarshal.ReturnSuccess(L, outputCount);
                 if (error == LuauReturn.NotHandled)
-                    return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
-                return error;
+                    error = $"attempt to call unknown userdata method '{resolvedMethodName}'";
+                return LuauStateMarshal.ReturnError(L, error);
             }
             catch
             {
@@ -325,8 +335,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnMethodCallback(registration.State, L, userdata);
-            return LuauStateMarshal.ReturnResult(L, result);
+            return registration.OnMethodCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
         {
@@ -381,10 +390,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         LuauState State,
         UserdataCallbackRegistration.OnLuaCallback OnIndexCallback,
         UserdataCallbackRegistration.OnLuaCallback OnNewIndexCallback,
-        UserdataCallbackRegistration.OnLuaCallback OnMethodCallback
+        UserdataCallbackRegistration.OnLuaMethodCallback OnMethodCallback
     )
     {
         public unsafe delegate LuaResult<int, string> OnLuaCallback(LuauState lua, lua_State* L, object? userdata);
+
+        /// <summary> Returns the result of the native callback itself, because a method may suspend its coroutine. </summary>
+        public unsafe delegate int OnLuaMethodCallback(LuauState lua, lua_State* L, object? userdata);
     }
 }
 

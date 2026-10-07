@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
@@ -156,13 +157,8 @@ public readonly struct LuauReturn
         [NotNullWhen(false)] out string? error
     )
     {
+        Debug.Assert(!IsPending, "A callback hands its pending result to the coroutine driver instead of pushing it.");
         outputCount = 0;
-        if (IsPending)
-        {
-            Release();
-            error = "LuauReturn.Await is only supported as the result of a managed function";
-            return false;
-        }
         if (!IsOk)
         {
             error = _error ?? "Unknown error";

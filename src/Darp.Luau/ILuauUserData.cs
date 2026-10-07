@@ -40,6 +40,7 @@ public interface ILuauUserData<in T>
     /// <returns>
     /// Callback result.
     /// Return <see cref="LuauReturn.NotHandledError"/> to signal unknown methods.
+    /// Return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to finish later, like a managed function.
     /// </returns>
     static abstract LuauReturn OnMethodCall(T self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName);
 }

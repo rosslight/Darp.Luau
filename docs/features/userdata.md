@@ -168,6 +168,23 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 }
 ```
 
+### Async methods
+
+`OnMethodCall` can return `LuauReturn.Await(...)` with work that completes later, like a callback built with `CreateFunctionBuilder(...)`. The script waits at `player:save()` without blocking a thread:
+
+```csharp
+case "save":
+    return LuauReturn.Await(SaveAsync(self, functionArgs.CancellationToken));
+
+static async ValueTask<LuauReturn> SaveAsync(PlayerUserdata self, CancellationToken cancellationToken)
+{
+    await File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), cancellationToken);
+    return LuauReturn.Ok();
+}
+```
+
+The same rules apply: run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and read every argument before you return. `OnIndex` and `OnSetIndex` cannot await. See [Coroutines](coroutines.md#async-managed-callbacks).
+
 ## Expose and retrieve userdata
 
 ```csharp

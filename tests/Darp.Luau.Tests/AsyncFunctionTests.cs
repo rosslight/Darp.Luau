@@ -544,24 +544,84 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task Await_FromAUserdataMethod_ShouldBeALuaError()
+    public async Task Await_FromAUserdataMethod_ShouldSuspendTheScriptAndResumeItWithTheResult()
     {
-        _state.Globals.Set("waiter", IntoLuau.FromUserdata(new AwaitingUserdata()));
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        SetAwaitingUserdata("waiter", (value, _) => AddLater(gate.Task, value));
 
-        string error = await _state
+        ValueTask<int> pending = _state.Load("return waiter:wait(40)").ExecuteAsync<int>([], TestToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult(2);
+        (await pending).ShouldBe(42);
+    }
+
+    [Fact]
+    public void Await_FromAUserdataMethodInSyncExecute_ShouldBeALuaErrorCatchableByPcall()
+    {
+        SetAwaitingUserdata("waiter", (_, _) => new ValueTask<LuauReturn>(_never.Task));
+
+        (bool ok, string error) = _state
             .Load(
                 """
                 local ok, err = pcall(function() return waiter:wait() end)
-                return tostring(err)
+                return ok, tostring(err)
                 """
             )
-            .ExecuteAsync<string>([], TestToken);
+            .Execute<bool, string>();
 
-        error.ShouldContain("only supported as the result of a managed function");
+        ok.ShouldBeFalse();
+        error.ShouldContain(AwaitRejectedMessage);
     }
 
-    private sealed class AwaitingUserdata : ILuauUserData<AwaitingUserdata>
+    [Fact]
+    public async Task FaultedWork_FromAUserdataMethod_ShouldBeCatchableByScriptPcall()
     {
+        SetAwaitingUserdata(
+            "waiter",
+            async (_, _) =>
+            {
+                await Task.Yield();
+                throw new InvalidOperationException("boom from async method");
+            }
+        );
+
+        (bool ok, string error) = await _state
+            .Load(
+                """
+                local ok, err = pcall(function() return waiter:wait() end)
+                return ok, tostring(err)
+                """
+            )
+            .ExecuteAsync<bool, string>([], TestToken);
+
+        ok.ShouldBeFalse();
+        error.ShouldContain("boom from async method");
+    }
+
+    [Fact]
+    public async Task Cancellation_ShouldReachAUserdataMethodAndCancelTheInvocation()
+    {
+        using var cts = new CancellationTokenSource();
+        SetAwaitingUserdata("waiter", (_, cancellationToken) => WaitForCancellation(cancellationToken));
+
+        ValueTask pending = _state.Load("waiter:wait()").ExecuteAsync([], cts.Token);
+        pending.IsCompleted.ShouldBeFalse();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+        _state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
+    }
+
+    /// <summary> Registers a global userdata whose methods await <paramref name="work"/> with their first argument. </summary>
+    private void SetAwaitingUserdata(string name, Func<double, CancellationToken, ValueTask<LuauReturn>> work) =>
+        _state.Globals.Set(name, IntoLuau.FromUserdata(new AwaitingUserdata(work)));
+
+    private sealed class AwaitingUserdata(Func<double, CancellationToken, ValueTask<LuauReturn>> work)
+        : ILuauUserData<AwaitingUserdata>
+    {
+        private readonly Func<double, CancellationToken, ValueTask<LuauReturn>> _work = work;
+
         public static LuauReturnSingle OnIndex(
             AwaitingUserdata self,
             in LuauState state,
@@ -578,7 +638,12 @@ public sealed class AsyncFunctionTests : IDisposable
             AwaitingUserdata self,
             LuauArgs functionArgs,
             in ReadOnlySpan<char> methodName
-        ) => LuauReturn.Await(new ValueTask<LuauReturn>(new TaskCompletionSource<LuauReturn>().Task));
+        )
+        {
+            double value =
+                functionArgs.ArgumentCount > 0 && functionArgs.TryReadNumber(1, out double number, out _) ? number : 0;
+            return LuauReturn.Await(self._work(value, functionArgs.CancellationToken));
+        }
     }
 
     public void Dispose() => _state.Dispose();
