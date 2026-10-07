@@ -56,7 +56,7 @@ Darp.Luau is compared with:
 - [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET)
 - [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity)
 
-Every library runs the same five scenarios from `Scenario.cs`:
+Every library runs the same five synchronous workloads from `Scenario.cs`:
 
 | Scenario | What is measured |
 | --- | --- |
@@ -65,6 +65,22 @@ Every library runs the same five scenarios from `Scenario.cs`:
 | Set and get a table field | Overwriting one field of an existing table and reading it back. |
 | Run fib(20) in Lua | Executing an already compiled recursive function. |
 | Create and dispose a state | Creating a state with the library's default standard libraries, and disposing it. |
+
+Darp.Luau, NuLua and Lua-CSharp also run three async scenarios:
+
+| Scenario | What is measured |
+| --- | --- |
+| Call a Lua function from C# asynchronously | One async call of the cached `add` function, and reading the result, with no awaiting callbacks. |
+| Call an async C# function from Lua (completed) | A Lua loop calling a managed `add` that returns an already completed `ValueTask` 1000 times, divided by 1000. |
+| Call an async C# function from Lua (yielding) | The same loop, with each managed `add` awaiting `Task.Yield()`, divided by 1000. Includes scheduling and continuation overhead. |
+
+The async loop receives its callback as an argument. Darp.Luau uses `CreateFunctionBuilder` with `LuauReturn.Await` and `InvokeAsync`; NuLua uses an async `CreateFunction` callback and `InvokeAsync`; Lua-CSharp uses an async `LuaFunction` and `CallAsync`. Lua-CSharp's API is async for the original workloads too, so its two plain `add` scenarios measure the same operation. NLua is not measured in the async scenarios and appears as `not measured` in the chart.
+
+To run only the async scenarios:
+
+```bash
+dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --filter '*Async*'
+```
 
 Rules that keep it comparable:
 
