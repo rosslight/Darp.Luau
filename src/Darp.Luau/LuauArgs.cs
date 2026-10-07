@@ -31,7 +31,7 @@ public readonly unsafe ref partial struct LuauArgs
         get
         {
             _state.ThrowIfDisposed();
-            return CoroutineDriver.FromCoroutine(_luaState)?.CancellationToken ?? CancellationToken.None;
+            return _state.AsyncDrives.GetCancellationToken(_luaState);
         }
     }
 

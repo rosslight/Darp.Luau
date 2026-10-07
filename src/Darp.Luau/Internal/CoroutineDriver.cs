@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -13,37 +12,40 @@ namespace Darp.Luau.Internal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// While a drive is in progress, the driver is attached to the coroutine as its thread data. A managed callback
-/// running on that coroutine finds it there to hand over its pending work (<see cref="TryAwait"/>) and to read the
-/// cancellation token. The driver holds its own registry reference on the coroutine, so the coroutine stays alive
-/// even when every host handle to it is disposed during an await.
+/// A drive is a value and allocates nothing as long as the coroutine does not suspend. It holds its own registry
+/// root on the coroutine, so the coroutine stays alive even when every host handle to it is disposed while it runs
+/// or awaits.
+/// </para>
+/// <para>
+/// An async drive is registered in the <see cref="AsyncDriveTable"/> of its state. A managed callback running on
+/// the coroutine finds it there to hand over its pending work (<see cref="TryAwait"/>) and to read the cancellation
+/// token. A sync drive is not registered: its callbacks cannot suspend the coroutine.
 /// </para>
 /// <para>
 /// Cancellation is cooperative: the driver awaits the work as is, and the token only reaches it through the
 /// callback. Work that ends with <see cref="OperationCanceledException"/> finishes the coroutine.
 /// </para>
-/// <para>
-/// Sync resumes use the same driver without permission to await.
-/// </para>
 /// </remarks>
-internal sealed class CoroutineDriver
+internal readonly struct CoroutineDriver
 {
     public const string AwaitRejectedError =
         "async managed callback requires an async host invocation (InvokeAsync, ExecuteAsync or ResumeAsync)";
 
+    private const int NoSlot = -1;
+
     private readonly LuauState _state;
     private readonly unsafe lua_State* _coroutine;
-    private readonly ulong _coroutineHandle;
+    private readonly int _coroutineRoot;
     private readonly int _argumentCount;
-    private readonly bool _allowsAwait;
     private readonly int _minResultCount;
-    private GCHandle _selfHandle;
-    private Task<LuauReturn>? _pending;
+
+    // The slot of an async drive in the state's AsyncDriveTable.
+    private readonly int _slot;
 
     private unsafe CoroutineDriver(
         LuauState state,
         lua_State* coroutine,
-        ulong coroutineHandle,
+        int coroutineRoot,
         int argumentCount,
         bool allowsAwait,
         int minResultCount,
@@ -52,25 +54,11 @@ internal sealed class CoroutineDriver
     {
         _state = state;
         _coroutine = coroutine;
-        _coroutineHandle = coroutineHandle;
+        _coroutineRoot = coroutineRoot;
         _argumentCount = argumentCount;
-        _allowsAwait = allowsAwait;
         _minResultCount = minResultCount;
-        CancellationToken = cancellationToken;
-        _selfHandle = GCHandle.Alloc(this);
-        try
-        {
-            lua_setthreaddata(coroutine, (void*)GCHandle.ToIntPtr(_selfHandle));
-        }
-        catch
-        {
-            _selfHandle.Free();
-            throw;
-        }
+        _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, cancellationToken) : NoSlot;
     }
-
-    /// <summary> The token of the host call driving the coroutine. </summary>
-    public CancellationToken CancellationToken { get; }
 
     /// <summary> Starts a host resume of an existing coroutine. Pushes the resume arguments onto it. </summary>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine cannot be resumed.</exception>
@@ -82,9 +70,8 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* coroutine = GetResumableCoroutine(state, coroutineHandle);
-        int argumentCount = PushArguments(state, coroutine, args);
-        return CreateResumeDriver(state, coroutine, coroutineHandle, argumentCount, allowsAwait, cancellationToken);
+        lua_State* coroutine = RootResumableCoroutine(state, coroutineHandle, out int coroutineRoot);
+        return Start(state, coroutine, coroutineRoot, args, allowsAwait, minResultCount: 0, cancellationToken);
     }
 
     /// <inheritdoc cref="StartResume(LuauState, ulong, in RefEnumerable{IntoLuau}, bool, CancellationToken)"/>
@@ -96,9 +83,8 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* coroutine = GetResumableCoroutine(state, coroutineHandle);
-        int argumentCount = PushArguments(state, coroutine, args);
-        return CreateResumeDriver(state, coroutine, coroutineHandle, argumentCount, allowsAwait, cancellationToken);
+        lua_State* coroutine = RootResumableCoroutine(state, coroutineHandle, out int coroutineRoot);
+        return Start(state, coroutine, coroutineRoot, args, allowsAwait, minResultCount: 0, cancellationToken);
     }
 
     /// <summary>
@@ -116,25 +102,8 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
-        try
-        {
-            int argumentCount = PushArguments(state, coroutine, args);
-            return new CoroutineDriver(
-                state,
-                coroutine,
-                coroutineHandle,
-                argumentCount,
-                allowsAwait: true,
-                minResultCount,
-                cancellationToken
-            );
-        }
-        catch
-        {
-            state.ReferenceTracker.ReleaseRef(coroutineHandle);
-            throw;
-        }
+        lua_State* coroutine = CreateInvocationCoroutine(state, out int coroutineRoot);
+        return Start(state, coroutine, coroutineRoot, args, allowsAwait: true, minResultCount, cancellationToken);
     }
 
     /// <inheritdoc cref="StartInvocation(LuauState, in RefEnumerable{IntoLuau}, int, CancellationToken)"/>
@@ -145,73 +114,100 @@ internal sealed class CoroutineDriver
         CancellationToken cancellationToken
     )
     {
-        lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
+        lua_State* coroutine = CreateInvocationCoroutine(state, out int coroutineRoot);
+        return Start(state, coroutine, coroutineRoot, args, allowsAwait: true, minResultCount, cancellationToken);
+    }
+
+    /// <summary> Pushes <paramref name="args"/> onto the rooted coroutine and hands its root to the drive. </summary>
+    private static unsafe CoroutineDriver Start(
+        LuauState state,
+        lua_State* coroutine,
+        int coroutineRoot,
+        scoped in RefEnumerable<IntoLuau> args,
+        bool allowsAwait,
+        int minResultCount,
+        CancellationToken cancellationToken
+    )
+    {
         try
         {
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
                 coroutine,
-                coroutineHandle,
+                coroutineRoot,
                 argumentCount,
-                allowsAwait: true,
+                allowsAwait,
                 minResultCount,
                 cancellationToken
             );
         }
         catch
         {
-            state.ReferenceTracker.ReleaseRef(coroutineHandle);
+            state.ReferenceTracker.ReleaseRoot(coroutineRoot);
             throw;
         }
     }
 
-    private static unsafe lua_State* GetResumableCoroutine(LuauState state, ulong coroutineHandle)
-    {
-        lua_State* coroutine = GetCoroutine(state, coroutineHandle);
-        if (FromCoroutine(coroutine) is { _pending: not null })
-            throw new InvalidOperationException("coroutine is awaiting a managed callback");
-        LuauCoroutineStatus status = GetStatus(state, coroutine);
-        if (status is not LuauCoroutineStatus.Suspended)
-            throw new InvalidOperationException($"cannot resume a coroutine with status {status}");
-        return coroutine;
-    }
-
-    private static unsafe CoroutineDriver CreateResumeDriver(
+    /// <inheritdoc cref="Start(LuauState, lua_State*, int, in RefEnumerable{IntoLuau}, bool, int, CancellationToken)"/>
+    private static unsafe CoroutineDriver Start(
         LuauState state,
         lua_State* coroutine,
-        ulong coroutineHandle,
-        int argumentCount,
+        int coroutineRoot,
+        IntoLuauCopied[] args,
         bool allowsAwait,
+        int minResultCount,
         CancellationToken cancellationToken
     )
     {
-        ulong driverHandle = state.ReferenceTracker.CountRefOrThrow(coroutineHandle);
         try
         {
+            int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
                 coroutine,
-                driverHandle,
+                coroutineRoot,
                 argumentCount,
                 allowsAwait,
-                minResultCount: 0,
+                minResultCount,
                 cancellationToken
             );
         }
         catch
         {
-            state.ReferenceTracker.ReleaseRef(driverHandle);
+            state.ReferenceTracker.ReleaseRoot(coroutineRoot);
             throw;
         }
     }
 
-    /// <summary> Moves the function on top of the main stack onto a new coroutine. </summary>
-    private static unsafe lua_State* CreateInvocationCoroutine(LuauState state, out ulong coroutineHandle)
+    /// <summary> Roots the coroutine behind <paramref name="coroutineHandle"/> for a drive. </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the coroutine cannot be resumed.</exception>
+    private static unsafe lua_State* RootResumableCoroutine(
+        LuauState state,
+        ulong coroutineHandle,
+        out int coroutineRoot
+    )
+    {
+        RegistryReferenceTracker.TrackedReference reference = state.GetTrackedReferenceOrThrow(coroutineHandle);
+        using PopDisposable _ = reference.PushToTop();
+        lua_State* coroutine = lua_tothread(state.L, -1);
+        Debug.Assert(coroutine is not null);
+        if (state.AsyncDrives.IsAwaiting(coroutine))
+            throw new InvalidOperationException("coroutine is awaiting a managed callback");
+        LuauCoroutineStatus status = GetStatus(state, coroutine);
+        if (status is not LuauCoroutineStatus.Suspended)
+            throw new InvalidOperationException($"cannot resume a coroutine with status {status}");
+        coroutineRoot = state.ReferenceTracker.AddRoot(state.L, -1);
+        return coroutine;
+    }
+
+    /// <summary> Moves the function on top of the main stack onto a new, rooted coroutine. </summary>
+    private static unsafe lua_State* CreateInvocationCoroutine(LuauState state, out int coroutineRoot)
     {
         lua_State* L = state.L;
         lua_State* coroutine = lua_newthread(L); // [function, coroutine]
-        coroutineHandle = state.ReferenceTracker.TrackAndPopRef(L, -1); // [function]
+        coroutineRoot = state.ReferenceTracker.AddRoot(L, -1);
+        lua_pop(L, 1); // [function]
         lua_xmove(L, coroutine, 1); // []
         return coroutine;
     }
@@ -221,26 +217,16 @@ internal sealed class CoroutineDriver
     /// <c>true</c> when the calling coroutine is driven by an async host call and the callback may suspend it;
     /// the driver then awaits the pending work.
     /// </returns>
-    public static unsafe bool TryAwait(lua_State* luaState, in LuauReturn result)
+    public static unsafe bool TryAwait(LuauState state, lua_State* luaState, in LuauReturn result)
     {
         Debug.Assert(result.Pending is not null);
-        if (lua_isyieldable(luaState) == 0 || FromCoroutine(luaState) is not { _allowsAwait: true } driver)
-            return false;
-        driver._pending = result.Pending;
-        return true;
-    }
-
-    /// <summary> Returns the driver currently driving <paramref name="luaState"/>, if any. </summary>
-    public static unsafe CoroutineDriver? FromCoroutine(lua_State* luaState)
-    {
-        void* threadData = lua_getthreaddata(luaState);
-        return threadData is null ? null : GCHandle.FromIntPtr((nint)threadData).Target as CoroutineDriver;
+        return lua_isyieldable(luaState) != 0 && state.AsyncDrives.TrySetPending(luaState, result.Pending);
     }
 
     public static unsafe LuauCoroutineStatus GetStatus(LuauState state, lua_State* coroutine)
     {
         // A coroutine suspended in an awaiting managed callback is yielded, but only its driver can resume it.
-        if (FromCoroutine(coroutine) is { _pending: not null })
+        if (state.AsyncDrives.IsAwaiting(coroutine))
             return LuauCoroutineStatus.Suspended;
 
         return (lua_CoStatus)lua_costatus(state.L, coroutine) switch
@@ -264,7 +250,7 @@ internal sealed class CoroutineDriver
     /// <summary> Runs the drive to its end without awaiting. Managed callbacks cannot suspend the coroutine. </summary>
     public TResult Run<TResult>(Func<LuauArgs, TResult> resultSelector)
     {
-        Debug.Assert(!_allowsAwait);
+        Debug.Assert(_slot == NoSlot);
         try
         {
             return ReadResults(Resume(_argumentCount), resultSelector, yieldIsError: false);
@@ -287,12 +273,13 @@ internal sealed class CoroutineDriver
     )]
     public async ValueTask<TResult> RunAsync<TResult>(Func<LuauArgs, TResult> resultSelector, bool yieldIsError)
     {
-        Debug.Assert(_allowsAwait);
+        Debug.Assert(_slot != NoSlot);
+        AsyncDriveTable drives = _state.AsyncDrives;
         try
         {
             int status = Resume(_argumentCount);
-            // _pending stays set while awaiting: the coroutine is suspended, not running.
-            while (status == (int)lua_Status.LUA_YIELD && _pending is { } pending)
+            // The work stays pending while awaiting: the coroutine is suspended, not running.
+            while (status == (int)lua_Status.LUA_YIELD && drives.GetPending(_slot) is { } pending)
             {
                 LuauReturn result;
                 try
@@ -310,7 +297,7 @@ internal sealed class CoroutineDriver
                 {
                     result = LuauReturn.Error(LuauStateMarshal.FormatCallbackException(exception));
                 }
-                _pending = null;
+                drives.SetPending(_slot, null);
                 status = Continue(result);
             }
             return ReadResults(status, resultSelector, yieldIsError);
@@ -428,13 +415,9 @@ internal sealed class CoroutineDriver
 
     private unsafe void End()
     {
-        _pending = null;
         // After the state is disposed, the coroutine memory is gone; only managed cleanup is left.
-        if (!_state.IsDisposed)
-        {
-            lua_setthreaddata(_coroutine, null);
-            _state.ReferenceTracker.ReleaseRef(_coroutineHandle);
-        }
-        _selfHandle.Free();
+        if (_slot != NoSlot)
+            _state.AsyncDrives.Remove(_slot, _state.IsDisposed ? null : _coroutine);
+        _state.ReferenceTracker.ReleaseRoot(_coroutineRoot);
     }
 }
