@@ -173,7 +173,7 @@ public readonly ref struct LuauChunk
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask ExecuteAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask ExecuteAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
             ExecuteCoreAsync(args, nResults: 0, LuauFunctionInvokeCore.IgnoreResults, cancellationToken)
         );
@@ -198,7 +198,7 @@ public readonly ref struct LuauChunk
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask<TR> ExecuteAsync<TR>(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask<TR> ExecuteAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         ExecuteCoreAsync(args, nResults: 1, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
 
     /// <summary> Compiles and executes the chunk on a coroutine and converts the first two return values. </summary>
@@ -219,7 +219,7 @@ public readonly ref struct LuauChunk
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ExecuteCoreAsync(args, nResults: 2, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>, cancellationToken);
 
@@ -242,7 +242,7 @@ public readonly ref struct LuauChunk
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ExecuteCoreAsync(args, nResults: 3, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>, cancellationToken);
 
@@ -266,7 +266,7 @@ public readonly ref struct LuauChunk
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) =>
         ExecuteCoreAsync(
@@ -294,7 +294,7 @@ public readonly ref struct LuauChunk
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<LuauValue[]> ExecuteMultiAsync(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ExecuteCoreAsync(args, nResults: 0, LuauFunctionInvokeCore.ResultSelectorMulti, cancellationToken);
 
@@ -315,7 +315,7 @@ public readonly ref struct LuauChunk
     }
 
     private unsafe TResult ExecuteCore<TResult>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         int nResults,
         Func<LuauArgs, TResult> resultSelector
     )
@@ -344,7 +344,7 @@ public readonly ref struct LuauChunk
         }
     }
 
-    private unsafe void ExecuteCore(RefEnumerable<IntoLuau> args, int nResults)
+    private unsafe void ExecuteCore(scoped RefEnumerable<IntoLuau> args, int nResults)
     {
         LuauState state = GetState();
         lua_State* L = state.L;
@@ -373,7 +373,7 @@ public readonly ref struct LuauChunk
     /// <param name="resultSelector">Reads the results.</param>
     /// <param name="cancellationToken">Passed to the work of awaiting managed callbacks.</param>
     private unsafe ValueTask<TResult> ExecuteCoreAsync<TResult>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         int nResults,
         Func<LuauArgs, TResult> resultSelector,
         CancellationToken cancellationToken

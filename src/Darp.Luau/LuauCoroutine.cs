@@ -136,7 +136,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask ResumeAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask ResumeAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
             ResumeCoreAsync(args, LuauFunctionInvokeCore.IgnoreResults, cancellationToken)
         );
@@ -163,7 +163,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask<TR> ResumeAsync<TR>(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask<TR> ResumeAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
 
     /// <summary> Resumes the coroutine until it yields or finishes and converts the first two values it yields or returns. </summary>
@@ -190,7 +190,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2)> ResumeAsync<TR1, TR2>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>, cancellationToken);
 
@@ -219,7 +219,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3)> ResumeAsync<TR1, TR2, TR3>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>, cancellationToken);
 
@@ -249,7 +249,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ResumeAsync<TR1, TR2, TR3, TR4>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) => ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>, cancellationToken);
 
@@ -273,8 +273,10 @@ public readonly struct LuauCoroutine : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask<LuauValue[]> ResumeMultiAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
-        ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelectorMulti, cancellationToken);
+    public ValueTask<LuauValue[]> ResumeMultiAsync(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) => ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelectorMulti, cancellationToken);
 
     /// <summary>
     /// Converts this coroutine to an <see cref="IntoLuau"/> value without creating another tracked reference.

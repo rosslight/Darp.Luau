@@ -157,7 +157,7 @@ public readonly struct LuauFunction : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask InvokeAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask InvokeAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
             LuauFunctionInvokeCore.InvokeAsync(
                 _state,
@@ -189,7 +189,7 @@ public readonly struct LuauFunction : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask<TR> InvokeAsync<TR>(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask<TR> InvokeAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.InvokeAsync(
             _state,
             _handle,
@@ -221,7 +221,7 @@ public readonly struct LuauFunction : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2)> InvokeAsync<TR1, TR2>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) =>
         LuauFunctionInvokeCore.InvokeAsync(
@@ -256,7 +256,7 @@ public readonly struct LuauFunction : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3)> InvokeAsync<TR1, TR2, TR3>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) =>
         LuauFunctionInvokeCore.InvokeAsync(
@@ -292,7 +292,7 @@ public readonly struct LuauFunction : ILuauReference
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> InvokeAsync<TR1, TR2, TR3, TR4>(
-        RefEnumerable<IntoLuau> args,
+        scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
     ) =>
         LuauFunctionInvokeCore.InvokeAsync(
@@ -322,7 +322,10 @@ public readonly struct LuauFunction : ILuauReference
     /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
     /// </param>
     /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
-    public ValueTask<LuauValue[]> InvokeMultiAsync(RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
+    public ValueTask<LuauValue[]> InvokeMultiAsync(
+        scoped RefEnumerable<IntoLuau> args,
+        CancellationToken cancellationToken
+    ) =>
         LuauFunctionInvokeCore.InvokeAsync(
             _state,
             _handle,

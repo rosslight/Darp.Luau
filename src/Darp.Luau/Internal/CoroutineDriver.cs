@@ -58,7 +58,15 @@ internal sealed class CoroutineDriver
         _minResultCount = minResultCount;
         CancellationToken = cancellationToken;
         _selfHandle = GCHandle.Alloc(this);
-        lua_setthreaddata(coroutine, (void*)GCHandle.ToIntPtr(_selfHandle));
+        try
+        {
+            lua_setthreaddata(coroutine, (void*)GCHandle.ToIntPtr(_selfHandle));
+        }
+        catch
+        {
+            _selfHandle.Free();
+            throw;
+        }
     }
 
     /// <summary> The token of the host call driving the coroutine. </summary>
@@ -109,25 +117,24 @@ internal sealed class CoroutineDriver
     )
     {
         lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
-        int argumentCount;
         try
         {
-            argumentCount = PushArguments(state, coroutine, args);
+            int argumentCount = PushArguments(state, coroutine, args);
+            return new CoroutineDriver(
+                state,
+                coroutine,
+                coroutineHandle,
+                argumentCount,
+                allowsAwait: true,
+                minResultCount,
+                cancellationToken
+            );
         }
         catch
         {
             state.ReferenceTracker.ReleaseRef(coroutineHandle);
             throw;
         }
-        return new CoroutineDriver(
-            state,
-            coroutine,
-            coroutineHandle,
-            argumentCount,
-            allowsAwait: true,
-            minResultCount,
-            cancellationToken
-        );
     }
 
     /// <inheritdoc cref="StartInvocation(LuauState, in RefEnumerable{IntoLuau}, int, CancellationToken)"/>
@@ -139,25 +146,24 @@ internal sealed class CoroutineDriver
     )
     {
         lua_State* coroutine = CreateInvocationCoroutine(state, out ulong coroutineHandle);
-        int argumentCount;
         try
         {
-            argumentCount = PushArguments(state, coroutine, args);
+            int argumentCount = PushArguments(state, coroutine, args);
+            return new CoroutineDriver(
+                state,
+                coroutine,
+                coroutineHandle,
+                argumentCount,
+                allowsAwait: true,
+                minResultCount,
+                cancellationToken
+            );
         }
         catch
         {
             state.ReferenceTracker.ReleaseRef(coroutineHandle);
             throw;
         }
-        return new CoroutineDriver(
-            state,
-            coroutine,
-            coroutineHandle,
-            argumentCount,
-            allowsAwait: true,
-            minResultCount,
-            cancellationToken
-        );
     }
 
     private static unsafe lua_State* GetResumableCoroutine(LuauState state, ulong coroutineHandle)
@@ -181,15 +187,23 @@ internal sealed class CoroutineDriver
     )
     {
         ulong driverHandle = state.ReferenceTracker.CountRefOrThrow(coroutineHandle);
-        return new CoroutineDriver(
-            state,
-            coroutine,
-            driverHandle,
-            argumentCount,
-            allowsAwait,
-            minResultCount: 0,
-            cancellationToken
-        );
+        try
+        {
+            return new CoroutineDriver(
+                state,
+                coroutine,
+                driverHandle,
+                argumentCount,
+                allowsAwait,
+                minResultCount: 0,
+                cancellationToken
+            );
+        }
+        catch
+        {
+            state.ReferenceTracker.ReleaseRef(driverHandle);
+            throw;
+        }
     }
 
     /// <summary> Moves the function on top of the main stack onto a new coroutine. </summary>
@@ -363,7 +377,7 @@ internal sealed class CoroutineDriver
             ThrowIfStateDisposed();
         }
 
-        int topBeforePush = lua_gettop(_coroutine);
+        const int topBeforePush = 0; // The native callback trampoline yields zero values.
         string? error;
         try
         {
@@ -389,9 +403,13 @@ internal sealed class CoroutineDriver
             case lua_Status.LUA_YIELD when !yieldIsError:
                 try
                 {
-                    if (lua_gettop(_coroutine) < _minResultCount)
+                    int resultCount = lua_gettop(_coroutine);
+                    if (resultCount < _minResultCount)
+                    {
                         lua_settop(_coroutine, _minResultCount);
-                    return resultSelector(new LuauArgs(_state, _coroutine, lua_gettop(_coroutine), 1));
+                        resultCount = _minResultCount;
+                    }
+                    return resultSelector(new LuauArgs(_state, _coroutine, resultCount, 1));
                 }
                 finally
                 {
@@ -410,6 +428,7 @@ internal sealed class CoroutineDriver
 
     private unsafe void End()
     {
+        _pending = null;
         // After the state is disposed, the coroutine memory is gone; only managed cleanup is left.
         if (!_state.IsDisposed)
         {
