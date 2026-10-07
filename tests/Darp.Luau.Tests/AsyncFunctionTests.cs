@@ -600,6 +600,19 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
+    public async Task NotHandledResult_AfterAwait_ShouldNotLeakTheInternalSentinel()
+    {
+        SetAwaitingUserdata("waiter", (_, _) => YieldThen(LuauReturn.NotHandledError));
+
+        LuaException exception = await Should.ThrowAsync<LuaException>(() =>
+            _state.Load("waiter:wait()").ExecuteAsync([], TestToken).AsTask()
+        );
+
+        exception.Message.ShouldContain("the callback did not handle the call");
+        exception.Message.ShouldNotContain(LuauReturn.NotHandled);
+    }
+
+    [Fact]
     public async Task Cancellation_ShouldReachAUserdataMethodAndCancelTheInvocation()
     {
         using var cts = new CancellationTokenSource();

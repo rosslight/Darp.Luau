@@ -164,7 +164,8 @@ public readonly struct LuauReturn
         outputCount = 0;
         if (!IsOk)
         {
-            error = _error ?? "Unknown error";
+            // A caller that knows what was not handled reports it before it gets here. Scripts never see the sentinel.
+            error = IsNotHandled ? "the callback did not handle the call" : _error ?? "Unknown error";
             return false;
         }
 
