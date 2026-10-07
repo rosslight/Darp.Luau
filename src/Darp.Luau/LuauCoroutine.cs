@@ -295,7 +295,10 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <summary>
     /// Releases this coroutine reference from the state registry.
     /// </summary>
-    /// <remarks> A resume in progress keeps the coroutine alive until it ends. </remarks>
+    /// <remarks>
+    /// After a resume's turn has started, it keeps the coroutine alive until it ends.
+    /// Keep this handle alive until the returned task has completed when the start is queued.
+    /// </remarks>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 
     private TResult ResumeCore<TResult>(scoped in RefEnumerable<IntoLuau> args, Func<LuauArgs, TResult> resultSelector)

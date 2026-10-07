@@ -174,7 +174,7 @@ A `LuauState` runs async work in turns: synchronous stretches of execution, of w
 - Managed callbacks run inside that turn. While they run, the state installs its own `SynchronizationContext`, so every `await` in a callback's work captures it.
 - Code after such an `await` is queued and runs in a later turn, never while another turn executes Luau. It may therefore use the state: invoke Luau functions, create tables, or return owned references with `LuauReturn.Ok(...)`.
 - Queued turns run on a thread-pool thread, one after another.
-- An async host call that starts while another thread executes a turn is queued and starts in a later turn. Its arguments are copied when you call it; reference arguments such as a `LuauTable` must stay alive until the call completes.
+- An async host call that starts while another thread executes a turn is queued and starts in a later turn. Its arguments are copied when you call it; reference arguments such as a `LuauTable` must stay alive until the call completes. A start queued because another thread owns the state resolves its function or coroutine handle when its turn runs, so keep those handles alive until the returned task has completed.
 - An async host call completes inside a turn, but your code after `await lua.Load(...).ExecuteAsync(...)` is kept out of it: it runs on your own context, or on a thread-pool thread.
 
 ### Host dispatcher
