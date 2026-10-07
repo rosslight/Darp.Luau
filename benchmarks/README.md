@@ -56,7 +56,7 @@ Darp.Luau is compared with:
 - [NLua](https://github.com/NLua/NLua) (dynamic bridge between Lua world and the .NET)
 - [Lua-CSharp](https://github.com/nuskey8/Lua-CSharp) (High performance Lua interpreter implemented in C# for .NET and Unity)
 
-Every library runs the same five scenarios from `Scenario.cs`:
+Every library runs the same five synchronous workloads from `Scenario.cs`:
 
 | Scenario | What is measured |
 | --- | --- |
@@ -66,6 +66,26 @@ Every library runs the same five scenarios from `Scenario.cs`:
 | Run fib(20) in Lua | Executing an already compiled recursive function. |
 | Create and dispose a state | Creating a state with the library's default standard libraries, and disposing it. |
 
+The async comparisons cover three scenarios. Darp.Luau and Lua-CSharp run all three; NuLua runs async invocation and completed callbacks:
+
+| Scenario | What is measured |
+| --- | --- |
+| Call a Lua function from C# asynchronously | One async call of the cached `add` function, and reading the result, with no awaiting callbacks. |
+| Call an async C# function from Lua (completed) | A Lua loop calling a managed `add` that returns an already completed `ValueTask` 1000 times, divided by 1000. |
+| Call an async C# function from Lua (yielding) | The same loop, with each managed `add` awaiting `Task.Yield()`, divided by 1000. Includes scheduling and continuation overhead. |
+
+The async loop receives its callback as an argument. Darp.Luau uses `CreateFunctionBuilder` with `LuauReturn.Await` and `InvokeAsync`; NuLua uses an async `CreateFunction` callback and `InvokeAsync`; Lua-CSharp uses an async `LuaFunction` and `CallAsync`. Lua-CSharp's API is async for the original workloads too, so its two plain `add` scenarios measure the same operation. NLua is not measured in the async scenarios and appears as `not measured` in the chart.
+
+NuLua 0.1.0's Luau backend crashes during repeated yielding callbacks in this workload, on both Windows and Linux. Its yielding scenario is excluded and appears as `not measured`. The [initial publication run](https://github.com/rosslight/Darp.Luau/actions/runs/37635836690) records the failed benchmark. A standalone Lua loop calling a NuLua async callback also reproduces the native crash.
+
+To run only the async scenarios:
+
+```bash
+dotnet run -c Release --project benchmarks/Darp.Luau.Benchmarks.Libraries -- --filter '*Async*'
+```
+
+Every benchmark declares `OperationsPerInvoke` explicitly. It is `1` for a single Lua call, table set/get pair, Fibonacci calculation or state creation/disposal. The managed-callback benchmarks invoke one Lua loop containing `Scenario.ManagedCallsPerInvoke` (1000) callbacks, so they declare that count for both synchronous and async callbacks. BenchmarkDotNet divides the measured time and allocations by this count; the loop and outer invocation costs remain included in the per-callback result.
+
 Rules that keep it comparable:
 
 - All numbers are passed as floating-point values, so Lua 5.4 does not switch to integer arithmetic.
@@ -74,6 +94,8 @@ Rules that keep it comparable:
 - Allocations are managed memory only; memory allocated by a native Lua or Luau is not counted.
 
 The run also writes `*-report-chart.svg` to `BenchmarkDotNet.Artifacts/results`. It shows time and allocations side by side, and the version of every library, which it takes from the package references.
+
+If a selected benchmark fails to produce measurements, the command exits with an error so the publication workflow does not replace the chart with incomplete results.
 
 NuLua's Luau backend ships a native library with the same file name as Darp.Luau's, so its benchmarks are a separate project that BenchmarkDotNet builds into its own executable.
 

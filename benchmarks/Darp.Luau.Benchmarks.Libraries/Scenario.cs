@@ -13,7 +13,7 @@ internal static class Library
 }
 
 /// <summary>
-/// What every library is asked to do. Each library has one benchmark class with one method per scenario,
+/// What the libraries are asked to do. Each library has one benchmark class with one method per supported scenario,
 /// described by the constants below, so that results can be matched across libraries.
 /// </summary>
 internal static class Scenario
@@ -21,6 +21,9 @@ internal static class Scenario
     public const string CreateState = "Create and dispose a state";
     public const string CallLuaFunction = "Call a Lua function from C#";
     public const string CallManagedFunction = "Call a C# function from Lua";
+    public const string CallLuaFunctionAsync = "Call a Lua function from C# asynchronously";
+    public const string CallManagedFunctionAsyncCompleted = "Call an async C# function from Lua (completed)";
+    public const string CallManagedFunctionAsyncYielding = "Call an async C# function from Lua (yielding)";
     public const string TableSetAndGet = "Set and get a table field";
     public const string RunScript = "Run fib(20) in Lua";
 
@@ -29,12 +32,18 @@ internal static class Scenario
     [
         CallLuaFunction,
         CallManagedFunction,
+        CallLuaFunctionAsync,
+        CallManagedFunctionAsyncCompleted,
+        CallManagedFunctionAsyncYielding,
         TableSetAndGet,
         RunScript,
         CreateState,
     ];
 
-    /// <summary> Number of calls into managed code that <see cref="Script"/>'s <c>call_managed_add</c> makes. </summary>
+    /// <summary>
+    /// Number of callbacks in one invocation of <c>call_managed_add</c> or <c>call_managed_add_async</c>.
+    /// Their benchmarks set OperationsPerInvoke to this count to report time and allocations per callback.
+    /// </summary>
     public const int ManagedCallsPerInvoke = 1000;
 
     // Every number crosses the boundary as a floating-point value. Lua 5.4 has an integer subtype and would
@@ -75,6 +84,17 @@ internal static class Scenario
                 return n
             end
             return fib(n - 1) + fib(n - 2)
+        end
+        """;
+
+    /// <summary> The same managed-call loop for libraries that can await managed callbacks. </summary>
+    public const string AsyncScript = """
+        function call_managed_add_async(n, callback)
+            local sum = 0
+            for i = 1.0, n do
+                sum = sum + callback(i, i)
+            end
+            return sum
         end
         """;
 }

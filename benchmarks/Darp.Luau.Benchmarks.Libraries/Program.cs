@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
 using Darp.Luau.Benchmarks.Libraries;
 
@@ -12,6 +13,11 @@ IConfig config = DefaultConfig
     .AddExporter(ChartExporter.Default)
     .WithOptions(ConfigOptions.JoinSummary);
 
-BenchmarkSwitcher
+Summary[] summaries = BenchmarkSwitcher
     .FromAssemblies([typeof(DarpLuauBenchmarks).Assembly, typeof(NuLuaBenchmarks).Assembly])
-    .Run(args, config);
+    .Run(args, config)
+    .ToArray();
+
+// BenchmarkDotNet still returns normally when a benchmark process crashes. Do not publish an incomplete chart.
+if (summaries.Any(summary => summary.BenchmarksCases.Any(benchmark => summary[benchmark]?.ResultStatistics is null)))
+    Environment.ExitCode = 1;

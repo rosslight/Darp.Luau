@@ -11,6 +11,8 @@ public class NuLuaBenchmarks : IDisposable
     private readonly LuauState _state = LuauState.Create();
     private readonly LuaFunction _add;
     private readonly LuaFunction _callManagedAdd;
+    private readonly LuaFunction _callManagedAddAsync;
+    private readonly LuaFunction _managedAddCompleted;
     private readonly LuaFunction _fib;
     private readonly LuaTable _table;
 
@@ -26,39 +28,63 @@ public class NuLuaBenchmarks : IDisposable
             }
         );
         _state.DoString(Scenario.Script);
+        _state.DoString(Scenario.AsyncScript);
+
+        _managedAddCompleted = _state.CreateFunction(
+            (state, args, _) =>
+            {
+                state.Push(args[0].Read<double>() + args[1].Read<double>());
+                return ValueTask.FromResult(1);
+            }
+        );
 
         _add = _state["add"].Read<LuaFunction>();
         _callManagedAdd = _state["call_managed_add"].Read<LuaFunction>();
+        _callManagedAddAsync = _state["call_managed_add_async"].Read<LuaFunction>();
         _fib = _state["fib"].Read<LuaFunction>();
         _table = _state.CreateTable();
     }
 
-    [Benchmark(Description = Scenario.CreateState)]
+    [Benchmark(Description = Scenario.CreateState, OperationsPerInvoke = 1)]
     public void CreateState()
     {
         using LuauState state = LuauState.Create();
         state.OpenLibraries();
     }
 
-    [Benchmark(Description = Scenario.CallLuaFunction)]
+    [Benchmark(Description = Scenario.CallLuaFunction, OperationsPerInvoke = 1)]
     public double CallLuaFunction() => _add.Invoke(Scenario.AddLeft, Scenario.AddRight)[0].Read<double>();
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
     public double CallManagedFunction() => _callManagedAdd.Invoke(Scenario.ManagedCalls)[0].Read<double>();
 
-    [Benchmark(Description = Scenario.TableSetAndGet)]
+    [Benchmark(Description = Scenario.CallLuaFunctionAsync, OperationsPerInvoke = 1)]
+    public async ValueTask<double> CallLuaFunctionAsync() =>
+        (await _add.InvokeAsync(new LuaValue[] { Scenario.AddLeft, Scenario.AddRight }))[0].Read<double>();
+
+    [Benchmark(
+        Description = Scenario.CallManagedFunctionAsyncCompleted,
+        OperationsPerInvoke = Scenario.ManagedCallsPerInvoke
+    )]
+    public async ValueTask<double> CallManagedFunctionAsyncCompleted() =>
+        (await _callManagedAddAsync.InvokeAsync(new LuaValue[] { Scenario.ManagedCalls, _managedAddCompleted }))[0]
+            .Read<double>();
+
+    [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
     {
         _table["key"] = Scenario.TableValue;
         return _table["key"].Read<double>();
     }
 
-    [Benchmark(Description = Scenario.RunScript)]
+    [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
     public double RunScript() => _fib.Invoke(Scenario.FibonacciInput)[0].Read<double>();
 
     [GlobalCleanup]
     public void Dispose()
     {
+        _callManagedAddAsync.Dispose();
+        _managedAddCompleted.Dispose();
         _state.Dispose();
         GC.SuppressFinalize(this);
     }

@@ -25,19 +25,19 @@ public class NLuaBenchmarks : IDisposable
 
     public static double ManagedAdd(double a, double b) => a + b;
 
-    [Benchmark(Description = Scenario.CreateState)]
+    [Benchmark(Description = Scenario.CreateState, OperationsPerInvoke = 1)]
     public void CreateState()
     {
         using var state = new NLua.Lua();
     }
 
-    [Benchmark(Description = Scenario.CallLuaFunction)]
+    [Benchmark(Description = Scenario.CallLuaFunction, OperationsPerInvoke = 1)]
     public double CallLuaFunction() => (double)_add.Call(Scenario.AddLeft, Scenario.AddRight)[0];
 
     [Benchmark(Description = Scenario.CallManagedFunction, OperationsPerInvoke = Scenario.ManagedCallsPerInvoke)]
     public double CallManagedFunction() => (double)_callManagedAdd.Call(Scenario.ManagedCalls)[0];
 
-    [Benchmark(Description = Scenario.TableSetAndGet)]
+    [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
     {
         // The object indexer reads a plain key. The string indexer would parse "key" as a dotted path on every access.
@@ -45,7 +45,7 @@ public class NLuaBenchmarks : IDisposable
         return (double)_table[(object)"key"];
     }
 
-    [Benchmark(Description = Scenario.RunScript)]
+    [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
     public double RunScript() => (double)_fib.Call(Scenario.FibonacciInput)[0];
 
     [GlobalCleanup]
