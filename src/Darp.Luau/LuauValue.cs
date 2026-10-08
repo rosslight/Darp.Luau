@@ -125,7 +125,6 @@ public readonly struct LuauValue : IDisposable
     /// <param name="acceptNil">Allows <c>nil</c> to map to supported optional managed representations.</param>
     /// <returns><c>true</c> when conversion succeeds; otherwise <c>false</c>.</returns>
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
-        where T : allows ref struct
     {
         if (typeof(T) == typeof(LuauValue))
         {
@@ -139,9 +138,14 @@ public readonly struct LuauValue : IDisposable
                         or LuauValueType.Thread
                         or LuauValueType.Userdata
                         or LuauValueType.Buffer
-                && _state.ReferenceTracker.HasRegistryReference(_union.ValueHandle)
             )
             {
+                // A reference that was disposed, or whose state is gone, cannot be copied.
+                if (_state.IsDisposed || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                {
+                    value = default;
+                    return false;
+                }
                 ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
                 temp = new LuauValue(_state, Type, new LuauValueUnion(newHandle));
             }
@@ -431,16 +435,6 @@ public readonly struct LuauValue : IDisposable
             case LuauValueType.Buffer:
                 if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
                     return false;
-                if (typeof(T) == typeof(ReadOnlySpan<byte>))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    using var temp = new LuauBuffer(_state, newHandle);
-                    if (!temp.TryGet(out ReadOnlySpan<byte> span))
-                        return false;
-
-                    value = Unsafe.As<ReadOnlySpan<byte>, T>(ref span)!;
-                    return true;
-                }
                 if (typeof(T) == typeof(byte[]))
                 {
                     ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);

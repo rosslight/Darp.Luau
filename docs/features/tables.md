@@ -55,7 +55,7 @@ Normal table lookup returns `nil` for both missing keys and keys explicitly set 
 
 Reads use `__index` like a script does. When the metamethod raises an error, `Get*` throws and `TryGet*` returns `false`; the overloads with an `out string? error` carry the message.
 
-If you use span-based overloads such as `TryGetUtf8StringOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)` or `TryGetBufferOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)`, `isNil` tells you whether the lookup resolved to `nil`.
+The table getters copy strings and buffers into managed memory. To read them in place, use `LuauMarshal.TryGetUtf8StringSpan(...)`, `LuauMarshal.TryGetBufferSpan(...)`, or their `OrNil` variants, whose `isNil` tells you whether the lookup resolved to `nil`. See [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed) for what that requires of you.
 
 ## Raw and nested values
 
@@ -139,7 +139,8 @@ using LuauFunction readValue = lua.CreateFunctionBuilder(static args =>
 ## Lifetime notes
 
 - `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
-- `TryGetUtf8String(..., out ReadOnlySpan<byte>)` and `TryGetBuffer(..., out ReadOnlySpan<byte>)` expose Luau-owned memory. Consume it immediately and copy it if you need a longer lifetime.
+- `LuauMarshal` exposes Luau-owned memory of a table value. Consume it immediately and copy it if you need a longer lifetime.
+- Enumerating a table with `foreach` hands you an owned key and value per step. Dispose both when they may be reference-backed. The table may change while you enumerate it; like in Luau, entries added on the way may or may not be visited.
 - Owned wrappers returned by `GetLuau*` need disposal.
 - `LuauTableView` follows the same callback-scoped lifetime rules as the other `*View` types.
 

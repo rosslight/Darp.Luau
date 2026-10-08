@@ -132,7 +132,10 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         private readonly LuauState? _state;
         private readonly ulong _handle;
         private KeyValuePair<LuauValue, LuauValue> _current;
-        private int _lastKeyRef;
+
+        // Where lua_rawiter continues. The enumerator holds nothing in Luau besides its table reference, so a copy
+        // of it has nothing to release twice.
+        private int _iterator;
 
         /// <inheritdoc />
         public KeyValuePair<LuauValue, LuauValue> Current => _current;
@@ -159,27 +162,14 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             using PopDisposable tablePop = trackedReference.PushToTop();
             int t = lua_gettop(L); // table index
 
-            if (_lastKeyRef == 0)
-                lua_pushnil(L); // initial key
-            else
-                lua_getref(L, _lastKeyRef); // last key
-
-            // lua_next pops the key and pushes (key, value) when it returns true.
-            int hasNext = lua_next(L, t);
-            if (hasNext == 0)
-            {
+            // lua_rawiter pushes (key, value) unless it is at the end. Unlike lua_next it cannot raise an error
+            // when the table changed since the last step.
+            int next = lua_rawiter(L, t, _iterator);
+            if (next < 0)
                 return false;
-            }
+            _iterator = next;
 
             // stack: [table, key, value]
-            lua_pushvalue(L, -2); // [table, key, value, keyCopy]
-            int newKeyRef = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
-            if (_lastKeyRef != 0)
-            {
-                _ = lua_unref(L, _lastKeyRef);
-            }
-            _lastKeyRef = newKeyRef;
-
             var value = LuauValue.ToValue(_state);
             lua_pop(L, 1); // pop value
             var key = LuauValue.ToValue(_state);
@@ -192,11 +182,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         /// <inheritdoc />
         public void Reset()
         {
-            if (_lastKeyRef != 0 && _state is not null && !_state.IsDisposed)
-            {
-                _ = lua_unref(_state.L, _lastKeyRef);
-            }
-            _lastKeyRef = 0;
+            _iterator = 0;
             _current = default;
         }
 

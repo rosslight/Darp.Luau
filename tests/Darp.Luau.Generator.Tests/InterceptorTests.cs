@@ -152,6 +152,28 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task LuauValueOwnership()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((LuauValue p1) => p1);
+                    state.CreateFunction((LuauValue p1, int p2) => (p1, p2));
+                    state.CreateFunction(async (LuauValue p1, int p2) => { await Task.Yield(); return p1; });
+                    state.CreateFunction(async (LuauValue p1) => { await Task.Yield(); });
+                    state.CreateFunction(async () => { await Task.Yield(); return default(LuauValue); });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
     public async Task ManagedUserdataParameter()
     {
         const string code = """

@@ -11,8 +11,10 @@ public static class LuauTableExtensions
     /// <param name="value"> The value, if present and of the correct type </param>
     /// <typeparam name="TValue"> The type of the value </typeparam>
     /// <returns> True, if the value could be retrieved and has the correct type. False, otherwise </returns>
+    /// <remarks>
+    /// The value is a copy or an owned wrapper, never a span. To read bytes in place, use <see cref="LuauMarshal"/>.
+    /// </remarks>
     public static bool TryGet<TValue>(this in LuauTable table, IntoLuau key, [NotNullWhen(true)] out TValue? value)
-        where TValue : allows ref struct
     {
         value = default;
         if (!table.TryGetLuauValue(key, out LuauValue luauValue))

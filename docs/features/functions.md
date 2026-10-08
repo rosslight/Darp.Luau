@@ -71,6 +71,12 @@ This is the normal callback API when your callback shape is simple and static.
 - `void`, one managed return value, or a top-level tuple return whose elements are individually supported,
 - `Task` or `ValueTask` around any of these returns, and a `CancellationToken` parameter. See [Async callbacks](#async-callbacks).
 
+A `LuauValue` parameter belongs to the call. The generated code releases it when your callback returns, or when its task completes for an async callback, so you do not dispose it. To keep it longer, take a reference of your own: `value.TryGet(out LuauTable table)` or `value.TryGet(out LuauValue copy)`.
+
+A `LuauValue` that your callback returns is handed over: the generated code disposes it after Luau received it. Return a copy when you keep the original, for example `stored.TryGet(out LuauValue copy)`.
+
+The same rules apply to generated `[LuauModule]` functions and `[LuauUserdata]` methods.
+
 Managed userdata support here is the typed managed path, not the raw userdata wrapper path. Use `LuauUserdataView` when you want a borrowed userdata view directly; use `[LuauUserdata]` or `ILuauUserData<TSelf>` when you want `CreateFunction(...)` to marshal to and from your managed type.
 
 The supported signature set is narrower than the library's overall type-conversion surface. Generator-backed callbacks currently reject nested tuple returns and are limited to top-level tuple returns that fit the current `LuauReturn.Ok(...)` arity. If a delegate shape is not supported there, use `CreateFunctionBuilder(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.

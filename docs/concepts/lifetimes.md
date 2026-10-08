@@ -32,6 +32,18 @@ double value = add.Invoke<double>(1, 2);
 
 That also applies to values returned from `InvokeMulti(...)` or `ExecuteMulti()`: dispose each returned `LuauValue` when it may be reference-backed.
 
+Generated callbacks are the exception, because the generated code stands between Luau and your method:
+
+| `LuauValue` in a generated callback | Who releases it |
+| --- | --- |
+| parameter | the generated code, when the call is over (for an async callback: when its task completes) |
+| return value | the generated code, after Luau received it |
+| value you read yourself, for example with `TryGet(out LuauValue copy)` | you |
+
+This covers `CreateFunction(...)` delegates, `[LuauModule]` functions, and `[LuauUserdata]` methods. With `CreateFunctionBuilder(...)` you read and return values yourself: a `LuauValue` from `args.TryReadLuauValue(...)` is yours to dispose, and `LuauReturn.Ok(value)` takes a reference of its own.
+
+A typed call that fails to read one of its results, such as `Execute<LuauTable, int>()` when the second result is not a number, releases the results it had already read before it throws.
+
 ## Borrowed values
 
 Types ending in `View`, plus `LuauArgs` and `LuauArgsSingle`, are callback-scoped.
@@ -69,9 +81,20 @@ A callback that awaits has returned before the awaited work runs. Its `LuauArgs`
 
 ## Borrowed spans are still borrowed
 
-Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryGetUtf8String`, `TryGetBuffer`, `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
+Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
 
 Consume those spans immediately. If you need an independent lifetime, copy into a managed `string` or `byte[]`.
+
+These spans have something that keeps their memory alive while you use them: the callback frame for arguments, the owned wrapper for `LuauString` and `LuauBuffer`. A span read straight out of a table has nothing like that, so tables only offer it through `LuauMarshal`:
+
+```csharp
+if (LuauMarshal.TryGetUtf8StringSpan(lua.Globals, "name", out ReadOnlySpan<byte> utf8))
+{
+    // Valid only while the table still holds this string. Do not run a script or write the table before you are done.
+}
+```
+
+When the value is replaced or removed, the next Luau garbage collection can free the memory, and reading the span afterwards is undefined behavior. Prefer `GetUtf8String(...)`, `GetBuffer(...)`, or an owned `GetLuauString(...)` unless the copy matters.
 
 For the string- and buffer-specific API shapes that produce those spans, see [Strings](../features/strings.md) and [Buffers](../features/buffers.md).
 

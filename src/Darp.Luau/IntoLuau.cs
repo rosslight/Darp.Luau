@@ -375,8 +375,12 @@ public readonly ref struct IntoLuau
     public static IntoLuau FromUserdata<T>(T userdata)
         where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(userdata));
 
-    /// <summary> Converts to a userdata </summary>
-    /// <param name="factory"> The userdata factory </param>
+    /// <summary> Converts to the userdata that <paramref name="factory"/> creates when the value is pushed. </summary>
+    /// <param name="factory">
+    /// Creates a reference for this push, for example with <see cref="LuauState.GetOrCreateUserdata{T}"/>. The
+    /// reference is disposed after the userdata was pushed, so do not return one that you keep using: pass a
+    /// <see cref="LuauUserdata"/> you own directly instead.
+    /// </param>
     /// <returns> A temporary representation of the value </returns>
     public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }
