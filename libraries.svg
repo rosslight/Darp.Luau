@@ -31,22 +31,22 @@
 <line class="rule" x1="28" y1="106.5" x2="812" y2="106.5"/>
 <text class="panel-title primary" x="28" y="131">Call a Lua function from C#</text>
 <text class="label primary emphasis" x="110" y="157" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,147 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary emphasis" x="346" y="157">180 ns<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,147 h184.81 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-184.81 z"/>
+<text class="value primary emphasis" x="314.8" y="157">153 ns<tspan class="muted"></tspan></text>
 <text class="value primary emphasis" x="486" y="157">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="177" text-anchor="end">NuLua</text>
-<path class="context" d="M120,167 h157.87 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-157.87 z"/>
-<text class="value primary" x="287.9" y="177">132 ns<tspan class="muted">  0.7×</tspan></text>
+<path class="context" d="M120,167 h153.85 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-153.85 z"/>
+<text class="value primary" x="283.8" y="177">128 ns<tspan class="muted">  0.8×</tspan></text>
 <path class="context" d="M480,167 h60.17 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-60.17 z"/>
 <text class="value primary" x="550.2" y="177">56 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="197" text-anchor="end">NLua</text>
-<path class="context" d="M120,187 h205.8 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-205.8 z"/>
-<text class="value primary" x="335.8" y="197">171 ns<tspan class="muted">  1.0×</tspan></text>
+<path class="context" d="M120,187 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
+<text class="value primary" x="346" y="197">178 ns<tspan class="muted">  1.2×</tspan></text>
 <path class="context" d="M480,187 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
 <text class="value primary" x="706" y="197">192 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="217" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,207 h181.67 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-181.67 z"/>
-<text class="value primary" x="311.7" y="217">152 ns<tspan class="muted">  0.8×</tspan></text>
+<path class="context" d="M120,207 h167.64 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-167.64 z"/>
+<text class="value primary" x="297.6" y="217">139 ns<tspan class="muted">  0.9×</tspan></text>
 <path class="context" d="M480,207 h51 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-51 z"/>
 <text class="value primary" x="541" y="217">48 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="143" x2="119.5" y2="223"/>
@@ -54,73 +54,72 @@
 <line class="rule" x1="28" y1="234.5" x2="812" y2="234.5"/>
 <text class="panel-title primary" x="28" y="259">Call a C# function from Lua</text>
 <text class="label primary emphasis" x="110" y="285" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,275 h54.36 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-54.36 z"/>
-<text class="value primary emphasis" x="184.4" y="285">189 ns<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,275 h46.86 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-46.86 z"/>
+<text class="value primary emphasis" x="176.9" y="285">181 ns<tspan class="muted"></tspan></text>
 <text class="value primary emphasis" x="486" y="285">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="305" text-anchor="end">NuLua</text>
-<path class="context" d="M120,295 h76.71 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-76.71 z"/>
-<text class="value primary" x="206.7" y="305">261 ns<tspan class="muted">  1.4×</tspan></text>
+<path class="context" d="M120,295 h29.09 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-29.09 z"/>
+<text class="value primary" x="159.1" y="305">118 ns<tspan class="muted">  0.7×</tspan></text>
 <text class="value primary" x="486" y="305">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="325" text-anchor="end">NLua</text>
 <path class="context" d="M120,315 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="346" y="325">711 ns<tspan class="muted">  3.8×</tspan></text>
+<text class="value primary" x="346" y="325">781 ns<tspan class="muted">  4.3×</tspan></text>
 <path class="context" d="M480,315 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
 <text class="value primary" x="706" y="325">504 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="345" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,335 h26.8 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-26.8 z"/>
-<text class="value primary" x="156.8" y="345">99.5 ns<tspan class="muted">  0.5×</tspan></text>
+<path class="context" d="M120,335 h21.46 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-21.46 z"/>
+<text class="value primary" x="151.5" y="345">90.4 ns<tspan class="muted">  0.5×</tspan></text>
 <text class="value primary" x="486" y="345">0 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="271" x2="119.5" y2="351"/>
 <line class="axis" x1="479.5" y1="271" x2="479.5" y2="351"/>
 <line class="rule" x1="28" y1="362.5" x2="812" y2="362.5"/>
 <text class="panel-title primary" x="28" y="387">Call a Lua function from C# asynchronously</text>
 <text class="label primary emphasis" x="110" y="413" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,403 h96.63 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-96.63 z"/>
-<text class="value primary emphasis" x="226.6" y="413">701 ns<tspan class="muted"></tspan></text>
-<path class="highlight" d="M480,403 h54.31 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-54.31 z"/>
-<text class="value primary emphasis" x="544.3" y="413">176 B<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,403 h70.05 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-70.05 z"/>
+<text class="value primary emphasis" x="200.1" y="413">530 ns<tspan class="muted"></tspan></text>
+<text class="value primary emphasis" x="486" y="413">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="433" text-anchor="end">NuLua</text>
 <path class="context" d="M120,423 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="346" y="433">1.53 μs<tspan class="muted">  2.2×</tspan></text>
+<text class="value primary" x="346" y="433">1.58 μs<tspan class="muted">  3.0×</tspan></text>
 <path class="context" d="M480,423 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="706" y="433">664 B<tspan class="muted">  3.8×</tspan></text>
+<text class="value primary" x="706" y="433">664 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="453" text-anchor="end">NLua</text>
 <text class="value muted" x="126" y="453">not measured</text>
 <text class="value muted" x="486" y="453">not measured</text>
 <text class="label secondary" x="110" y="473" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,463 h18.35 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-18.35 z"/>
-<text class="value primary" x="148.3" y="473">156 ns<tspan class="muted">  0.2×</tspan></text>
+<path class="context" d="M120,463 h15.16 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-15.16 z"/>
+<text class="value primary" x="145.2" y="473">137 ns<tspan class="muted">  0.3×</tspan></text>
 <path class="context" d="M480,463 h11.9 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-11.9 z"/>
-<text class="value primary" x="501.9" y="473">48 B<tspan class="muted">  0.3×</tspan></text>
+<text class="value primary" x="501.9" y="473">48 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="399" x2="119.5" y2="479"/>
 <line class="axis" x1="479.5" y1="399" x2="479.5" y2="479"/>
 <line class="rule" x1="28" y1="490.5" x2="812" y2="490.5"/>
 <text class="panel-title primary" x="28" y="515">Call an async C# function from Lua (completed)</text>
 <text class="label primary emphasis" x="110" y="541" text-anchor="end">Darp.Luau</text>
 <path class="highlight" d="M120,531 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary emphasis" x="346" y="541">307 ns<tspan class="muted"></tspan></text>
+<text class="value primary emphasis" x="346" y="541">197 ns<tspan class="muted"></tspan></text>
 <text class="value primary emphasis" x="486" y="541">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="561" text-anchor="end">NuLua</text>
-<path class="context" d="M120,551 h185.72 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-185.72 z"/>
-<text class="value primary" x="315.7" y="561">265 ns<tspan class="muted">  0.9×</tspan></text>
+<path class="context" d="M120,551 h149.51 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-149.51 z"/>
+<text class="value primary" x="279.5" y="561">137 ns<tspan class="muted">  0.7×</tspan></text>
 <path class="context" d="M480,551 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
 <text class="value primary" x="706" y="561">89 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="581" text-anchor="end">NLua</text>
 <text class="value muted" x="126" y="581">not measured</text>
 <text class="value muted" x="486" y="581">not measured</text>
 <text class="label secondary" x="110" y="601" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,591 h52.97 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-52.97 z"/>
-<text class="value primary" x="183" y="601">79.6 ns<tspan class="muted">  0.3×</tspan></text>
+<path class="context" d="M120,591 h70.57 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-70.57 z"/>
+<text class="value primary" x="200.6" y="601">66.6 ns<tspan class="muted">  0.3×</tspan></text>
 <text class="value primary" x="486" y="601">0 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="527" x2="119.5" y2="607"/>
 <line class="axis" x1="479.5" y1="527" x2="479.5" y2="607"/>
 <line class="rule" x1="28" y1="618.5" x2="812" y2="618.5"/>
 <text class="panel-title primary" x="28" y="643">Call an async C# function from Lua (yielding)</text>
 <text class="label primary emphasis" x="110" y="669" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,659 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary emphasis" x="346" y="669">877 ns<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,659 h135.18 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-135.18 z"/>
+<text class="value primary emphasis" x="265.2" y="669">566 ns<tspan class="muted"></tspan></text>
 <path class="highlight" d="M480,659 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary emphasis" x="706" y="669">857 B<tspan class="muted"></tspan></text>
+<text class="value primary emphasis" x="706" y="669">201 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="689" text-anchor="end">NuLua</text>
 <text class="value muted" x="126" y="689">not measured</text>
 <text class="value muted" x="486" y="689">not measured</text>
@@ -128,52 +127,52 @@
 <text class="value muted" x="126" y="709">not measured</text>
 <text class="value muted" x="486" y="709">not measured</text>
 <text class="label secondary" x="110" y="729" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,719 h151.09 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-151.09 z"/>
-<text class="value primary" x="281.1" y="729">618 ns<tspan class="muted">  0.7×</tspan></text>
-<path class="context" d="M480,719 h30.91 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-30.91 z"/>
-<text class="value primary" x="520.9" y="729">136 B<tspan class="muted">  0.2×</tspan></text>
+<path class="context" d="M120,719 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
+<text class="value primary" x="346" y="729">895 ns<tspan class="muted">  1.6×</tspan></text>
+<path class="context" d="M480,719 h144.86 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-144.86 z"/>
+<text class="value primary" x="634.9" y="729">136 B<tspan class="muted">  0.7×</tspan></text>
 <line class="axis" x1="119.5" y1="655" x2="119.5" y2="735"/>
 <line class="axis" x1="479.5" y1="655" x2="479.5" y2="735"/>
 <line class="rule" x1="28" y1="746.5" x2="812" y2="746.5"/>
 <text class="panel-title primary" x="28" y="771">Set and get a table field</text>
 <text class="label primary emphasis" x="110" y="797" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,787 h88.84 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-88.84 z"/>
-<text class="value primary emphasis" x="218.8" y="797">177 ns<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,787 h79.96 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-79.96 z"/>
+<text class="value primary emphasis" x="210" y="797">158 ns<tspan class="muted"></tspan></text>
 <text class="value primary emphasis" x="486" y="797">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="817" text-anchor="end">NuLua</text>
 <path class="context" d="M120,807 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="346" y="817">420 ns<tspan class="muted">  2.4×</tspan></text>
+<text class="value primary" x="346" y="817">414 ns<tspan class="muted">  2.6×</tspan></text>
 <text class="value primary" x="486" y="817">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="837" text-anchor="end">NLua</text>
-<path class="context" d="M120,827 h76.47 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-76.47 z"/>
-<text class="value primary" x="206.5" y="837">154 ns<tspan class="muted">  0.9×</tspan></text>
+<path class="context" d="M120,827 h83.27 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-83.27 z"/>
+<text class="value primary" x="213.3" y="837">164 ns<tspan class="muted">  1.0×</tspan></text>
 <path class="context" d="M480,827 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
 <text class="value primary" x="706" y="837">112 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="857" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,847 h8.97 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-8.97 z"/>
-<text class="value primary" x="139" y="857">24.8 ns<tspan class="muted">  0.1×</tspan></text>
+<path class="context" d="M120,847 h8.19 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-8.19 z"/>
+<text class="value primary" x="138.2" y="857">22.9 ns<tspan class="muted">  0.1×</tspan></text>
 <text class="value primary" x="486" y="857">0 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="783" x2="119.5" y2="863"/>
 <line class="axis" x1="479.5" y1="783" x2="479.5" y2="863"/>
 <line class="rule" x1="28" y1="874.5" x2="812" y2="874.5"/>
 <text class="panel-title primary" x="28" y="899">Run fib(20) in Lua</text>
 <text class="label primary emphasis" x="110" y="925" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,915 h37.06 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-37.06 z"/>
-<text class="value primary emphasis" x="167.1" y="925">444 μs<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,915 h41.65 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-41.65 z"/>
+<text class="value primary emphasis" x="171.7" y="925">459 μs<tspan class="muted"></tspan></text>
 <text class="value primary emphasis" x="486" y="925">0 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="945" text-anchor="end">NuLua</text>
-<path class="context" d="M120,935 h48.67 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-48.67 z"/>
-<text class="value primary" x="178.7" y="945">570 μs<tspan class="muted">  1.3×</tspan></text>
+<path class="context" d="M120,935 h52.13 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-52.13 z"/>
+<text class="value primary" x="182.1" y="945">565 μs<tspan class="muted">  1.2×</tspan></text>
 <path class="context" d="M480,935 h69.33 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-69.33 z"/>
 <text class="value primary" x="559.3" y="945">56 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="965" text-anchor="end">NLua</text>
-<path class="context" d="M120,955 h49.02 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-49.02 z"/>
-<text class="value primary" x="179" y="965">574 μs<tspan class="muted">  1.3×</tspan></text>
+<path class="context" d="M120,955 h55.99 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-55.99 z"/>
+<text class="value primary" x="186" y="965">603 μs<tspan class="muted">  1.3×</tspan></text>
 <path class="context" d="M480,955 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
 <text class="value primary" x="706" y="965">168 B<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="985" text-anchor="end">Lua-CSharp</text>
 <path class="context" d="M120,975 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="346" y="985">2.38 ms<tspan class="muted">  5.4×</tspan></text>
+<text class="value primary" x="346" y="985">2.21 ms<tspan class="muted">  4.8×</tspan></text>
 <path class="context" d="M480,975 h58.86 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-58.86 z"/>
 <text class="value primary" x="548.9" y="985">48 B<tspan class="muted"></tspan></text>
 <line class="axis" x1="119.5" y1="911" x2="119.5" y2="991"/>
@@ -181,30 +180,30 @@
 <line class="rule" x1="28" y1="1002.5" x2="812" y2="1002.5"/>
 <text class="panel-title primary" x="28" y="1027">Create and dispose a state</text>
 <text class="label primary emphasis" x="110" y="1053" text-anchor="end">Darp.Luau</text>
-<path class="highlight" d="M120,1043 h71.68 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-71.68 z"/>
-<text class="value primary emphasis" x="201.7" y="1053">27.8 μs<tspan class="muted"></tspan></text>
-<path class="highlight" d="M480,1043 h14.83 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-14.83 z"/>
-<text class="value primary emphasis" x="504.8" y="1053">1.87 KB<tspan class="muted"></tspan></text>
+<path class="highlight" d="M120,1043 h66.79 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-66.79 z"/>
+<text class="value primary emphasis" x="196.8" y="1053">25.3 μs<tspan class="muted"></tspan></text>
+<path class="highlight" d="M480,1043 h15.38 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-15.38 z"/>
+<text class="value primary emphasis" x="505.4" y="1053">1.92 KB<tspan class="muted"></tspan></text>
 <text class="label secondary" x="110" y="1073" text-anchor="end">NuLua</text>
-<path class="context" d="M120,1063 h67.9 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-67.9 z"/>
-<text class="value primary" x="197.9" y="1073">26.4 μs<tspan class="muted">  1.0×</tspan></text>
+<path class="context" d="M120,1063 h66.18 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-66.18 z"/>
+<text class="value primary" x="196.2" y="1073">25.1 μs<tspan class="muted">  1.0×</tspan></text>
 <path class="context" d="M480,1063 h2.56 a2.56,2.56 0 0 1 2.56,2.56 v6.88 a2.56,2.56 0 0 1 -2.56,2.56 h-2.56 z"/>
 <text class="value primary" x="491.1" y="1073">520 B<tspan class="muted">  0.3×</tspan></text>
 <text class="label secondary" x="110" y="1093" text-anchor="end">NLua</text>
 <path class="context" d="M120,1083 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="346" y="1093">80.9 μs<tspan class="muted">  2.9×</tspan></text>
+<text class="value primary" x="346" y="1093">78.8 μs<tspan class="muted">  3.1×</tspan></text>
 <path class="context" d="M480,1083 h61.06 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-61.06 z"/>
-<text class="value primary" x="551.1" y="1093">6.45 KB<tspan class="muted">  3.5×</tspan></text>
+<text class="value primary" x="551.1" y="1093">6.45 KB<tspan class="muted">  3.4×</tspan></text>
 <text class="label secondary" x="110" y="1113" text-anchor="end">Lua-CSharp</text>
-<path class="context" d="M120,1103 h13.46 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-13.46 z"/>
-<text class="value primary" x="143.5" y="1113">6.42 μs<tspan class="muted">  0.2×</tspan></text>
+<path class="context" d="M120,1103 h14.68 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-14.68 z"/>
+<text class="value primary" x="144.7" y="1113">6.69 μs<tspan class="muted">  0.3×</tspan></text>
 <path class="context" d="M480,1103 h216 a4,4 0 0 1 4,4 v4 a4,4 0 0 1 -4,4 h-216 z"/>
-<text class="value primary" x="706" y="1113">21.8 KB<tspan class="muted">  12×</tspan></text>
+<text class="value primary" x="706" y="1113">21.8 KB<tspan class="muted">  11×</tspan></text>
 <line class="axis" x1="119.5" y1="1039" x2="119.5" y2="1119"/>
 <line class="axis" x1="479.5" y1="1039" x2="479.5" y2="1119"/>
 <line class="rule" x1="28" y1="1130.5" x2="812" y2="1130.5"/>
 <rect class="highlight" x="28" y="1146" width="10" height="10" rx="2"/>
-<text class="label primary emphasis" x="44" y="1155">Darp.Luau<tspan class="secondary" font-weight="400" dx="6">4cff85d</tspan></text>
+<text class="label primary emphasis" x="44" y="1155">Darp.Luau<tspan class="secondary" font-weight="400" dx="6">7f9c7c3</tspan></text>
 <text class="footnote secondary" x="44" y="1172">Luau (native)</text>
 <rect class="context" x="224" y="1146" width="10" height="10" rx="2"/>
 <text class="label primary emphasis" x="240" y="1155">NuLua<tspan class="secondary" font-weight="400" dx="6">0.1.0</tspan></text>
@@ -217,5 +216,5 @@
 <text class="footnote secondary" x="632" y="1172">Lua 5.2 (written in C#)</text>
 <line class="rule" x1="28" y1="1188.5" x2="812" y2="1188.5"/>
 <text class="footnote muted" x="28" y="1212">Bars share a scale within one scenario. The factor after a value compares it with Darp.Luau.</text>
-<text class="footnote muted" x="28" y="1228">Measured 2026-10-07 · AMD EPYC 7763 64-Core Processor · .NET 10.0.12</text>
+<text class="footnote muted" x="28" y="1228">Measured 2026-10-08 · Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz · .NET 10.0.12</text>
 </svg>

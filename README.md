@@ -1,6 +1,6 @@
 # Benchmark results
 
-[Benchmarks](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks) at commit [`4cff85d`](https://github.com/rosslight/Darp.Luau/commit/4cff85dc3a042b42e59ae16b15fd8530683e2d0c), measured in [this run](https://github.com/rosslight/Darp.Luau/actions/runs/37641801159) on a GitHub-hosted runner.
+[Benchmarks](https://github.com/rosslight/Darp.Luau/tree/main/benchmarks) at commit [`7f9c7c3`](https://github.com/rosslight/Darp.Luau/commit/7f9c7c36dc78e205bed36d18ab22ff367d600c0c), measured in [this run](https://github.com/rosslight/Darp.Luau/actions/runs/37746939431) on a GitHub-hosted runner.
 
 ![Mean time and managed memory allocated per operation](libraries.svg)
 
@@ -9,40 +9,40 @@
 ```
 
 BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
-AMD EPYC 7763 3.24GHz, 1 CPU, 4 logical and 2 physical cores
+Intel Xeon Platinum 8370C CPU 2.80GHz (Max: 3.31GHz), 1 CPU, 4 logical and 2 physical cores
 .NET SDK 10.0.401
-  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
-  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v4
 
 
 ```
 | Method                                           | Categories | Mean            | Error        | StdDev       | Gen0   | Gen1   | Allocated |
 |------------------------------------------------- |----------- |----------------:|-------------:|-------------:|-------:|-------:|----------:|
-| &#39;Create and dispose a state&#39;                     | Darp.Luau  |    27,815.46 ns |    89.758 ns |    79.568 ns | 0.0916 | 0.0305 |    1912 B |
-| &#39;Call a Lua function from C#&#39;                    | Darp.Luau  |       179.63 ns |     0.380 ns |     0.337 ns |      - |      - |         - |
-| &#39;Call a C# function from Lua&#39;                    | Darp.Luau  |       188.51 ns |     0.175 ns |     0.155 ns |      - |      - |         - |
-| &#39;Call a Lua function from C# asynchronously&#39;     | Darp.Luau  |       700.96 ns |     2.223 ns |     2.080 ns | 0.0105 |      - |     176 B |
-| &#39;Call an async C# function from Lua (completed)&#39; | Darp.Luau  |       307.29 ns |     0.420 ns |     0.350 ns |      - |      - |         - |
-| &#39;Call an async C# function from Lua (yielding)&#39;  | Darp.Luau  |       877.25 ns |    16.713 ns |    16.414 ns | 0.0508 |      - |     857 B |
-| &#39;Set and get a table field&#39;                      | Darp.Luau  |       177.45 ns |     0.653 ns |     0.611 ns |      - |      - |         - |
-| &#39;Run fib(20) in Lua&#39;                             | Darp.Luau  |   444,228.51 ns | 1,234.360 ns | 1,030.746 ns |      - |      - |         - |
-| &#39;Create and dispose a state&#39;                     | Lua-CSharp |     6,419.00 ns |    80.030 ns |    74.860 ns | 1.3351 | 0.0916 |   22344 B |
-| &#39;Call a Lua function from C#&#39;                    | Lua-CSharp |       151.60 ns |     1.127 ns |     0.941 ns | 0.0029 |      - |      48 B |
-| &#39;Call a C# function from Lua&#39;                    | Lua-CSharp |        99.50 ns |     1.060 ns |     0.992 ns |      - |      - |         - |
-| &#39;Call a Lua function from C# asynchronously&#39;     | Lua-CSharp |       155.66 ns |     0.195 ns |     0.183 ns | 0.0029 |      - |      48 B |
-| &#39;Call an async C# function from Lua (completed)&#39; | Lua-CSharp |        79.57 ns |     0.063 ns |     0.049 ns |      - |      - |         - |
-| &#39;Call an async C# function from Lua (yielding)&#39;  | Lua-CSharp |       618.43 ns |     6.585 ns |     6.160 ns | 0.0078 |      - |     136 B |
-| &#39;Set and get a table field&#39;                      | Lua-CSharp |        24.80 ns |     0.019 ns |     0.015 ns |      - |      - |         - |
-| &#39;Run fib(20) in Lua&#39;                             | Lua-CSharp | 2,380,195.36 ns | 1,517.113 ns | 1,344.881 ns |      - |      - |      48 B |
-| &#39;Create and dispose a state&#39;                     | NLua       |    80,861.57 ns |   493.880 ns |   437.811 ns | 0.3662 |      - |    6608 B |
-| &#39;Call a Lua function from C#&#39;                    | NLua       |       171.30 ns |     0.930 ns |     0.870 ns | 0.0114 |      - |     192 B |
-| &#39;Call a C# function from Lua&#39;                    | NLua       |       710.61 ns |     4.439 ns |     3.707 ns | 0.0273 |      - |     504 B |
-| &#39;Set and get a table field&#39;                      | NLua       |       153.79 ns |     0.547 ns |     0.485 ns | 0.0067 |      - |     112 B |
-| &#39;Run fib(20) in Lua&#39;                             | NLua       |   573,634.65 ns | 5,181.104 ns | 4,846.408 ns |      - |      - |     168 B |
-| &#39;Create and dispose a state&#39;                     | NuLua      |    26,427.25 ns |    74.889 ns |    62.536 ns | 0.0305 |      - |     520 B |
-| &#39;Call a Lua function from C#&#39;                    | NuLua      |       132.17 ns |     0.172 ns |     0.152 ns | 0.0033 |      - |      56 B |
-| &#39;Call a C# function from Lua&#39;                    | NuLua      |       260.69 ns |     0.311 ns |     0.276 ns |      - |      - |         - |
-| &#39;Call a Lua function from C# asynchronously&#39;     | NuLua      |     1,532.44 ns |     8.030 ns |     7.512 ns | 0.0381 | 0.0362 |     664 B |
-| &#39;Call an async C# function from Lua (completed)&#39; | NuLua      |       264.99 ns |     0.468 ns |     0.366 ns | 0.0049 | 0.0010 |      89 B |
-| &#39;Set and get a table field&#39;                      | NuLua      |       420.47 ns |     0.636 ns |     0.531 ns |      - |      - |         - |
-| &#39;Run fib(20) in Lua&#39;                             | NuLua      |   569,819.75 ns | 1,267.922 ns |   989.910 ns |      - |      - |      56 B |
+| &#39;Create and dispose a state&#39;                     | Darp.Luau  |    25,342.22 ns |    57.205 ns |    47.769 ns | 0.0610 | 0.0305 |    1968 B |
+| &#39;Call a Lua function from C#&#39;                    | Darp.Luau  |       152.98 ns |     0.284 ns |     0.252 ns |      - |      - |         - |
+| &#39;Call a C# function from Lua&#39;                    | Darp.Luau  |       180.61 ns |     0.246 ns |     0.218 ns |      - |      - |         - |
+| &#39;Call a Lua function from C# asynchronously&#39;     | Darp.Luau  |       530.40 ns |     1.122 ns |     0.995 ns |      - |      - |         - |
+| &#39;Call an async C# function from Lua (completed)&#39; | Darp.Luau  |       196.53 ns |     0.116 ns |     0.091 ns |      - |      - |         - |
+| &#39;Call an async C# function from Lua (yielding)&#39;  | Darp.Luau  |       565.94 ns |     5.898 ns |     4.925 ns | 0.0078 |      - |     201 B |
+| &#39;Set and get a table field&#39;                      | Darp.Luau  |       157.84 ns |     0.389 ns |     0.325 ns |      - |      - |         - |
+| &#39;Run fib(20) in Lua&#39;                             | Darp.Luau  |   459,264.43 ns |   403.686 ns |   337.096 ns |      - |      - |         - |
+| &#39;Create and dispose a state&#39;                     | Lua-CSharp |     6,686.79 ns |    53.234 ns |    47.190 ns | 0.8850 | 0.0610 |   22344 B |
+| &#39;Call a Lua function from C#&#39;                    | Lua-CSharp |       139.07 ns |     0.366 ns |     0.324 ns | 0.0019 |      - |      48 B |
+| &#39;Call a C# function from Lua&#39;                    | Lua-CSharp |        90.42 ns |     0.128 ns |     0.114 ns |      - |      - |         - |
+| &#39;Call a Lua function from C# asynchronously&#39;     | Lua-CSharp |       137.22 ns |     0.282 ns |     0.250 ns | 0.0019 |      - |      48 B |
+| &#39;Call an async C# function from Lua (completed)&#39; | Lua-CSharp |        66.62 ns |     0.361 ns |     0.320 ns |      - |      - |         - |
+| &#39;Call an async C# function from Lua (yielding)&#39;  | Lua-CSharp |       894.57 ns |     6.650 ns |     6.221 ns | 0.0049 |      - |     136 B |
+| &#39;Set and get a table field&#39;                      | Lua-CSharp |        22.92 ns |     0.040 ns |     0.038 ns |      - |      - |         - |
+| &#39;Run fib(20) in Lua&#39;                             | Lua-CSharp | 2,213,116.00 ns | 4,703.980 ns | 3,928.036 ns |      - |      - |      48 B |
+| &#39;Create and dispose a state&#39;                     | NLua       |    78,762.02 ns | 1,525.477 ns | 1,566.552 ns | 0.2441 |      - |    6608 B |
+| &#39;Call a Lua function from C#&#39;                    | NLua       |       178.26 ns |     2.511 ns |     2.349 ns | 0.0076 |      - |     192 B |
+| &#39;Call a C# function from Lua&#39;                    | NLua       |       781.31 ns |     3.289 ns |     2.746 ns | 0.0195 |      - |     504 B |
+| &#39;Set and get a table field&#39;                      | NLua       |       164.06 ns |     1.074 ns |     0.952 ns | 0.0043 |      - |     112 B |
+| &#39;Run fib(20) in Lua&#39;                             | NLua       |   603,488.23 ns | 1,078.734 ns |   900.792 ns |      - |      - |     168 B |
+| &#39;Create and dispose a state&#39;                     | NuLua      |    25,125.75 ns |    28.511 ns |    23.808 ns |      - |      - |     520 B |
+| &#39;Call a Lua function from C#&#39;                    | NuLua      |       127.90 ns |     0.224 ns |     0.187 ns | 0.0021 |      - |      56 B |
+| &#39;Call a C# function from Lua&#39;                    | NuLua      |       117.53 ns |     0.080 ns |     0.067 ns |      - |      - |         - |
+| &#39;Call a Lua function from C# asynchronously&#39;     | NuLua      |     1,575.77 ns |    29.931 ns |    30.737 ns | 0.0248 | 0.0229 |     664 B |
+| &#39;Call an async C# function from Lua (completed)&#39; | NuLua      |       137.14 ns |     0.378 ns |     0.335 ns | 0.0034 | 0.0010 |      89 B |
+| &#39;Set and get a table field&#39;                      | NuLua      |       413.57 ns |     0.343 ns |     0.286 ns |      - |      - |         - |
+| &#39;Run fib(20) in Lua&#39;                             | NuLua      |   564,598.41 ns |   323.855 ns |   287.089 ns |      - |      - |      56 B |
