@@ -195,44 +195,73 @@ public sealed class ScriptCancellationTests : IDisposable
         );
     }
 
-    /// <summary> Luau cannot suspend a metamethod: the script is only stopped once the metamethod has returned. </summary>
+    /// <summary> Luau cannot suspend these places. There the script is stopped with an error that ends it. </summary>
+    [Theory]
+    [InlineData("local value = setmetatable({}, { __index = function() cancel() while true do end end }).key")]
+    [InlineData("table.sort({ 3, 2, 1 }, function() cancel() while true do end end)")]
+    [InlineData("string.gsub('a', 'a', function() cancel() while true do end end)")]
+    [InlineData("xpcall(error, function() cancel() while true do end end)")]
+    public async Task EndlessLoop_WhereLuauCannotYield_ShouldBeStopped(string script)
+    {
+        await ShouldBeCancelledAsync(script);
+    }
+
+    /// <summary> The script can catch the error, but it is stopped again at its next safepoint. </summary>
     [Fact]
-    public async Task Metamethod_ShouldRunToItsEndBeforeTheScriptIsStopped()
+    public async Task ErrorThatStopsAMetamethod_ShouldNotLetTheScriptGoOnAfterItCaughtIt()
     {
         await ShouldBeCancelledAsync(
             """
-            local proxy = setmetatable({}, { __index = function()
-                cancel()
-                for i = 1, 100 do end
-                metamethod_returned = true
-                return 1
-            end })
-            local value = proxy.key
-            while true do end
+            local proxy = setmetatable({}, { __index = function() cancel() while true do end end })
+            local ok, message = pcall(function() return proxy.key end)
+            caught = message
+            iterations = 0
+            while true do
+                iterations += 1
+            end
             """
         );
 
-        _state.Globals.GetBoolean("metamethod_returned").ShouldBeTrue();
+        _state.Globals.GetUtf8String("caught").ShouldContain("script was interrupted");
+        // What follows runs up to the next safepoint, the end of the first iteration.
+        _state.Globals.GetNumber("iterations").ShouldBe(1);
     }
 
-    /// <summary> A sync <c>Invoke</c> cannot be suspended either: it returns, then the script of the call is stopped. </summary>
+    /// <summary> A sync host call takes no token: it runs under the token of the async call that runs the callback. </summary>
     [Fact]
-    public async Task SyncInvokeFromACallback_ShouldRunToItsEndBeforeTheScriptIsStopped()
+    public async Task SyncInvokeFromACallback_ShouldBeStopped()
     {
-        using LuauFunction loop = _state
-            .Load("cancel() local n = 0 for i = 1, 100 do n += 1 end return n")
-            .ToFunction();
-        int invokeResult = 0;
-        using LuauFunction invokeLoop = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
+        OperationCanceledException? nestedCancellation = null;
+        using LuauFunction invokeEndless = _state.CreateFunctionBuilder(_ =>
         {
-            invokeResult = loop.Invoke<int>();
+            nestedCancellation = Should.Throw<OperationCanceledException>(() => endless.Invoke());
             return LuauReturn.Ok();
         });
-        _state.Globals.Set("invoke_loop", invokeLoop);
+        _state.Globals.Set("invoke_endless", invokeEndless);
 
-        await ShouldBeCancelledAsync("invoke_loop() while true do end");
+        await ShouldBeCancelledAsync("invoke_endless() while true do end");
 
-        invokeResult.ShouldBe(100);
+        nestedCancellation.ShouldNotBeNull().CancellationToken.ShouldBe(_cts.Token);
+    }
+
+    [Fact]
+    public async Task SyncResumeFromACallback_ShouldBeStopped()
+    {
+        using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(endless);
+        OperationCanceledException? nestedCancellation = null;
+        using LuauFunction resume = _state.CreateFunctionBuilder(_ =>
+        {
+            nestedCancellation = Should.Throw<OperationCanceledException>(() => coroutine.Resume());
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("resume", resume);
+
+        await ShouldBeCancelledAsync("resume() while true do end");
+
+        nestedCancellation.ShouldNotBeNull().CancellationToken.ShouldBe(_cts.Token);
+        coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
     }
 
     /// <summary> Every host call is stopped by its own token only: the callback has to pass the token on. </summary>
@@ -263,27 +292,23 @@ public sealed class ScriptCancellationTests : IDisposable
     }
 
     [Fact]
-    public async Task HostCallsWithoutAToken_InsideACancelledCall_ShouldRunToTheirEnd()
+    public async Task AsyncCallWithoutAToken_InsideACancelledCall_ShouldRunToItsEnd()
     {
         using LuauFunction count = _state
             .Load("cancel() local n = 0 for i = 1, 100 do n += 1 end return n")
             .ToFunction();
-        using LuauCoroutine coroutine = _state.CreateCoroutine(count);
-        int resumed = 0;
-        double invokedAsync = 0;
+        double counted = 0;
         using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
         {
-            resumed = coroutine.Resume<int>();
             // Completed when it returns: nothing in the script awaits.
-            invokedAsync = count.InvokeAsync<double>().GetAwaiter().GetResult();
+            counted = count.InvokeAsync<double>().GetAwaiter().GetResult();
             return LuauReturn.Ok();
         });
         _state.Globals.Set("run_nested", runNested);
 
         await ShouldBeCancelledAsync("run_nested() while true do end");
 
-        resumed.ShouldBe(100);
-        invokedAsync.ShouldBe(100);
+        counted.ShouldBe(100);
     }
 
     /// <summary> A call that continues inside a callback of another call is not stopped by the token of that call. </summary>

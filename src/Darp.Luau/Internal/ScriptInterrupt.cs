@@ -9,27 +9,46 @@ namespace Darp.Luau.Internal;
 /// <summary> Stops a running script when the token of the async host call that runs it is cancelled. </summary>
 /// <remarks>
 /// <para>
-/// Luau calls an interrupt hook at its safepoints: loop back-edges, calls and returns. While a host call with a
-/// cancellable token runs a script, the hook is installed and reads that token. Once it is cancelled, the hook
-/// breaks the coroutine: Luau leaves it where it is and returns to the host, which abandons it. A break is not an
-/// error, so no <c>pcall</c> of the script sees it.
+/// Luau asks at its safepoints whether to stop: when a loop jumps back, at calls and returns, and in the string
+/// pattern matcher. While an async host call with a cancellable token runs a script, the question is answered with
+/// that token. Once it is cancelled, the native library stops the script in the way that is possible there:
 /// </para>
+/// <list type="bullet">
+/// <item>
+/// Where Luau can yield, it breaks the coroutine: Luau leaves it where it is and returns to the host, which
+/// abandons it. A break is not an error, so no <c>pcall</c> of the script sees it.
+/// </item>
+/// <item>
+/// Where Luau cannot yield, in a metamethod, a <c>table.sort</c> comparator or a sync host call such as
+/// <c>Invoke</c>, it raises a Luau error. A script can catch that error, but the token stays cancelled, so the
+/// error is raised again at the next safepoint and the script cannot go on.
+/// </item>
+/// </list>
 /// <para>
-/// The token is the only thing another thread touches. Everything else, including the hook, runs on the thread
-/// that runs the script.
-/// </para>
-/// <para>
-/// Luau cannot break where it cannot yield: in a metamethod, a <c>table.sort</c> comparator or a sync host call
-/// such as <c>Invoke</c>. There the hook does nothing. The token stays cancelled, so the script is stopped at the
-/// first safepoint after that code has returned.
+/// The token is the only thing another thread touches. Everything else, including the answer to Luau, runs on the
+/// thread that runs the script.
 /// </para>
 /// </remarks>
 internal static unsafe class ScriptInterrupt
 {
+    private const string StoppedMessage = "The script was stopped because its host call was cancelled.";
+
+    /// <summary> Creates what Luau asks at its safepoints. The state owns it and frees it with <see cref="Free"/>. </summary>
+    /// <param name="stateHandle">A handle to the state, which outlives the returned memory.</param>
+    public static darp_luau_interrupt* Create(GCHandle stateHandle)
+    {
+        var interrupt = (darp_luau_interrupt*)NativeMemory.Alloc((nuint)sizeof(darp_luau_interrupt));
+        interrupt->callback = &ShouldStop;
+        interrupt->ctx = (void*)GCHandle.ToIntPtr(stateHandle);
+        return interrupt;
+    }
+
+    public static void Free(darp_luau_interrupt* interrupt) => NativeMemory.Free(interrupt);
+
     /// <summary> Lets <paramref name="cancellationToken"/>, and no other token, stop the script while the scope is open. </summary>
     /// <remarks>
-    /// Every host call is stopped by its own token only. A host call that runs inside a callback of another one,
-    /// or continues there after its awaited work completed, is not stopped by the token of that other call.
+    /// Every async host call is stopped by its own token only. One that runs inside a callback of another one, or
+    /// continues there after its awaited work completed, is not stopped by the token of that other call.
     /// </remarks>
     public static Scope Enter(LuauState state, CancellationToken cancellationToken)
     {
@@ -38,27 +57,51 @@ internal static unsafe class ScriptInterrupt
         return new Scope(state, enclosingToken);
     }
 
-    /// <summary> The hook is only installed for a token that can be cancelled: a script pays for every call of it. </summary>
     private static void Install(LuauState state, CancellationToken cancellationToken)
     {
+        // Luau is only made to ask for a token that can be cancelled: a script pays for every question.
+        if (cancellationToken.CanBeCanceled)
+            darp_luau_setinterrupt(state.L, state.Interrupt);
+        else if (state.InterruptToken.CanBeCanceled)
+            darp_luau_setinterrupt(state.L, null);
         state.InterruptToken = cancellationToken;
-        state.Callbacks->interrupt = cancellationToken.CanBeCanceled ? &OnSafepoint : null;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnSafepoint(lua_State* L, int gcState)
+    private static int ShouldStop(lua_State* L, void* ctx) =>
+        GCHandle.FromIntPtr((nint)ctx).Target is LuauState state && state.InterruptToken.IsCancellationRequested
+            ? 1
+            : 0;
+
+    /// <summary> Throws when a sync host call failed. </summary>
+    /// <remarks>
+    /// A sync host call takes no token. Made by a callback, it runs under the token of the async host call that
+    /// runs the callback, and fails as cancelled like that call when the token is cancelled.
+    /// </remarks>
+    /// <exception cref="LuaException">Thrown when <paramref name="status"/> is not successful.</exception>
+    /// <exception cref="OperationCanceledException">Thrown instead when the token that stops the script is cancelled.</exception>
+    public static void ThrowIfNotOk(LuauState state, lua_State* L, int status, string description)
     {
-        // Luau also reports the steps of its garbage collector, where a script cannot be stopped.
-        if (gcState >= 0)
+        if (status == 0)
             return;
-        if (GCHandle.FromIntPtr((nint)lua_callbacks(L)->userdata).Target is not LuauState state)
-            return;
-        if (!state.InterruptToken.IsCancellationRequested)
-            return;
-        // Where Luau cannot yield, lua_break raises an error instead, which must not unwind through this frame.
-        if (lua_isyieldable(L) != 0)
-            _ = lua_break(L);
+        try
+        {
+            LuaException.ThrowIfNotOk(L, status, description);
+        }
+        catch (LuaException failure) when (state.InterruptToken.IsCancellationRequested)
+        {
+            throw Cancelled(failure, state.InterruptToken);
+        }
     }
+
+    /// <summary> The failure of a host call whose token is cancelled. </summary>
+    /// <param name="failure">
+    /// The error that ended the script, if any. Where Luau cannot break, stopping a script surfaces as an error,
+    /// which cannot be told from an error the script made on its own.
+    /// </param>
+    /// <param name="cancellationToken">The cancelled token.</param>
+    public static OperationCanceledException Cancelled(LuaException? failure, CancellationToken cancellationToken) =>
+        new(StoppedMessage, failure, cancellationToken);
 
     /// <summary> Restores the token of the enclosing host call when the script has returned to the host. </summary>
     public readonly ref struct Scope(LuauState state, CancellationToken enclosingToken)

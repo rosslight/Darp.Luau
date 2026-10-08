@@ -28,13 +28,13 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> How many host calls into the VM are in progress. Only <see cref="LuauVm"/> changes it. </summary>
     internal int VmDepth;
 
-    /// <summary> The callbacks of the VM. Only <see cref="ScriptInterrupt"/> changes them after construction. </summary>
-    internal readonly lua_Callbacks* Callbacks;
+    /// <summary> What Luau asks at its safepoints while <see cref="ScriptInterrupt"/> has it installed. </summary>
+    internal readonly darp_luau_interrupt* Interrupt;
 
     /// <summary> The token whose cancellation stops the script that runs now. Only <see cref="ScriptInterrupt"/> sets it. </summary>
     internal CancellationToken InterruptToken;
 
-    // Lets the callbacks of the VM find their state.
+    // Lets Luau's question at a safepoint find its state.
     private GCHandle _selfHandle;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
@@ -98,8 +98,7 @@ public sealed unsafe class LuauState : IDisposable
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
         _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);
-        Callbacks = lua_callbacks(L);
-        Callbacks->userdata = (void*)GCHandle.ToIntPtr(_selfHandle);
+        Interrupt = ScriptInterrupt.Create(_selfHandle);
         try
         {
 #if DEBUG
@@ -120,6 +119,7 @@ public sealed unsafe class LuauState : IDisposable
             // Nobody gets the state to dispose it.
             _disposing = 1;
             LuauVm.Close(this);
+            ScriptInterrupt.Free(Interrupt);
             _selfHandle.Free();
             throw;
         }
@@ -613,6 +613,7 @@ public sealed unsafe class LuauState : IDisposable
         ReferenceTracker.ReleaseAll();
         // Closing frees every function, which releases the handles of the managed callbacks.
         LuauVm.Close(this);
+        ScriptInterrupt.Free(Interrupt);
         _selfHandle.Free();
     }
 }

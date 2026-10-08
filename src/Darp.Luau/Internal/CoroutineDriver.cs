@@ -44,8 +44,6 @@ internal readonly struct CoroutineDriver
     private const string CoroutineLostError =
         "Lua invocation failed: a script resumed or closed the coroutine while it awaited a managed callback";
 
-    private const string ScriptStoppedMessage = "The script was stopped because its host call was cancelled.";
-
     private const int NoSlot = -1;
 
     private readonly LuauState _state;
@@ -368,9 +366,15 @@ internal readonly struct CoroutineDriver
 
     private unsafe int Resume(int argumentCount)
     {
+        // A sync resume takes no token. Like every sync host call, it runs under the token that is in charge.
+        if (_slot == NoSlot)
+            return LuauVm.Resume(_state, _coroutine, null, argumentCount);
         using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, _cancellationToken);
         return LuauVm.Resume(_state, _coroutine, null, argumentCount);
     }
+
+    /// <summary> The token whose cancellation stops the script of this drive. </summary>
+    private CancellationToken StoppingToken => _slot == NoSlot ? _state.InterruptToken : _cancellationToken;
 
     private void ThrowIfStateDisposed()
     {
@@ -480,15 +484,15 @@ internal readonly struct CoroutineDriver
                     new LuaException("Lua invocation lua_resume failed: attempt to yield from outside a coroutine")
                 );
             case lua_Status.LUA_BREAK:
-                // Only the interrupt hook breaks a coroutine. Nothing of the script may run again.
+                // Only a cancelled token breaks a coroutine. Nothing of the script may run again.
                 Finish();
-                throw new OperationCanceledException(ScriptStoppedMessage, _cancellationToken);
+                throw ScriptInterrupt.Cancelled(failure: null, StoppingToken);
             default:
                 try
                 {
                     LuaException.ThrowIfNotOk(_coroutine, status, "lua_resume");
                 }
-                catch (LuaException exception) when (_cancellationToken.IsCancellationRequested)
+                catch (LuaException exception) when (StoppingToken.IsCancellationRequested)
                 {
                     Finish();
                     throw CancelledOr(exception);
@@ -498,14 +502,8 @@ internal readonly struct CoroutineDriver
     }
 
     /// <summary> A call that fails after its token was cancelled ends as cancelled. </summary>
-    /// <remarks>
-    /// Where Luau cannot break, stopping a script surfaces as an error, which cannot be told from an error the
-    /// script made on its own.
-    /// </remarks>
     private Exception CancelledOr(LuaException failure) =>
-        _cancellationToken.IsCancellationRequested
-            ? new OperationCanceledException(ScriptStoppedMessage, failure, _cancellationToken)
-            : failure;
+        StoppingToken.IsCancellationRequested ? ScriptInterrupt.Cancelled(failure, StoppingToken) : failure;
 
     private unsafe void End()
     {
