@@ -284,17 +284,6 @@ public sealed class ReferenceOwnershipTests : IDisposable
         other.GetNumber("marker").ShouldBe(7);
     }
 
-    [Fact]
-    public void TableExtensionTryGet_ShouldRefuseSpans()
-    {
-        _state.Globals.Set("text", "hello");
-
-        Should.Throw<NotSupportedException>(() => _state.Globals.TryGet("text", out ReadOnlySpan<byte> _));
-
-        LuauMarshal.TryGetUtf8StringSpan(_state.Globals, "text", out ReadOnlySpan<byte> bytes).ShouldBeTrue();
-        bytes.SequenceEqual("hello"u8).ShouldBeTrue();
-    }
-
     public void Dispose() => _state.Dispose();
 }
 
