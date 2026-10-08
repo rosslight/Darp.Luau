@@ -121,7 +121,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <returns>A task that completes when the coroutine yields or finishes.</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>
@@ -146,7 +146,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <typeparam name="TR">Managed type to convert to.</typeparam>
     /// <returns>The first value converted to <typeparamref name="TR"/>.</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>
@@ -172,7 +172,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <typeparam name="TR2">Managed type to convert to.</typeparam>
     /// <returns>Two values (additional values will be ignored).</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>
@@ -201,7 +201,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <typeparam name="TR3">Managed type to convert to.</typeparam>
     /// <returns>Three values (additional values will be ignored).</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>
@@ -231,7 +231,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <typeparam name="TR4">Managed type to convert to.</typeparam>
     /// <returns>Four values (additional values will be ignored).</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>
@@ -257,7 +257,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <returns>All values as raw <see cref="LuauValue"/> instances.</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the coroutine
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the coroutine
     /// until their work completes; it is then resumed with their result. The returned task completes when the
     /// coroutine yields on its own or finishes.
     /// </remarks>

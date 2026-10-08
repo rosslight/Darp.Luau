@@ -219,7 +219,7 @@ internal readonly struct CoroutineDriver
     /// </returns>
     public static unsafe bool TryAwait(LuauState state, lua_State* luaState, in LuauReturn result)
     {
-        Debug.Assert(result.Pending is not null);
+        Debug.Assert(result.IsPending);
         return lua_isyieldable(luaState) != 0 && state.AsyncDrives.TrySetPending(luaState, result.Pending);
     }
 
@@ -279,12 +279,13 @@ internal readonly struct CoroutineDriver
         {
             int status = Resume(_argumentCount);
             // The work stays pending while awaiting: the coroutine is suspended, not running.
-            while (status == (int)lua_Status.LUA_YIELD && drives.GetPending(_slot) is { } pending)
+            while (status == (int)lua_Status.LUA_YIELD && drives.GetPending(_slot) is { IsNone: false } pending)
             {
                 LuauReturn result;
                 try
                 {
-                    result = LuauReturn.FromCompleted(await pending);
+                    await pending.Task;
+                    result = LuauReturn.FromCompleted(pending.GetResult());
                 }
                 catch (OperationCanceledException)
                 {
@@ -297,7 +298,7 @@ internal readonly struct CoroutineDriver
                 {
                     result = LuauReturn.Error(LuauStateMarshal.FormatCallbackException(exception));
                 }
-                drives.SetPending(_slot, null);
+                drives.ClearPending(_slot);
                 status = Continue(result);
             }
             return ReadResults(status, resultSelector, yieldIsError);

@@ -791,6 +791,71 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
+    public async Task Await_WithAConversion_ShouldSuspendTheScriptAndResumeItWithTheConvertedResult()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction add = _state.CreateFunctionBuilder(_ =>
+            LuauReturn.Await(new ValueTask<int>(gate.Task), static value => LuauReturn.Ok(value + 40, "added"))
+        );
+        _state.Globals.Set("add", add);
+
+        ValueTask<(int, string)> pending = _state.Load("return add()").ExecuteAsync<int, string>([], TestToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult(2);
+        (await pending).ShouldBe((42, "added"));
+    }
+
+    [Fact]
+    public void Await_WithAConversionOfCompletedWork_ShouldNotSuspendAndWorkFromSyncExecute()
+    {
+        using LuauFunction add = _state.CreateFunctionBuilder(_ =>
+            LuauReturn.Await(new ValueTask<int>(2), static value => LuauReturn.Ok(value + 40))
+        );
+        _state.Globals.Set("add", add);
+
+        _state.Load("return add()").Execute<int>().ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task Await_WithAThrowingConversion_ShouldBeALuaErrorCatchableByPcall()
+    {
+        using LuauFunction fail = _state.CreateFunctionBuilder(_ =>
+            LuauReturn.Await(
+                new ValueTask<int>(Task.Run(static () => 1, TestToken)),
+                static _ => throw new InvalidOperationException("boom from conversion")
+            )
+        );
+        _state.Globals.Set("fail", fail);
+
+        (bool ok, string error) = await _state
+            .Load(
+                """
+                local ok, err = pcall(fail)
+                return ok, tostring(err)
+                """
+            )
+            .ExecuteAsync<bool, string>([], TestToken);
+
+        ok.ShouldBeFalse();
+        error.ShouldContain("boom from conversion");
+    }
+
+    [Fact]
+    public async Task Await_OfWorkWithoutAResult_ShouldResumeTheScriptWithoutValues()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = _state.CreateFunctionBuilder(_ => LuauReturn.Await(new ValueTask(gate.Task)));
+        _state.Globals.Set("wait", wait);
+
+        ValueTask<int> pending = _state.Load("return select('#', wait())").ExecuteAsync<int>([], TestToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult();
+        (await pending).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task CreateFunction_WithAnAsyncDelegate_ShouldSuspendTheScriptAndResumeItWithTheResult()
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -32,44 +32,51 @@ internal static class CallbackBodyEmitter
         string callExpression = $"{callTarget}({string.Join(", ", arguments)})";
         if (signature.Awaitable is AwaitableReturnKind.None)
         {
-            WriteReturn(writer, signature, callExpression);
+            if (signature.ReturnTypes.Length == 0)
+            {
+                writer.WriteLine($"{callExpression};");
+                writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
+                return;
+            }
+
+            writer.WriteLine($"var returns = {callExpression};");
+            writer.WriteLine($"return {FormatOk(signature)};");
             return;
         }
 
         // The arguments are read above, so the awaited work never touches the callback-scoped args.
-        writer.WriteLine($"return global::Darp.Luau.LuauReturn.Await(Complete({callExpression}));");
-        writer.WriteLine();
-        writer.WriteLine(
-            "static async global::System.Threading.Tasks.ValueTask<global::Darp.Luau.LuauReturn> Complete("
-                + $"{EmitterHelper.GetReturnType(signature)} pending)"
-        );
-        writer.WriteLine("{");
-        writer.Indent++;
-        WriteReturn(writer, signature, "await pending");
-        writer.Indent--;
-        writer.WriteLine("}");
-    }
-
-    private static void WriteReturn(IndentedTextWriter writer, InteropSignature signature, string resultExpression)
-    {
+        string pending =
+            signature.Awaitable is AwaitableReturnKind.ValueTask
+                ? callExpression
+                : $"new {GetValueTaskType(signature)}({callExpression})";
         if (signature.ReturnTypes.Length == 0)
         {
-            writer.WriteLine($"{resultExpression};");
-            writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
+            writer.WriteLine($"return global::Darp.Luau.LuauReturn.Await({pending});");
             return;
         }
 
-        writer.WriteLine($"var returns = {resultExpression};");
-        if (signature.ReturnTypes.Length == 1)
-        {
-            writer.WriteLine(
-                $"return global::Darp.Luau.LuauReturn.Ok({LuauMarshalEmitter.FormatIntoLuauExpression("returns", signature.ReturnTypes[0])});"
-            );
-            return;
-        }
+        // The state converts the result itself, which saves the callback an async state machine of its own.
+        writer.WriteLine("return global::Darp.Luau.LuauReturn.Await(");
+        writer.Indent++;
+        writer.WriteLine($"{pending},");
+        writer.WriteLine($"static returns => {FormatOk(signature)}");
+        writer.Indent--;
+        writer.WriteLine(");");
+    }
 
-        writer.WriteLine(
-            $"return global::Darp.Luau.LuauReturn.Ok({string.Join(", ", signature.ReturnTypes.Select((x, i) => LuauMarshalEmitter.FormatIntoLuauExpression($"returns.Item{i + 1}", x)))});"
+    /// <summary> <c>LuauReturn.Ok(...)</c> of the values in a local named <c>returns</c>. </summary>
+    private static string FormatOk(InteropSignature signature)
+    {
+        bool isTuple = signature.ReturnTypes.Length > 1;
+        IEnumerable<string> values = signature.ReturnTypes.Select(
+            (x, i) => LuauMarshalEmitter.FormatIntoLuauExpression(isTuple ? $"returns.Item{i + 1}" : "returns", x)
         );
+        return $"global::Darp.Luau.LuauReturn.Ok({string.Join(", ", values)})";
+    }
+
+    private static string GetValueTaskType(InteropSignature signature)
+    {
+        const string valueTask = "global::System.Threading.Tasks.ValueTask";
+        return EmitterHelper.GetResultType(signature) is { } resultType ? $"{valueTask}<{resultType}>" : valueTask;
     }
 }

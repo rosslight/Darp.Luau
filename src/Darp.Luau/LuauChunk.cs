@@ -160,7 +160,7 @@ public readonly ref struct LuauChunk
     /// <param name="args">The arguments passed to the chunk.</param>
     /// <returns>A task that completes when the chunk has finished.</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the chunk until
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the chunk until
     /// their work completes. Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
@@ -183,7 +183,7 @@ public readonly ref struct LuauChunk
     /// <typeparam name="TR">Managed return type to convert to.</typeparam>
     /// <returns>The first Luau return value converted to <typeparamref name="TR"/>.</returns>
     /// <remarks>
-    /// Managed callbacks may return <see cref="LuauReturn.Await"/> to suspend the chunk until
+    /// Managed callbacks may return <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend the chunk until
     /// their work completes. Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>

@@ -100,7 +100,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>A task that completes when the function has returned.</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
@@ -129,7 +129,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>The first return value converted to <typeparamref name="TR"/>.</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
@@ -159,7 +159,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>Two return values (additional values will be ignored).</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
@@ -193,7 +193,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>Three return values (additional values will be ignored).</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
@@ -228,7 +228,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>Four return values (additional values will be ignored).</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
@@ -259,7 +259,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <returns>All Luau return values as an array.</returns>
     /// <remarks>
     /// The function runs on a new coroutine, so managed callbacks may return
-    /// <see cref="LuauReturn.Await"/> to suspend it until their work completes.
+    /// <see cref="LuauReturn.Await(ValueTask{LuauReturn})"/> to suspend it until their work completes.
     /// Without such a callback, the returned task is already completed.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>

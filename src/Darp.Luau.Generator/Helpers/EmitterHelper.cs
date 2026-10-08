@@ -73,13 +73,7 @@ internal static class EmitterHelper
     /// <summary> The C# return type of a callback with this signature, or <c>null</c> when it returns nothing. </summary>
     public static string? GetReturnType(InteropSignature signature)
     {
-        ImmutableEquatableArray<InteropType> returnTypes = signature.ReturnTypes;
-        string? resultType = returnTypes.Length switch
-        {
-            0 => null,
-            1 => GetDotnetType(returnTypes[0]),
-            _ => $"({string.Join(", ", returnTypes.Select((x, i) => GetTupleReturnType(x, i + 1)))})",
-        };
+        string? resultType = GetResultType(signature);
         string? awaitable = signature.Awaitable switch
         {
             AwaitableReturnKind.Task => "global::System.Threading.Tasks.Task",
@@ -89,5 +83,17 @@ internal static class EmitterHelper
         if (awaitable is null)
             return resultType;
         return resultType is null ? awaitable : $"{awaitable}<{resultType}>";
+    }
+
+    /// <summary> The C# type of the values Luau receives, or <c>null</c> when it receives nothing. </summary>
+    public static string? GetResultType(InteropSignature signature)
+    {
+        ImmutableEquatableArray<InteropType> returnTypes = signature.ReturnTypes;
+        return returnTypes.Length switch
+        {
+            0 => null,
+            1 => GetDotnetType(returnTypes[0]),
+            _ => $"({string.Join(", ", returnTypes.Select((x, i) => GetTupleReturnType(x, i + 1)))})",
+        };
     }
 }

@@ -23,13 +23,13 @@ public readonly struct LuauReturn
 {
     private readonly IntoLuauCopiedBuffer _buffer;
     private readonly string? _error;
-    private readonly Task<LuauReturn>? _pending;
+    private readonly PendingWork _pending;
 
     /// <summary> Gets whether this callback result is successful. </summary>
     public bool IsOk { get; }
 
     /// <summary> Gets whether this callback result completes later. See <see cref="Await(ValueTask{LuauReturn})"/>. </summary>
-    public bool IsPending => _pending is not null;
+    public bool IsPending => !_pending.IsNone;
 
     /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
     internal const string NotHandled = "__DARP_NOT_HANDLED__";
@@ -62,7 +62,7 @@ public readonly struct LuauReturn
         _error = error;
     }
 
-    private LuauReturn(Task<LuauReturn> pending)
+    private LuauReturn(PendingWork pending)
     {
         IsOk = false;
         _pending = pending;
@@ -121,7 +121,33 @@ public readonly struct LuauReturn
     /// </para>
     /// </remarks>
     public static LuauReturn Await(ValueTask<LuauReturn> pending) =>
-        pending.IsCompletedSuccessfully ? FromCompleted(pending.Result) : new LuauReturn(pending.AsTask());
+        pending.IsCompletedSuccessfully
+            ? FromCompleted(pending.Result)
+            : new LuauReturn(new PendingWork(pending.AsTask()));
+
+    /// <summary> Creates a callback result that returns no values when <paramref name="pending"/> completes. </summary>
+    /// <param name="pending">The work to wait for.</param>
+    /// <inheritdoc cref="Await(ValueTask{LuauReturn})" path="/remarks"/>
+    public static LuauReturn Await(ValueTask pending) =>
+        pending.IsCompletedSuccessfully ? Ok() : new LuauReturn(PendingWork.Create(pending.AsTask()));
+
+    /// <summary>
+    /// Creates a callback result that completes with what <paramref name="complete"/> makes of the result of
+    /// <paramref name="pending"/>.
+    /// </summary>
+    /// <param name="pending">The work that produces a value.</param>
+    /// <param name="complete">
+    /// Converts the value into the actual result. It runs where the state may be used, so it can return Luau references.
+    /// </param>
+    /// <typeparam name="T">The type of the value <paramref name="pending"/> produces.</typeparam>
+    /// <inheritdoc cref="Await(ValueTask{LuauReturn})" path="/remarks"/>
+    public static LuauReturn Await<T>(ValueTask<T> pending, Func<T, LuauReturn> complete)
+    {
+        ArgumentNullException.ThrowIfNull(complete);
+        return pending.IsCompletedSuccessfully
+            ? FromCompleted(complete(pending.Result))
+            : new LuauReturn(PendingWork.Create(pending.AsTask(), complete));
+    }
 
     /// <summary>
     /// Creates a callback result that signals the member or method is not handled.
@@ -129,7 +155,7 @@ public readonly struct LuauReturn
     public static LuauReturn NotHandledError => Error(NotHandled);
 
     /// <summary> The work a pending result waits for, or <c>null</c>. </summary>
-    internal Task<LuauReturn>? Pending => _pending;
+    internal PendingWork Pending => _pending;
 
     /// <summary> Unwraps the result of completed pending work. A result that is pending itself is rejected. </summary>
     internal static LuauReturn FromCompleted(LuauReturn result)
@@ -186,7 +212,7 @@ public readonly struct LuauReturn
     /// <remarks> A pending result owns no captured references; its work keeps running and only a fault is observed. </remarks>
     internal void Release()
     {
-        if (_pending is null)
+        if (_pending.IsNone)
         {
             _buffer.Release();
             return;
@@ -195,7 +221,7 @@ public readonly struct LuauReturn
         // A pending result is dropped while its work keeps running. Its result is never pushed, so whatever it
         // captured stays tracked until the state is disposed; only a fault is observed here, without touching the
         // state from the thread that completes the work.
-        _ = _pending.ContinueWith(
+        _ = _pending.Task.ContinueWith(
             static task => _ = task.Exception,
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
