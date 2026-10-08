@@ -374,7 +374,8 @@ internal readonly struct CoroutineDriver
 
     /// <summary> Whether the coroutine still waits in the managed callback whose work this drive awaits. </summary>
     private unsafe bool IsWaiting() =>
-        AsyncDriveTable.IsDriving(_coroutine)
+        // The slot is compared: after this drive lost the coroutine, another drive may have taken it.
+        AsyncDriveTable.IsDriving(_coroutine, _slot)
         && (lua_CoStatus)lua_costatus(_state.L, _coroutine) is lua_CoStatus.LUA_COSUS;
 
     /// <summary> Throws when the result of the awaited work can no longer be delivered. </summary>
