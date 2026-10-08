@@ -26,20 +26,23 @@ namespace Darp.Luau.Internal;
 /// </remarks>
 internal static unsafe class ScriptInterrupt
 {
-    /// <summary> Lets <paramref name="cancellationToken"/> stop the script while the scope is open. </summary>
+    /// <summary> Lets <paramref name="cancellationToken"/>, and no other token, stop the script while the scope is open. </summary>
     /// <remarks>
-    /// A token that cannot be cancelled leaves the token of an enclosing host call in charge. That covers the sync
-    /// host calls a callback makes: they take no token.
+    /// Every host call is stopped by its own token only. A host call that runs inside a callback of another one,
+    /// or continues there after its awaited work completed, is not stopped by the token of that other call.
     /// </remarks>
     public static Scope Enter(LuauState state, CancellationToken cancellationToken)
     {
         CancellationToken enclosingToken = state.InterruptToken;
-        if (cancellationToken.CanBeCanceled)
-        {
-            state.InterruptToken = cancellationToken;
-            state.Callbacks->interrupt = &OnSafepoint;
-        }
+        Install(state, cancellationToken);
         return new Scope(state, enclosingToken);
+    }
+
+    /// <summary> The hook is only installed for a token that can be cancelled: a script pays for every call of it. </summary>
+    private static void Install(LuauState state, CancellationToken cancellationToken)
+    {
+        state.InterruptToken = cancellationToken;
+        state.Callbacks->interrupt = cancellationToken.CanBeCanceled ? &OnSafepoint : null;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -68,11 +71,6 @@ internal static unsafe class ScriptInterrupt
         private readonly LuauState _state = state;
         private readonly CancellationToken _enclosingToken = enclosingToken;
 
-        public void Dispose()
-        {
-            _state.InterruptToken = _enclosingToken;
-            if (!_enclosingToken.CanBeCanceled)
-                _state.Callbacks->interrupt = null;
-        }
+        public void Dispose() => Install(_state, _enclosingToken);
     }
 }

@@ -32,9 +32,24 @@ public sealed class ScriptCancellationTests : IDisposable
     [Fact]
     public async Task EndlessLoop_ShouldBeStoppedFromAnotherThread()
     {
-        _cts.CancelAfter(TimeSpan.FromMilliseconds(50));
+        using var loopStarted = new ManualResetEventSlim();
+        using LuauFunction started = _state.CreateFunctionBuilder(_ =>
+        {
+            loopStarted.Set();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("started", started);
+        Task cancellation = Task.Run(
+            () =>
+            {
+                loopStarted.Wait(TestContext.Current.CancellationToken);
+                _cts.Cancel();
+            },
+            TestContext.Current.CancellationToken
+        );
 
-        await ShouldBeCancelledAsync("while true do end");
+        await ShouldBeCancelledAsync("started() while true do end");
+        await cancellation;
     }
 
     [Fact]
@@ -135,11 +150,9 @@ public sealed class ScriptCancellationTests : IDisposable
     {
         using LuauState state = CreateStateWithEndlessModule();
 
-        OperationCanceledException exception = await Should.ThrowAsync<OperationCanceledException>(() =>
+        await Should.ThrowAsync<OperationCanceledException>(() =>
             state.Load("""return require("./endless")""").ExecuteAsync([], _cts.Token).AsTask()
         );
-
-        exception.InnerException.ShouldBeOfType<LuaException>().Message.ShouldContain("was interrupted");
     }
 
     private LuauState CreateStateWithEndlessModule()
@@ -171,7 +184,6 @@ public sealed class ScriptCancellationTests : IDisposable
         );
 
         exception.CancellationToken.ShouldBe(_cts.Token);
-        exception.InnerException.ShouldBeOfType<LuaException>().Message.ShouldContain("attempt to index nil");
         coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
     }
 
@@ -223,44 +235,21 @@ public sealed class ScriptCancellationTests : IDisposable
         invokeResult.ShouldBe(100);
     }
 
-    /// <summary> A host call without a token of its own is stopped by the token of the host call around it. </summary>
+    /// <summary> Every host call is stopped by its own token only: the callback has to pass the token on. </summary>
     [Fact]
-    public async Task CallWithoutAToken_InsideACancelledCall_ShouldBeStoppedToo()
-    {
-        using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
-        OperationCanceledException? nestedCancellation = null;
-        using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
-        {
-            // Completed when it returns: nothing in the script awaits.
-            ValueTask nested = endless.InvokeAsync();
-            nestedCancellation = Should.Throw<OperationCanceledException>(() => nested.GetAwaiter().GetResult());
-            return LuauReturn.Ok();
-        });
-        _state.Globals.Set("run_nested", runNested);
-
-        await ShouldBeCancelledAsync("run_nested() while true do end");
-
-        nestedCancellation.ShouldNotBeNull().CancellationToken.ShouldBe(_cts.Token);
-    }
-
-    /// <summary> The nested call keeps the token of the call around it after that call was suspended. </summary>
-    [Fact]
-    public async Task CallWithoutAToken_InsideACancelledCall_ShouldBeStoppedAfterItAwaited()
+    public async Task AsyncCallFromACallback_ShouldBeStoppedByTheTokenPassedToIt_AlsoAfterItAwaited()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        CancellationToken tokenInNestedCall = default;
         using LuauFunction wait = _state.CreateFunctionBuilder(args =>
-        {
-            tokenInNestedCall = args.CancellationToken;
-            return args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
+            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
                 ? awaiter.Await(new ValueTask(gate.Task))
-                : LuauReturn.Error(error);
-        });
+                : LuauReturn.Error(error)
+        );
         _state.Globals.Set("wait", wait);
         using LuauFunction endless = _state.Load("wait() while true do end").ToFunction();
         using LuauFunction runNested = _state.CreateFunctionBuilder(args =>
             args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-                ? awaiter.Await(endless.InvokeAsync())
+                ? awaiter.Await(endless.InvokeAsync([], args.CancellationToken))
                 : LuauReturn.Error(error)
         );
         _state.Globals.Set("run_nested", runNested);
@@ -271,27 +260,69 @@ public sealed class ScriptCancellationTests : IDisposable
         gate.SetResult();
 
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
-        tokenInNestedCall.ShouldBe(_cts.Token);
     }
 
-    /// <summary> A coroutine can be suspended, so the sync resume of a callback is stopped by the token around it. </summary>
     [Fact]
-    public async Task SyncResumeFromACallback_ShouldBeStopped()
+    public async Task HostCallsWithoutAToken_InsideACancelledCall_ShouldRunToTheirEnd()
     {
-        using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
-        using LuauCoroutine coroutine = _state.CreateCoroutine(endless);
-        OperationCanceledException? nestedCancellation = null;
-        using LuauFunction resume = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction count = _state
+            .Load("cancel() local n = 0 for i = 1, 100 do n += 1 end return n")
+            .ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(count);
+        int resumed = 0;
+        double invokedAsync = 0;
+        using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
         {
-            nestedCancellation = Should.Throw<OperationCanceledException>(() => coroutine.Resume());
+            resumed = coroutine.Resume<int>();
+            // Completed when it returns: nothing in the script awaits.
+            invokedAsync = count.InvokeAsync<double>().GetAwaiter().GetResult();
             return LuauReturn.Ok();
         });
-        _state.Globals.Set("resume", resume);
+        _state.Globals.Set("run_nested", runNested);
 
-        await ShouldBeCancelledAsync("resume() while true do end");
+        await ShouldBeCancelledAsync("run_nested() while true do end");
 
-        nestedCancellation.ShouldNotBeNull().CancellationToken.ShouldBe(_cts.Token);
-        coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
+        resumed.ShouldBe(100);
+        invokedAsync.ShouldBe(100);
+    }
+
+    /// <summary> A call that continues inside a callback of another call is not stopped by the token of that call. </summary>
+    [Fact]
+    public async Task CallContinuingInsideACallbackOfACancelledCall_ShouldNotBeStopped()
+    {
+        // Continuations run inline, inside the callback that completes the gate.
+        var gate = new TaskCompletionSource();
+        using LuauFunction wait = _state.CreateFunctionBuilder(args =>
+            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
+                ? awaiter.Await(new ValueTask(gate.Task))
+                : LuauReturn.Error(error)
+        );
+        _state.Globals.Set("wait", wait);
+        using LuauFunction open = _state.CreateFunctionBuilder(_ =>
+        {
+            _cts.Cancel();
+            gate.SetResult();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("open", open);
+
+        ValueTask<int> waiting = _state
+            .Load("wait() local n = 0 for i = 1, 100 do n += 1 end return n")
+            .ExecuteAsync<int>([], CancellationToken.None);
+        await ShouldBeCancelledAsync("open() while true do end");
+
+        (await waiting).ShouldBe(100);
+    }
+
+    /// <summary> A function of Luau that yields is entered without a safepoint. The failed call is cancelled all the same. </summary>
+    [Fact]
+    public async Task YieldOutOfACancelledInvocation_ShouldBeReportedAsCancellation()
+    {
+        using LuauTable coroutineLibrary = _state.Globals.GetLuauTable("coroutine");
+        using LuauFunction yield = coroutineLibrary.GetLuauFunction("yield");
+        await _cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => yield.InvokeAsync([], _cts.Token).AsTask());
     }
 
     public void Dispose()

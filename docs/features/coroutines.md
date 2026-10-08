@@ -192,7 +192,7 @@ catch (OperationCanceledException)
 Cancel the token from any thread or timer. Luau checks it at its safepoints: every loop iteration, call and return. When the token is cancelled,
 
 - the script is stopped at its next safepoint. This is not an error: `pcall(...)` in the script cannot catch it, and no code of the script runs afterwards,
-- the async method throws `OperationCanceledException`. It does so too when the script fails with an error after the token was cancelled; the `LuaException` is the inner exception,
+- the async method throws `OperationCanceledException`. It does so too when the script fails with an error after the token was cancelled,
 - the coroutine is finished. One driven by `ResumeAsync(...)` reports `Finished` afterwards, and resuming it throws `InvalidOperationException`,
 - the state remains usable.
 
@@ -216,14 +216,16 @@ Luau can only stop a script where it could also yield. The following run to thei
 
 An endless loop in one of these places is not stopped.
 
-`Execute(...)`, `Invoke(...)`, and `Resume(...)` take no token. Called by your own code, they are never stopped. Called by a callback, they belong to the async host call that runs the callback: its token stops a `Resume(...)`, which then throws `OperationCanceledException`, while `Invoke(...)` and `Execute(...)` run to their end as described above.
+Every host call is stopped by its own token only:
 
-An async host call that a callback starts without a token belongs to the host call around it in the same way, if the callback starts it before its first `await`. Pass `args.CancellationToken` to calls you start later.
+- `Execute(...)`, `Invoke(...)`, and `Resume(...)` take no token and are not stopped.
+- An async host call that a callback makes is not stopped by the token of the call that runs the callback. Pass `args.CancellationToken` to it.
 
-Two more details:
+Three more details:
 
 - A script module that is stopped while it loads fails its `require(...)` with a Luau error. A script that catches it is stopped at its next safepoint.
 - A coroutine that the script created and that was running when the script was stopped stays in status `normal`. It cannot be resumed.
+- Such a coroutine is also stopped where the code around it cannot be: in a metamethod, or in an `Invoke(...)` or `Execute(...)` that a callback makes. Resuming it there fails with the Luau error `attempt to break across metamethod/C-call boundary`.
 
 ## Threading
 

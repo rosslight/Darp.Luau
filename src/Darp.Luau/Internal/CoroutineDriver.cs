@@ -73,10 +73,8 @@ internal readonly struct CoroutineDriver
         _coroutineRoot = coroutineRoot;
         _argumentCount = argumentCount;
         _minResultCount = minResultCount;
-        // A host call without a token of its own, made by a callback, belongs to the host call around it. The
-        // token is taken now: after the coroutine was suspended, that host call no longer runs around it.
-        _cancellationToken = cancellationToken.CanBeCanceled ? cancellationToken : state.InterruptToken;
-        _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, _cancellationToken) : NoSlot;
+        _cancellationToken = cancellationToken;
+        _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, cancellationToken) : NoSlot;
     }
 
     /// <summary> Starts a host resume of an existing coroutine. Pushes the resume arguments onto it. </summary>
@@ -478,7 +476,9 @@ internal readonly struct CoroutineDriver
             case lua_Status.LUA_YIELD:
                 // The call is over. A script that kept the coroutine must not be able to continue it later.
                 Finish();
-                throw new LuaException("Lua invocation lua_resume failed: attempt to yield from outside a coroutine");
+                throw CancelledOr(
+                    new LuaException("Lua invocation lua_resume failed: attempt to yield from outside a coroutine")
+                );
             case lua_Status.LUA_BREAK:
                 // Only the interrupt hook breaks a coroutine. Nothing of the script may run again.
                 Finish();
@@ -490,14 +490,22 @@ internal readonly struct CoroutineDriver
                 }
                 catch (LuaException exception) when (_cancellationToken.IsCancellationRequested)
                 {
-                    // A cancelled call ends as cancelled. Where Luau cannot break, stopping a script surfaces as
-                    // an error, which cannot be told from an error the script made on its own.
                     Finish();
-                    throw new OperationCanceledException(ScriptStoppedMessage, exception, _cancellationToken);
+                    throw CancelledOr(exception);
                 }
                 throw new UnreachableException();
         }
     }
+
+    /// <summary> A call that fails after its token was cancelled ends as cancelled. </summary>
+    /// <remarks>
+    /// Where Luau cannot break, stopping a script surfaces as an error, which cannot be told from an error the
+    /// script made on its own.
+    /// </remarks>
+    private Exception CancelledOr(LuaException failure) =>
+        _cancellationToken.IsCancellationRequested
+            ? new OperationCanceledException(ScriptStoppedMessage, failure, _cancellationToken)
+            : failure;
 
     private unsafe void End()
     {
