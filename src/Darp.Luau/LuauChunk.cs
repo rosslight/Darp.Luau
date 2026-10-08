@@ -174,7 +174,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask ExecuteAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
@@ -202,7 +202,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<TR> ExecuteAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         ExecuteCoreAsync(args, nResults: 1, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
@@ -225,7 +225,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(
         scoped RefEnumerable<IntoLuau> args,
@@ -251,7 +251,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(
         scoped RefEnumerable<IntoLuau> args,
@@ -278,7 +278,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(
         scoped RefEnumerable<IntoLuau> args,
@@ -309,7 +309,7 @@ public readonly ref struct LuauChunk
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<LuauValue[]> ExecuteMultiAsync(
         scoped RefEnumerable<IntoLuau> args,
@@ -407,8 +407,9 @@ public readonly ref struct LuauChunk
                 using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
                 // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
-                // exactly like for Execute.
-                LoadCompiledChunk(state.L);
+                // exactly like for Execute. Loading can run script code, which the token stops too.
+                using (ScriptInterrupt.Enter(state, cancellationToken))
+                    LoadCompiledChunk(state.L);
                 return LuauSynchronizationContext.Detach(
                     CoroutineDriver
                         .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
@@ -459,7 +460,8 @@ public readonly ref struct LuauChunk
                 environmentHandle
             );
             state.ThrowIfDisposed();
-            chunk.LoadCompiledChunk(state.L);
+            using (ScriptInterrupt.Enter(state, cancellationToken))
+                chunk.LoadCompiledChunk(state.L);
             return CoroutineDriver
                 .StartInvocation(state, copiedArgs, minResultCount: nResults, cancellationToken)
                 .RunAsync(resultSelector, yieldIsError: true);
@@ -547,7 +549,7 @@ public readonly ref struct LuauChunk
                     nSizeByteCode,
                     environmentStackIndex
                 );
-                LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+                ScriptInterrupt.ThrowIfNotOk(GetState(), L, loadStatus, "luau_load");
             }
             finally
             {

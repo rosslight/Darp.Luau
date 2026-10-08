@@ -97,10 +97,10 @@ public sealed unsafe class LuauState : IDisposable
         L = luaL_newstate();
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
-        _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);
-        Interrupt = ScriptInterrupt.Create(_selfHandle);
         try
         {
+            _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);
+            Interrupt = ScriptInterrupt.Create(_selfHandle);
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -120,7 +120,8 @@ public sealed unsafe class LuauState : IDisposable
             _disposing = 1;
             LuauVm.Close(this);
             ScriptInterrupt.Free(Interrupt);
-            _selfHandle.Free();
+            if (_selfHandle.IsAllocated)
+                _selfHandle.Free();
             throw;
         }
     }

@@ -264,6 +264,33 @@ public sealed class ScriptCancellationTests : IDisposable
         coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
     }
 
+    /// <summary> The conversion of an awaited result runs after the script was suspended. It is part of the call all the same. </summary>
+    [Fact]
+    public async Task SyncInvokeFromTheConversionOfAnAwaitedResult_ShouldBeStopped()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction endless = _state.Load("while true do end").ToFunction();
+        using LuauFunction convert = _state.CreateFunctionBuilder(args =>
+            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
+                ? awaiter.Await(
+                    new ValueTask<int>(gate.Task),
+                    _ =>
+                    {
+                        endless.Invoke();
+                        return LuauReturn.Ok();
+                    }
+                )
+                : LuauReturn.Error(error)
+        );
+        _state.Globals.Set("convert", convert);
+
+        ValueTask pending = _state.Load("convert()").ExecuteAsync([], _cts.Token);
+        await _cts.CancelAsync();
+        gate.SetResult(1);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+    }
+
     /// <summary> Every host call is stopped by its own token only: the callback has to pass the token on. </summary>
     [Fact]
     public async Task AsyncCallFromACallback_ShouldBeStoppedByTheTokenPassedToIt_AlsoAfterItAwaited()

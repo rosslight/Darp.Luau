@@ -314,6 +314,8 @@ internal readonly struct CoroutineDriver
                     failure = exception;
                 }
 
+                // The conversion of the result is part of this call too: it may run a script with a sync host call.
+                using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, _cancellationToken);
                 LuauReturn result = failure is null
                     ? GetResult(pending)
                     : LuauReturn.Error(LuauStateMarshal.FormatCallbackException(failure));
@@ -437,7 +439,6 @@ internal readonly struct CoroutineDriver
             throw;
         }
 
-        using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, _cancellationToken);
         const int topBeforePush = 0; // The native callback trampoline yields zero values.
         string? error;
         try

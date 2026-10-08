@@ -137,7 +137,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask ResumeAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
@@ -167,7 +167,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<TR> ResumeAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
@@ -196,7 +196,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2)> ResumeAsync<TR1, TR2>(
         scoped RefEnumerable<IntoLuau> args,
@@ -228,7 +228,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2, TR3)> ResumeAsync<TR1, TR2, TR3>(
         scoped RefEnumerable<IntoLuau> args,
@@ -261,7 +261,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ResumeAsync<TR1, TR2, TR3, TR4>(
         scoped RefEnumerable<IntoLuau> args,
@@ -289,7 +289,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when <paramref name="cancellationToken"/> is cancelled before the script has finished.
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
     /// </exception>
     public ValueTask<LuauValue[]> ResumeMultiAsync(
         scoped RefEnumerable<IntoLuau> args,
