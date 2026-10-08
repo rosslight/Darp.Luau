@@ -81,6 +81,29 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithKeywordNamesAndAnInitOnlyProperty_ShouldEscapeAndOnlyRead()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player
+            {
+                [LuauMember("kind")]
+                public int @class { get; set; }
+
+                [LuauMember("level")]
+                public int Level { get; init; }
+
+                [LuauMember("fallback")]
+                public int @default(int @in) => @in;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataHooks()
     {
         const string code = """

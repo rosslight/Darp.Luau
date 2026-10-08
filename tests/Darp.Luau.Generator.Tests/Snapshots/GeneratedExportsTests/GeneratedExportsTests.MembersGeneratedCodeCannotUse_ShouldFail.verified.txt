@@ -1,0 +1,80 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+{
+    [LuauMember("name")]
+     ^^^^^^^^^^^^^^^^^^
+    string INamed.Name { get; set; } = "";
+*/
+ : (12,5)-(12,23),
+      Message: Invalid generated export shape: property 'INamed.Name' is an explicit interface implementation, which generated code cannot access,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("level", Access = LuauPropertyAccess.ReadWrite)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public int Level { get; init; }
+*/
+ : (15,5)-(15,63),
+      Message: Invalid generated export shape: property 'Level' must define both a getter and setter for LuauPropertyAccess.ReadWrite,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("ping")]
+     ^^^^^^^^^^^^^^^^^^
+    partial void Ping();
+*/
+ : (18,5)-(18,23),
+      Message: Invalid generated export shape: partial method 'Ping' has no implementation,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("load")]
+     ^^^^^^^^^^^^^^^^^^
+    public Task<int>? Load() => null;
+*/
+ : (21,5)-(21,23),
+      Message: Generated userdata method 'Load' uses an unsupported parameter or return shape: a nullable task cannot be awaited; return a task that is never null,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

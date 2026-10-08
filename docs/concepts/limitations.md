@@ -21,9 +21,44 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Managed interop is documented for strings, numbers, booleans, tables, functions, coroutines, userdata, and buffers. Vector values are not documented as a managed interop surface yet.
 - Async managed callbacks are available through `CreateFunctionBuilder(...)` and the `LuauAwaiter` of its `LuauArgs`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
 - An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and only where Luau can yield: not inside a metamethod, a `table.sort` comparator, or a sync `Invoke(...)` made from another callback. Anywhere else it fails with a Luau error before its work starts. Coroutines that scripts create and resume themselves get that error too; there is no scheduler for them.
-- A delegate that was created from an `async` lambda and is typed `Action` runs as `async void`. The generator rejects that where it can see the lambda; a delegate held in a variable is not checked.
+- A delegate that was created from an `async` lambda and is typed `Action` runs as `async void`. The generator rejects that where it can see the lambda, also inside a conditional expression; a delegate held in a variable is not checked.
+- `CreateFunction(...)` callbacks take at most 16 parameters and none by reference. A task they return must not be nullable.
+- Generated exports reject explicit interface implementations, partial methods without an implementation, and nullable task returns. An `init` accessor is not exported as a setter.
 - `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
 - An exception that the host's `ILuauFileSystem` throws while Luau resolves a `require(...)` path is reported as a module that was not found. Only an exception from reading the module file carries its message into the Luau error.
+
+## Known edges
+
+These are deliberate. The library does not guard against them, so your code has to.
+
+### Errors
+
+- An exception from a synchronous callback becomes a Luau error, whatever its type. A script can catch it with `pcall(...)`, including `OperationCanceledException` and `OutOfMemoryException`. Only cancellation of an async host call by its own token ends the script.
+- When Luau itself runs out of memory outside a script call, for example while the host creates a table, the process does not recover.
+- Deep recursion between scripts and callbacks is stopped by Luau's call depth limit. The error text is wrapped once per level on the way out, so it can get long.
+- A Luau string is a sequence of bytes. Reading it as `string` decodes UTF-8 and replaces invalid sequences, so two different Luau strings can become the same managed string. Read bytes when the content is not text.
+- `LuaException` carries the error as text. Error values that are not strings are tracked in [#35](https://github.com/rosslight/Darp.Luau/issues/35).
+
+### Async and threading
+
+- Disposing the state does not complete an async host call whose awaited work never finishes. The call fails with `ObjectDisposedException` when the work completes, so cancel the work.
+- The result of one task belongs to one callback. A second callback that awaits the same `Task<LuauReturn>` fails.
+- Awaiting methods of one userdata instance can interleave: while one waits, a script can call another. Guard state that must not be seen half-changed.
+- A turn must not block on a lock that code holds across an `await` of the same state: the turn that would release it cannot start.
+- Turns are not sliced and the queue of a state has no limit. A callback that keeps posting work keeps the state busy.
+- A host dispatcher that pumps messages inside a turn can start another turn of the same state inside it.
+- Code you post to `SynchronizationContext.Current` from a callback runs in a later turn. An exception it throws is unhandled, like on any synchronization context. `Send` is not supported.
+
+### Ownership
+
+- A `LuauReturn` holds the values you gave it until it is returned. One that you build and then drop keeps them until the state is disposed.
+- Await every async host call and dispose the `LuauValue`s of `ExecuteMultiAsync(...)` and `InvokeMultiAsync(...)`. A result nobody reads keeps its references until the state is disposed.
+- Owned wrappers such as `LuauTable` are structs. A copy is the same reference: disposing one copy disposes them all.
+
+### Modules and generated code
+
+- `require(...)` reads whatever path the `ILuauFileSystem` of the state resolves, including paths above the entry script. Restrict the file system if scripts must stay in one directory.
+- `[LuauMember]` members of a base class are not exported. Declare them on the type that carries `[LuauModule]` or `[LuauUserdata]`.
 
 ## What this means in practice
 

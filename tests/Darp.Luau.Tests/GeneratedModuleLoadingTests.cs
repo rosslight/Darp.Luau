@@ -39,6 +39,27 @@ public sealed class GeneratedModuleLoadingTests
     }
 
     [Fact]
+    public void GeneratedStaticModule_ShouldExportMembersNamedLikeGeneratedLocalsOrKeywords()
+    {
+        using var state = new LuauState();
+
+        state.RegisterModule(NamesModule.ModuleName, NamesModule.OnLoad);
+        (int module, int stateValue, int result) = state
+            .Load(
+                """
+                local names = require("names")
+                return names.module, names.state, names.give_back(41)
+                """
+            )
+            .Execute<int, int, int>();
+
+        // The generated OnLoad has parameters named 'state' and 'module' itself.
+        module.ShouldBe(1);
+        stateValue.ShouldBe(2);
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void GeneratedModule_ShouldCreateNestedTables()
     {
         using var state = new LuauState();
@@ -90,6 +111,24 @@ public static partial class ArcadeModule
 
     [LuauMember("add_score")]
     public static int AddScore(int current, int bonus) => current + bonus;
+}
+
+[LuauModule("names")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Style",
+    "IDE1006:Naming Styles",
+    Justification = "The names collide with generated locals and a keyword on purpose."
+)]
+public static partial class NamesModule
+{
+    [LuauMember("module")]
+    public static int module => 1;
+
+    [LuauMember("state")]
+    public static int state => 2;
+
+    [LuauMember("give_back")]
+    public static int @return(int value) => value + 1;
 }
 
 [LuauModule("workshop")]

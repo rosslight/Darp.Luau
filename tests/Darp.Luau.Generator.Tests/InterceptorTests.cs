@@ -573,6 +573,83 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task AsyncVoidCallbackInAConditional_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+            using System.Threading.Tasks;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, bool flag)
+                {
+                    state.CreateFunction<Action>(flag ? async () => await Task.Yield() : () => { });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task ByRefParameter_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public delegate void Increment(ref int value);
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Increment>((ref int value) => value++);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MoreParametersThanFuncHas_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public delegate int Many(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17);
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Many>((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) => a1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task NullableTaskReturn_ShouldFail()
+    {
+        const string code = """
+            #nullable enable
+            using System;
+            using Darp.Luau;
+            using System.Threading.Tasks;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Func<Task<int>?>>(() => null);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
     public async Task NestedAwaitableReturn_ShouldFail()
     {
         const string code = """

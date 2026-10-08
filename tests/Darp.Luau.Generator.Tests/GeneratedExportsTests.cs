@@ -273,6 +273,39 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task MembersGeneratedCodeCannotUse_ShouldFail()
+    {
+        const string code = """
+            #nullable enable
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public interface INamed
+            {
+                string Name { get; set; }
+            }
+
+            [LuauUserdata]
+            public sealed partial class Player : INamed
+            {
+                [LuauMember("name")]
+                string INamed.Name { get; set; } = "";
+
+                [LuauMember("level", Access = LuauPropertyAccess.ReadWrite)]
+                public int Level { get; init; }
+
+                [LuauMember("ping")]
+                partial void Ping();
+
+                [LuauMember("load")]
+                public Task<int>? Load() => null;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task CancellationTokenWithADefaultValue_ShouldReportNoDiagnostics()
     {
         const string code = """

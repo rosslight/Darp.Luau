@@ -93,6 +93,18 @@ internal static class ExportAnalyzer
             return null;
         }
 
+        if (!property.ExplicitInterfaceImplementations.IsEmpty)
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    location,
+                    $"property '{property.Name}' is an explicit interface implementation, which generated code cannot access"
+                )
+            );
+            return null;
+        }
+
         if (discoveredType.Kind == LuauExportedTypeKind.Userdata && property.IsStatic)
         {
             diagnostics.Add(
@@ -209,6 +221,19 @@ internal static class ExportAnalyzer
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                     location,
                     $"method '{method.Name}' is not an ordinary method"
+                )
+            );
+            return null;
+        }
+
+        if (method is { IsPartialDefinition: true, PartialImplementationPart: null })
+        {
+            // The compiler removes calls to a partial method without an implementation. Luau would call nothing.
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    location,
+                    $"partial method '{method.Name}' has no implementation"
                 )
             );
             return null;
@@ -412,6 +437,23 @@ internal static class ExportAnalyzer
                 location,
                 diagnostics,
                 "generic methods are not supported"
+            );
+            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            returns = ImmutableEquatableArray<InteropType>.Empty;
+            return false;
+        }
+
+        if (
+            awaitable is not AwaitableReturnKind.None
+            && method.ReturnNullableAnnotation is NullableAnnotation.Annotated
+        )
+        {
+            ReportUnsupportedMethodShape(
+                exportedTypeKind,
+                method,
+                location,
+                diagnostics,
+                "a nullable task cannot be awaited; return a task that is never null"
             );
             parameters = ImmutableEquatableArray<InteropType>.Empty;
             returns = ImmutableEquatableArray<InteropType>.Empty;
@@ -694,7 +736,8 @@ internal static class ExportAnalyzer
     )
     {
         bool hasGetter = property.GetMethod is not null;
-        bool hasSetter = property.SetMethod is not null;
+        // An init accessor only runs while the object is created, so a script cannot use it.
+        bool hasSetter = property.SetMethod is { IsInitOnly: false };
         switch (requestedAccess)
         {
             case LuauExportPropertyAccess.Auto:

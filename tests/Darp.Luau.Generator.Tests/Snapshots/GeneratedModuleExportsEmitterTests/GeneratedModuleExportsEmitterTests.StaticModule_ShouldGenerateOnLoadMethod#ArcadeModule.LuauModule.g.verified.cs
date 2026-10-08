@@ -24,7 +24,7 @@ public static partial class ArcadeModule
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         module.Set("add_score", __var0);
-        module.Set("difficulty", (double)Difficulty);
-        module.Set("tokens", Tokens);
+        module.Set("difficulty", (double)global::ArcadeModule.Difficulty);
+        module.Set("tokens", global::ArcadeModule.Tokens);
     }
 }
