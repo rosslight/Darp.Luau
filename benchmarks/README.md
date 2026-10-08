@@ -74,7 +74,7 @@ The async comparisons cover three scenarios. Darp.Luau and Lua-CSharp run all th
 | Call an async C# function from Lua (completed) | A Lua loop calling a managed `add` that returns an already completed `ValueTask` 1000 times, divided by 1000. |
 | Call an async C# function from Lua (yielding) | The same loop, with each managed `add` awaiting `Task.Yield()`, divided by 1000. Includes scheduling and continuation overhead. |
 
-The async loop receives its callback as an argument. Darp.Luau uses `CreateFunctionBuilder` with `LuauReturn.Await` and `InvokeAsync`; NuLua uses an async `CreateFunction` callback and `InvokeAsync`; Lua-CSharp uses an async `LuaFunction` and `CallAsync`. Lua-CSharp's API is async for the original workloads too, so its two plain `add` scenarios measure the same operation. NLua is not measured in the async scenarios and appears as `not measured` in the chart.
+The async loop receives its callback as an argument. Darp.Luau uses a `CreateFunction` delegate that returns a `ValueTask` and `InvokeAsync`; NuLua uses an async `CreateFunction` callback and `InvokeAsync`; Lua-CSharp uses an async `LuaFunction` and `CallAsync`. Lua-CSharp's API is async for the original workloads too, so its two plain `add` scenarios measure the same operation. NLua is not measured in the async scenarios and appears as `not measured` in the chart.
 
 NuLua 0.1.0's Luau backend crashes during repeated yielding callbacks in this workload, on both Windows and Linux. Its yielding scenario is excluded and appears as `not measured`. The [initial publication run](https://github.com/rosslight/Darp.Luau/actions/runs/37635836690) records the failed benchmark. A standalone Lua loop calling a NuLua async callback also reproduces the native crash.
 

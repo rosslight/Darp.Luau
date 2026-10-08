@@ -22,7 +22,11 @@ public class CoroutineBenchmarks : IDisposable
             )
             .ToFunction();
 
-        _awaitOnce = _state.CreateFunctionBuilder(static _ => LuauReturn.Await(YieldOnce()));
+        _awaitOnce = _state.CreateFunction(static async ValueTask<int> () =>
+        {
+            await Task.Yield();
+            return 1;
+        });
         _state.Globals.Set("await_once", _awaitOnce);
         _callAwaitOnce = _state.Load("return await_once()").ToFunction();
 
@@ -37,12 +41,6 @@ public class CoroutineBenchmarks : IDisposable
                 """
             )
             .ToFunction();
-    }
-
-    private static async ValueTask<LuauReturn> YieldOnce()
-    {
-        await Task.Yield();
-        return LuauReturn.Ok(1);
     }
 
     [GlobalSetup(Target = nameof(ResumeYieldingCoroutine))]

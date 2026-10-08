@@ -94,24 +94,20 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 
 `CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
 
-A builder callback can also return `LuauReturn.Await(...)` with work that completes later. Run scripts that call it with `ExecuteAsync(...)` or `InvokeAsync(...)`; the script waits for the work without blocking a thread:
+A callback can return a `Task` or `ValueTask`. Run the script with `ExecuteAsync(...)` or `InvokeAsync(...)`, and it waits for the result without blocking a thread:
 
 ```csharp
-using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
-    args.TryReadNumber(1, out int milliseconds, out string? error)
-        ? LuauReturn.Await(DelayAsync(milliseconds))
-        : LuauReturn.Error(error)
+using LuauFunction fetch = lua.CreateFunction(
+    (string url, CancellationToken cancellationToken) => httpClient.GetStringAsync(url, cancellationToken)
 );
-lua.Globals.Set("delay", delay);
+lua.Globals.Set("fetch", fetch);
 
-await lua.Load("delay(100)").ExecuteAsync();
-
-static async ValueTask<LuauReturn> DelayAsync(int milliseconds)
-{
-    await Task.Delay(milliseconds);
-    return LuauReturn.Ok();
-}
+int length = await lua.Load("return #fetch('https://example.com')").ExecuteAsync<int>([], cancellationToken);
 ```
+
+For the script, `fetch(url)` is a normal call. A `CancellationToken` parameter is not a Luau argument; it receives the token of the async call.
+
+Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. Builder callbacks return `LuauReturn.Await(...)`.
 
 ## Work with tables
 
@@ -139,11 +135,16 @@ public sealed partial class Player
 {
     [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
     public required string Name { get; init; }
+
+    [LuauMember("save")]
+    public Task SaveAsync(CancellationToken cancellationToken) =>
+        File.WriteAllTextAsync("player.txt", Name, cancellationToken);
 }
 
 var player = new Player { Name = "Ada" };
 
 lua.Globals.Set("player", IntoLuau.FromUserdata(player));
+await lua.Load("player:save()").ExecuteAsync();
 
 Player samePlayer = lua.Globals.GetUserdata<Player>("player");
 
@@ -168,6 +169,10 @@ public static partial class GameModule
 
     [LuauMember("add")]
     public static int Add(int left, int right) => left + right;
+
+    [LuauMember("wait")]
+    public static Task Wait(double seconds, CancellationToken cancellationToken) =>
+        Task.Delay(TimeSpan.FromSeconds(seconds), cancellationToken);
 }
 
 lua.RegisterModule(GameModule.ModuleName, GameModule.OnLoad);
