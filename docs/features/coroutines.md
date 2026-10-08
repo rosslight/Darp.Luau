@@ -225,7 +225,7 @@ Await in-flight async calls before you dispose the state. If the state is dispos
 
 `Dispose()` throws `InvalidOperationException` while the state runs a script. That is the case inside every callback of it: managed functions, userdata members, module loaders, and the file system that `require(...)` uses. Luau would continue in a closed state otherwise. Dispose the state after the host call that runs the script has returned.
 
-If the host dispatcher throws when work is posted to it, for example because it has shut down, the async call that needed it fails with that exception and the state stays usable.
+If the host dispatcher throws when work is posted to it, for example because it has shut down, a call that could not start fails with that exception and the state stays usable. A call that was already waiting for a callback cannot continue anywhere else and never completes, so await in-flight calls before you shut the dispatcher down.
 
 ### Code that leaves the turn
 
