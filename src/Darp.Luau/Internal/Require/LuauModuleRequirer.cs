@@ -19,7 +19,7 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
     {
         _state = state;
         _hostModules = new LuauHostModuleRequirer(state);
-        _scriptModules = new LuauScriptModuleRequirer(virtualFileSystem);
+        _scriptModules = new LuauScriptModuleRequirer(state, virtualFileSystem);
         _handle = GCHandle.Alloc(this);
 
         try

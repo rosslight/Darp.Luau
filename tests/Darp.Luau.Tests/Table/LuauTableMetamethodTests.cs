@@ -1,3 +1,4 @@
+using Darp.Luau.Tests.Fixtures;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Table;
@@ -109,6 +110,41 @@ public sealed class LuauTableMetamethodTests : IDisposable
         Should.Throw<LuaException>(() => table.Set("value", 2)).Message.ShouldContain("readonly");
 
         table.GetNumber("value").ShouldBe(1);
+    }
+
+    [Fact]
+    public void Set_OnFrozenTableWithNewIndex_ShouldWriteLikeAScript()
+    {
+        using LuauTable proxy = Create(
+            """
+            backing = {}
+            return table.freeze(setmetatable({ own = 1 }, { __newindex = backing }))
+            """
+        );
+
+        // __newindex takes a new key even though the table is frozen. An existing key is a write to the table.
+        proxy.Set("fresh", 23);
+        Should.Throw<LuaException>(() => proxy.Set("own", 2)).Message.ShouldContain("readonly");
+
+        using LuauTable backing = _state.Globals.GetLuauTable("backing");
+        backing.GetNumber("fresh").ShouldBe(23);
+        proxy.GetNumber("own").ShouldBe(1);
+    }
+
+    [Fact]
+    public void Get_WithAUserdataFactoryKey_ShouldCreateTheKeyOnce()
+    {
+        using LuauTable table = Create("return setmetatable({}, { __index = function() return 'from __index' end })");
+        int created = 0;
+        IntoLuau key = IntoLuau.FromUserdata(state =>
+        {
+            created++;
+            return state.GetOrCreateUserdata(new ValueUserdata());
+        });
+
+        table.GetUtf8String(key).ShouldBe("from __index");
+
+        created.ShouldBe(1);
     }
 
     [Fact]

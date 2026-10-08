@@ -27,15 +27,16 @@ internal static unsafe class LuauTableAccessCore
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         using PopDisposable _ = source.PushToTop(); // [table]
-        if (LuauNativeMethods.IsReadOnly(L, -1))
-            throw new LuaException("Could not set the table value: attempt to modify a readonly table");
-
         if (HasMetamethod(L, -1, "__newindex\0"u8))
         {
+            // Luau decides: __newindex handles a new key even when the table is frozen.
             if (!state.ProtectedTableAccess.TrySet(state, L, key, value, out string? error))
                 throw new LuaException($"Could not set the table value: {error}");
             return;
         }
+
+        if (LuauNativeMethods.IsReadOnly(L, -1))
+            throw new LuaException("Could not set the table value: attempt to modify a readonly table");
 
         key.Push(state); // [table, key]
         try
@@ -196,6 +197,11 @@ internal static unsafe class LuauTableAccessCore
         [NotNullWhen(false)] out string? error
     )
     {
+        // Pushing a userdata factory runs it. The raw read below consumes the key, and a second push for __index
+        // would run the factory again, so such a key takes the path that pushes it once.
+        if (key.Type is IntoLuau.Kind.UserdataFactory && HasMetamethod(L, -1, "__index\0"u8))
+            return state.ProtectedTableAccess.TryGet(state, L, key, out actualType, out error);
+
         key.Push(state); // [table, key]
         actualType = (lua_Type)lua_rawget(L, -2); // [table, value]
         error = null;

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -12,16 +13,24 @@ namespace Darp.Luau.Internal.Require;
 internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 {
     private const byte ChunkNamePrefix = (byte)'@';
+    [SuppressMessage(
+        "Usage",
+        "CA2213:Disposable fields should be disposed",
+        Justification = "The requirer references the state but does not own it; the state disposes the requirer."
+    )]
+    private readonly LuauState _state;
     private readonly ILuauFileSystem _virtualFileSystem;
     private readonly LuauModuleNavigator _navigator;
     private GCHandle _handle;
     private darp_luau_require_context_data* _requireContext;
 
     /// <summary> A require-by-string requirer that uses a virtual file system to resolve module paths. </summary>
+    /// <param name="state">The state whose scripts require the modules</param>
     /// <param name="virtualFileSystem">A virtual file system for abstract file operations</param>
     /// <seealso href="https://github.com/luau-lang/luau/blob/master/CLI/src/ReplRequirer.cpp"/>
-    public LuauScriptModuleRequirer(ILuauFileSystem virtualFileSystem)
+    public LuauScriptModuleRequirer(LuauState state, ILuauFileSystem virtualFileSystem)
     {
+        _state = state;
         _virtualFileSystem = virtualFileSystem;
         _navigator = new LuauModuleNavigator(virtualFileSystem);
         _handle = GCHandle.Alloc(this);
@@ -99,7 +108,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
 
             ReadOnlySpan<byte> chunkName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(requirerChunkname);
             if (chunkName.SequenceEqual("=stdin"u8))
@@ -120,7 +129,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
 
             string strPath = ReadUtf8Z(path);
             if (!FileUtils.IsAbsolutePath(strPath))
@@ -139,7 +148,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            return FromVoidPtr(ctx)._navigator.ToParent();
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
+            return req._navigator.ToParent();
         }
         catch (Exception)
         {
@@ -152,7 +162,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            return FromVoidPtr(ctx)._navigator.ToChild(ReadUtf8Z(name));
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
+            return req._navigator.ToChild(ReadUtf8Z(name));
         }
         catch (Exception)
         {
@@ -165,7 +176,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
 
             return req._virtualFileSystem.FileExists(req._navigator.RealPath);
         }
@@ -216,7 +227,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            return FromVoidPtr(ctx)._navigator.GetConfigStatus();
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
+            return req._navigator.GetConfigStatus();
         }
         catch (Exception)
         {
@@ -258,7 +270,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         string strChunkName = ReadUtf8Z(chunkname);
         string strLoadName = ReadUtf8Z(loadname);
 
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+        using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
 
         int nResults = 0;
 #if DEBUG
@@ -362,7 +374,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         try
         {
-            return Write(read(FromVoidPtr(ctx)), bufDest, nSizeBufDest, nSizeBufDestOut);
+            using LuauState.CallbackScope callbackScope = Enter(ctx, out LuauScriptModuleRequirer req);
+            return Write(read(req), bufDest, nSizeBufDest, nSizeBufDestOut);
         }
         catch (Exception)
         {
@@ -408,6 +421,16 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     private void* ToVoidPtr()
     {
         return (void*)GCHandle.ToIntPtr(_handle);
+    }
+
+    /// <summary>
+    /// Gets the requirer behind <paramref name="ctx"/> and marks a callback of its state as running. The callbacks
+    /// call the file system of the host, which must not dispose the state under the running <c>require</c>.
+    /// </summary>
+    private static LuauState.CallbackScope Enter(void* ctx, out LuauScriptModuleRequirer requirer)
+    {
+        requirer = FromVoidPtr(ctx);
+        return requirer._state.EnterCallback();
     }
 
     private static LuauScriptModuleRequirer FromVoidPtr(void* pCtx)

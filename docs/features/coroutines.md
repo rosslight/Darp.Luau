@@ -239,4 +239,4 @@ Do not block on async work inside a turn, for example with `.Result` or `.Wait()
 
 Do not start async host calls from callbacks of a synchronous call such as `Execute(...)`; the synchronous call is not a turn and keeps running while the async call continues elsewhere.
 
-Do not resume a coroutine from a script while the host is awaiting a callback inside it. The host cannot prevent `coroutine.resume(...)`, and the callback would receive the script's values instead of its own result.
+Do not resume a coroutine from a script while the host is awaiting a callback inside it. The resume fails and ends the host call; see [While a callback awaits](#while-a-callback-awaits).
