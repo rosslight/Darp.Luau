@@ -12,3 +12,4 @@ M:Darp.Luau.Native.LuauNative.lua_getfield(Darp.Luau.Native.lua_State*,System.In
 M:Darp.Luau.Native.LuauNative.lua_setfield(Darp.Luau.Native.lua_State*,System.Int32,System.Byte*);Runs __newindex and raises Luau errors through managed frames. Use LuauVm.SetTable, or lua_rawsetfield for a table of the library.
 M:Darp.Luau.Native.LuauNative.lua_getglobal(Darp.Luau.Native.lua_State*,System.Byte*);Runs __index of the globals and raises Luau errors through managed frames. Use LuauVm.GetTable.
 M:Darp.Luau.Native.LuauNative.lua_setglobal(Darp.Luau.Native.lua_State*,System.Byte*);Runs __newindex of the globals and raises Luau errors through managed frames. Use LuauVm.SetTable.
+M:Darp.Luau.Native.LuauNative.luau_load(Darp.Luau.Native.lua_State*,System.Byte*,System.Byte*,System.UIntPtr,System.Int32);Resolves imports through the globals, which can run script code. Use LuauVm.Load, which counts the entry.

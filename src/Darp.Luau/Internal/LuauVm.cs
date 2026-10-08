@@ -39,6 +39,21 @@ internal static unsafe class LuauVm
         return status;
     }
 
+    /// <summary> Loads bytecode as a function. </summary>
+    /// <remarks>
+    /// Into a sandboxed environment, loading resolves the imports of the chunk, such as <c>math.floor</c>, by
+    /// reading globals. A script can give those an <c>__index</c>, so loading can run script code and callbacks.
+    /// </remarks>
+    /// <returns>The status. The function, or the error message, is pushed.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int Load(LuauState state, lua_State* L, byte* chunkName, byte* byteCode, nuint size, int env)
+    {
+        state.VmDepth++;
+        int status = luau_load(L, chunkName, byteCode, size, env);
+        state.VmDepth--;
+        return status;
+    }
+
     /// <summary> Starts or continues <paramref name="coroutine"/> with its top <paramref name="narg"/> values. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Resume(LuauState state, lua_State* coroutine, lua_State* from, int narg)

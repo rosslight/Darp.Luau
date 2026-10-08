@@ -521,7 +521,14 @@ public readonly ref struct LuauChunk
             }
             try
             {
-                int loadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
+                int loadStatus = LuauVm.Load(
+                    GetState(),
+                    L,
+                    pChunkName,
+                    pByteCode,
+                    nSizeByteCode,
+                    environmentStackIndex
+                );
                 LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
             }
             finally

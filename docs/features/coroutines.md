@@ -213,7 +213,7 @@ var lua = new LuauState(LuauLibraries.All, null, SynchronizationContext.Current)
 
 ### Rules for the host
 
-The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does no bookkeeping. Use it only
+The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does not take part in the turns: it does not wait for one and does not start one. Use it only
 
 - when no async host call is outstanding: await all of them first,
 - inside turns, that is, in managed callbacks and in the code after their captured `await`s, or
