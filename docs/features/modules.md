@@ -87,6 +87,7 @@ local bundle = workshop.tools.hammer(5)
 Generated modules support:
 
 - methods with fixed supported signatures,
+- methods that return `Task` or `ValueTask`, and `CancellationToken` parameters, as described in [Generated async methods](userdata.md#generated-async-methods),
 - static read-only properties,
 - instance methods on class modules,
 - generated or manual managed userdata as supported parameter and return types.

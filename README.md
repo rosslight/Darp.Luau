@@ -212,7 +212,7 @@ Latest run on a GitHub-hosted runner; the chart names the versions that were mea
 - `Load(...).Execute(...)` is the script execution API today. Use `LoadFile(path)` to load an entry script from disk.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe. Continuations of async callbacks run one at a time on the thread pool, or on a host dispatcher passed to the constructor. Use the synchronous API only when no async call is outstanding or from inside a callback.
-- Async managed callbacks need an async host call (`ExecuteAsync`, `InvokeAsync`, `ResumeAsync`) and `CreateFunctionBuilder(...)`; `CreateFunction(...)` does not support `Task`-returning delegates yet.
+- Async managed callbacks need an async host call (`ExecuteAsync`, `InvokeAsync`, `ResumeAsync`). `CreateFunctionBuilder(...)`, `[LuauModule]` functions, and `[LuauUserdata]` methods can await; `CreateFunction(...)` does not support `Task`-returning delegates yet.
 
 ## Roadmap
 

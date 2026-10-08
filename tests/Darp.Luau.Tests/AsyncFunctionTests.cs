@@ -750,5 +750,68 @@ public sealed class AsyncFunctionTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task GeneratedUserdataMethod_ReturningATask_ShouldSuspendTheScriptAndResumeItWithTheResult()
+    {
+        var vault = new GeneratedVault();
+        _state.Globals.Set("vault", IntoLuau.FromUserdata(vault));
+
+        ValueTask<(int, string)> pending = _state
+            .Load("return vault:deposit(40)")
+            .ExecuteAsync<int, string>([], TestToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        vault.Gate.SetResult(2);
+        (await pending).ShouldBe((42, "deposited"));
+    }
+
+    [Fact]
+    public async Task GeneratedUserdataMethod_ShouldReceiveTheCancellationTokenOfTheHostCall()
+    {
+        using var cts = new CancellationTokenSource();
+        _state.Globals.Set("vault", IntoLuau.FromUserdata(new GeneratedVault()));
+
+        ValueTask pending = _state.Load("vault:lock()").ExecuteAsync([], cts.Token);
+        pending.IsCompleted.ShouldBeFalse();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+    }
+
+    [Fact]
+    public async Task GeneratedModuleFunction_ReturningAValueTask_ShouldSuspendTheScript()
+    {
+        _state.RegisterModule(GeneratedClockModule.ModuleName, GeneratedClockModule.OnLoad);
+
+        ValueTask<int> pending = _state
+            .Load("return require('clock').after_yield(21)")
+            .ExecuteAsync<int>([], TestToken);
+
+        (await pending).ShouldBe(42);
+    }
+
     public void Dispose() => _state.Dispose();
+}
+
+[LuauUserdata]
+public sealed partial class GeneratedVault
+{
+    public TaskCompletionSource<int> Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    [LuauMember("deposit")]
+    public async Task<(int Balance, string Status)> DepositAsync(int amount) => (amount + await Gate.Task, "deposited");
+
+    [LuauMember("lock")]
+    public Task LockAsync(CancellationToken cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken);
+}
+
+[LuauModule("clock")]
+public static partial class GeneratedClockModule
+{
+    [LuauMember("after_yield")]
+    public static async ValueTask<int> AfterYieldAsync(int value)
+    {
+        await Task.Yield();
+        return value * 2;
+    }
 }

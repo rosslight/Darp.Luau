@@ -55,6 +55,32 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithAwaitableMethods_ShouldAwaitThemAndPassTheCancellationToken()
+    {
+        const string code = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player
+            {
+                [LuauMember("save")]
+                public Task SaveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+                [LuauMember("load")]
+                public Task<string?> LoadAsync(CancellationToken cancellationToken, string slot) =>
+                    Task.FromResult<string?>(slot);
+
+                [LuauMember("stats")]
+                public ValueTask<(int Wins, Player? Rival)> GetStatsAsync(int season) => new((season, null));
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataHooks()
     {
         const string code = """
