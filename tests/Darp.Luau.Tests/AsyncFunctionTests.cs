@@ -437,12 +437,10 @@ public sealed class AsyncFunctionTests : IDisposable
             .ExecuteAsync<int>([], TestToken);
         pending.IsCompleted.ShouldBeFalse();
         _state.CollectGarbage();
-        _state.CollectGarbage();
         _state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(baseline + 1);
         increment.SetResult(2);
 
         (await pending).ShouldBe(42);
-        _state.CollectGarbage();
         _state.CollectGarbage();
         _state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(baseline);
     }

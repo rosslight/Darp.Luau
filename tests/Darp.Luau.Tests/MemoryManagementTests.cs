@@ -98,8 +98,6 @@ public sealed class MemoryManagementTests
             using LuauFunction dropped = state.CreateFunctionBuilder(_ => LuauReturn.Ok());
         }
 
-        // The first collection finds the functions unreachable, the second one what only they kept alive.
-        state.CollectGarbage();
         state.CollectGarbage();
 
         state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(baselineCallbacks + 1);

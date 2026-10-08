@@ -39,9 +39,6 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> The managed callbacks whose function Luau has not collected yet. </summary>
     private int _activeManagedCallbacks;
 
-    /// <summary> A table with weak keys, from the function of each managed callback to the userdata that owns its context. </summary>
-    private int _callbackContextsReference;
-
     /// <summary> The global table. Used as a entry point </summary>
     public LuauTable Globals => new(this, _globalsHandle);
 
@@ -244,55 +241,28 @@ public sealed unsafe class LuauState : IDisposable
     internal void PushNativeCallback(
         delegate* unmanaged[Cdecl]<lua_State*, void*, int> callback,
         void* context,
-        byte* debugName = null
+        byte* debugName = null,
+        delegate* unmanaged[Cdecl]<void*, void> contextDestructor = null
     )
     {
         this.ThrowIfDisposed();
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        darp_luau_pushcallback(L, callback, context, debugName);
+        darp_luau_pushcallback(L, callback, context, contextDestructor, debugName);
     }
 
-    private void PushCallbackContexts()
-    {
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 1);
-#endif
-        if (_callbackContextsReference != 0)
-        {
-            _ = lua_getref(L, _callbackContextsReference);
-            return;
-        }
-
-        lua_newtable(L); // contexts
-        lua_newtable(L); // metatable
-        fixed (byte* pModeName = "__mode\0"u8)
-        fixed (byte* pWeakKeys = "k"u8)
-        {
-            lua_pushlstring(L, pWeakKeys, 1);
-            lua_rawsetfield(L, -2, pModeName);
-        }
-
-        _ = lua_setmetatable(L, -2);
-        _callbackContextsReference = lua_ref(L, -1);
-    }
-
-    /// <summary> Runs when Luau frees the userdata of a managed callback, after it collected the function. </summary>
+    /// <summary> Runs when Luau frees the function of a managed callback: it collected it, or the state closes. </summary>
     /// <remarks>
     /// No call can still need the handle: it is only read when a call starts, and a call keeps its function alive.
     /// </remarks>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void CallbackContextDestructor(lua_State* _, void* pUserdata)
+    private static void CallbackContextDestructor(void* ctx)
     {
-        if (pUserdata is null)
-            return;
-        var pHandle = (GCHandle*)pUserdata;
-        if (!pHandle->IsAllocated)
-            return;
-        if (pHandle->Target is FunctionBuilderCallbackContext context)
+        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+        if (handle.Target is FunctionBuilderCallbackContext context)
             context.State._activeManagedCallbacks--;
-        pHandle->Free();
+        handle.Free();
     }
 
     /// <summary> Creates a coroutine that runs <paramref name="body"/> when it is first resumed. </summary>
@@ -392,22 +362,18 @@ public sealed unsafe class LuauState : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         var context = new FunctionBuilderCallbackContext(this, onCalled);
-        PushCallbackContexts(); // [contexts]
         var handle = GCHandle.Alloc(context);
         fixed (byte* pDebugName = "managed function\0"u8)
         {
-            PushNativeCallback(&FunctionBuilderCallback, (void*)GCHandle.ToIntPtr(handle), pDebugName);
+            PushNativeCallback(
+                &FunctionBuilderCallback,
+                (void*)GCHandle.ToIntPtr(handle),
+                pDebugName,
+                &CallbackContextDestructor
+            );
         }
-
-        // The function has no destructor, so a userdata that lives as long as it does frees the handle.
-        lua_pushvalue(L, -1); // [contexts, function, function]
-        var pHandle = (GCHandle*)lua_newuserdatadtor(L, (nuint)sizeof(GCHandle), &CallbackContextDestructor);
-        *pHandle = handle;
-        lua_rawset(L, -4); // [contexts, function]
         _activeManagedCallbacks++;
-
         ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        lua_pop(L, 1);
         return new LuauFunction(this, reference);
     }
 
@@ -632,7 +598,7 @@ public sealed unsafe class LuauState : IDisposable
         _moduleRequirer?.Dispose();
         _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
-        // Closing frees every userdata, which releases the handles of the managed callbacks.
+        // Closing frees every function, which releases the handles of the managed callbacks.
         LuauVm.Close(this);
     }
 }
