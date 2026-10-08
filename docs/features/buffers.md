@@ -14,7 +14,7 @@ If the data is UTF-8 text, see [Strings](strings.md).
 | Shape | Ownership | Common APIs | Use when |
 | --- | --- | --- | --- |
 | `byte[]` | managed copy | `GetBuffer(...)`, `TryReadBuffer(..., out byte[]?)`, passing `byte[]` into Luau | simple data transfer |
-| `ReadOnlySpan<byte>` | borrowed bytes | `TryGetBuffer(...)`, `TryReadBuffer(...)`, `LuauBuffer.TryGet(...)` | immediate inspection without allocating |
+| `ReadOnlySpan<byte>` | borrowed bytes | `TryReadBuffer(...)`, `LuauBuffer.TryGet(...)`, `LuauMarshal.TryGetBufferSpan(...)` | immediate inspection without allocating |
 | `LuauBuffer` | owned Luau reference | `CreateBuffer(...)`, `GetLuauBuffer(...)` | keeping or reusing the same Luau buffer value |
 | `LuauBufferView` | borrowed callback view | `TryReadLuauBuffer(...)` | callback code that stays inside the current frame |
 

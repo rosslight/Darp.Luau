@@ -14,7 +14,7 @@ If the data is arbitrary bytes rather than text, see [Buffers](buffers.md).
 | Shape | Ownership | Common APIs | Use when |
 | --- | --- | --- | --- |
 | `string` | managed copy | passing `string` into Luau, `GetUtf8String(...)`, `TryReadUtf8String(..., out string?)`, `CreateFunction((string x) => ...)` | normal text interop |
-| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `TryGetUtf8String(...)`, `TryReadUtf8String(...)`, `LuauString.TryGet(...)` | immediate inspection without allocating |
+| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `TryReadUtf8String(...)`, `LuauString.TryGet(...)`, `LuauMarshal.TryGetUtf8StringSpan(...)` | immediate inspection without allocating |
 | `LuauString` | owned Luau reference | `CreateString(...)`, `GetLuauString(...)` | keeping or reusing the same Luau string value |
 | `LuauStringView` | borrowed callback view | `TryReadLuauString(...)` | callback code that stays inside the current frame |
 
