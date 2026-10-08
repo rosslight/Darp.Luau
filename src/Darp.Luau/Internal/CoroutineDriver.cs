@@ -23,9 +23,9 @@ namespace Darp.Luau.Internal;
 /// </para>
 /// <para>
 /// A cancelled token stops the script at its next safepoint (<see cref="ScriptInterrupt"/>) and finishes the
-/// coroutine. Awaited work is not stopped: the driver awaits it as is, and the token only reaches it through the
-/// callback. Work that ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes
-/// the coroutine too.
+/// coroutine. An error that ends the script after the token was cancelled finishes it as cancelled too. Awaited
+/// work is not stopped: the driver awaits it as is, and the token only reaches it through the callback. Work that
+/// ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes the coroutine.
 /// </para>
 /// <para>
 /// Only the driver continues a coroutine that waits in a managed callback. Luau fails any other resume of it and
@@ -43,6 +43,8 @@ internal readonly struct CoroutineDriver
 
     private const string CoroutineLostError =
         "Lua invocation failed: a script resumed or closed the coroutine while it awaited a managed callback";
+
+    private const string ScriptStoppedMessage = "The script was stopped because its host call was cancelled.";
 
     private const int NoSlot = -1;
 
@@ -71,8 +73,10 @@ internal readonly struct CoroutineDriver
         _coroutineRoot = coroutineRoot;
         _argumentCount = argumentCount;
         _minResultCount = minResultCount;
-        _cancellationToken = cancellationToken;
-        _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, cancellationToken) : NoSlot;
+        // A host call without a token of its own, made by a callback, belongs to the host call around it. The
+        // token is taken now: after the coroutine was suspended, that host call no longer runs around it.
+        _cancellationToken = cancellationToken.CanBeCanceled ? cancellationToken : state.InterruptToken;
+        _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, _cancellationToken) : NoSlot;
     }
 
     /// <summary> Starts a host resume of an existing coroutine. Pushes the resume arguments onto it. </summary>
@@ -478,15 +482,19 @@ internal readonly struct CoroutineDriver
             case lua_Status.LUA_BREAK:
                 // Only the interrupt hook breaks a coroutine. Nothing of the script may run again.
                 Finish();
-                throw new OperationCanceledException(
-                    "The script was stopped because its host call was cancelled.",
-                    // A drive without a token of its own was stopped by the token of the host call around it.
-                    _cancellationToken.CanBeCanceled
-                        ? _cancellationToken
-                        : _state.InterruptToken
-                );
+                throw new OperationCanceledException(ScriptStoppedMessage, _cancellationToken);
             default:
-                LuaException.ThrowIfNotOk(_coroutine, status, "lua_resume");
+                try
+                {
+                    LuaException.ThrowIfNotOk(_coroutine, status, "lua_resume");
+                }
+                catch (LuaException exception) when (_cancellationToken.IsCancellationRequested)
+                {
+                    // A cancelled call ends as cancelled. Where Luau cannot break, stopping a script surfaces as
+                    // an error, which cannot be told from an error the script made on its own.
+                    Finish();
+                    throw new OperationCanceledException(ScriptStoppedMessage, exception, _cancellationToken);
+                }
                 throw new UnreachableException();
         }
     }

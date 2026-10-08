@@ -26,7 +26,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - `CreateFunction(...)` callbacks take at most 16 parameters and none by reference. A task they return must not be nullable.
 - Generated exports reject explicit interface implementations, partial methods without an implementation, and nullable task returns. An `init` accessor is not exported as a setter.
 - `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
-- Only the token of an async host call stops a running script. `Execute(...)`, `Invoke(...)`, and `Resume(...)` take no token, and there is no timeout or instruction budget.
+- Only the token of an async host call stops a running script. `Execute(...)`, `Invoke(...)`, and `Resume(...)` take no token, and there is no instruction budget.
 - An exception that the host's `ILuauFileSystem` throws while Luau resolves a `require(...)` path is reported as a module that was not found. Only an exception from reading the module file carries its message into the Luau error.
 
 ## Known edges

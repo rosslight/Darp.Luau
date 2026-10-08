@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Darp.Luau.Native;
@@ -26,7 +27,10 @@ namespace Darp.Luau.Internal;
 internal static unsafe class ScriptInterrupt
 {
     /// <summary> Lets <paramref name="cancellationToken"/> stop the script while the scope is open. </summary>
-    /// <remarks> A token that cannot be cancelled leaves the token of an enclosing host call in charge. </remarks>
+    /// <remarks>
+    /// A token that cannot be cancelled leaves the token of an enclosing host call in charge. That covers the sync
+    /// host calls a callback makes: they take no token.
+    /// </remarks>
     public static Scope Enter(LuauState state, CancellationToken cancellationToken)
     {
         CancellationToken enclosingToken = state.InterruptToken;
@@ -56,6 +60,11 @@ internal static unsafe class ScriptInterrupt
     /// <summary> Restores the token of the enclosing host call when the script has returned to the host. </summary>
     public readonly ref struct Scope(LuauState state, CancellationToken enclosingToken)
     {
+        [SuppressMessage(
+            "Usage",
+            "CA2213:Disposable fields should be disposed",
+            Justification = "The scope references LuauState but does not own it."
+        )]
         private readonly LuauState _state = state;
         private readonly CancellationToken _enclosingToken = enclosingToken;
 
