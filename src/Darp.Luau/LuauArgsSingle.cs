@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 
 namespace Darp.Luau;
 
@@ -24,85 +25,13 @@ public readonly ref struct LuauArgsSingle
     public bool TryReadNumberOrNil(out double? value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadNumberOrNil(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out sbyte, out string)"/>
-    public bool TryReadNumber(out sbyte value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
+    /// <inheritdoc cref="LuauArgs.TryReadNumber{T}(int, out T, out string)"/>
+    public bool TryReadNumber<T>(out T value, [NotNullWhen(false)] out string? error)
+        where T : struct, INumber<T> => _args.TryReadNumber(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out sbyte?, out string)"/>
-    public bool TryReadNumberOrNil(out sbyte? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out byte, out string)"/>
-    public bool TryReadNumber(out byte value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out byte?, out string)"/>
-    public bool TryReadNumberOrNil(out byte? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out short, out string)"/>
-    public bool TryReadNumber(out short value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out short?, out string)"/>
-    public bool TryReadNumberOrNil(out short? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out ushort, out string)"/>
-    public bool TryReadNumber(out ushort value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out ushort?, out string)"/>
-    public bool TryReadNumberOrNil(out ushort? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out int, out string)"/>
-    public bool TryReadNumber(out int value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out int?, out string)"/>
-    public bool TryReadNumberOrNil(out int? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out uint, out string)"/>
-    public bool TryReadNumber(out uint value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out uint?, out string)"/>
-    public bool TryReadNumberOrNil(out uint? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out long, out string)"/>
-    public bool TryReadNumber(out long value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out long?, out string)"/>
-    public bool TryReadNumberOrNil(out long? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out ulong, out string)"/>
-    public bool TryReadNumber(out ulong value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out ulong?, out string)"/>
-    public bool TryReadNumberOrNil(out ulong? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out float, out string)"/>
-    public bool TryReadNumber(out float value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out float?, out string)"/>
-    public bool TryReadNumberOrNil(out float? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out decimal, out string)"/>
-    public bool TryReadNumber(out decimal value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumber(1, out value, out error);
-
-    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil(int, out decimal?, out string)"/>
-    public bool TryReadNumberOrNil(out decimal? value, [NotNullWhen(false)] out string? error) =>
-        _args.TryReadNumberOrNil(1, out value, out error);
+    /// <inheritdoc cref="LuauArgs.TryReadNumberOrNil{T}(int, out T?, out string)"/>
+    public bool TryReadNumberOrNil<T>(out T? value, [NotNullWhen(false)] out string? error)
+        where T : struct, INumber<T> => _args.TryReadNumberOrNil(1, out value, out error);
 
     /// <inheritdoc cref="LuauArgs.TryReadUtf8String(int, out ReadOnlySpan{byte}, out string)"/>
     public bool TryReadUtf8String(out ReadOnlySpan<byte> value, [NotNullWhen(false)] out string? error) =>

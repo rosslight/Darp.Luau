@@ -102,7 +102,12 @@ internal static class InteropTypeMapper
             mapping = new InteropType(
                 LuauInteropKind.Enum,
                 isNullable,
-                type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                // The number is read as this type, so a value the enum cannot store is rejected.
+                EnumUnderlyingTypeName: (type as INamedTypeSymbol)?.EnumUnderlyingType?.ToDisplayString(
+                    SymbolDisplayFormat.FullyQualifiedFormat
+                )
+                    ?? "int"
             );
             return true;
         }

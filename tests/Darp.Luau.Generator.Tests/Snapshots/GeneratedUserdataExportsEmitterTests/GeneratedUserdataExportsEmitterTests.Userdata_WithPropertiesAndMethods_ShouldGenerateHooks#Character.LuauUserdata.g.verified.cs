@@ -24,7 +24,7 @@ public sealed partial class Character : global::Darp.Luau.ILuauUserData<global::
         {
             case "kind":
             {
-                if (!args.TryReadNumber(out double valueRaw, out string? error))
+                if (!args.TryReadNumber(out int valueRaw, out string? error))
                     return global::Darp.Luau.LuauOutcome.Error(error);
                 global::CharacterKind value = (global::CharacterKind)valueRaw;
                 self.Kind = value;
@@ -65,9 +65,8 @@ public sealed partial class Character : global::Darp.Luau.ILuauUserData<global::
                 if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-                if (!args.TryReadNumber(parameterIndex: 2, out double a2Raw, out error))
+                if (!args.TryReadNumber(parameterIndex: 2, out int a2, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                int a2 = (int)a2Raw;
                 var returns = self.Rename(a1, a2);
                 return global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2);
             }

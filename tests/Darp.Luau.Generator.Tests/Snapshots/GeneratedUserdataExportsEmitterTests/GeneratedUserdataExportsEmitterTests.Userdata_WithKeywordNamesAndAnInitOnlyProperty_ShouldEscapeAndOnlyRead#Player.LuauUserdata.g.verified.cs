@@ -22,9 +22,8 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserData<global::Pla
         {
             case "kind":
             {
-                if (!args.TryReadNumber(out double valueRaw, out string? error))
+                if (!args.TryReadNumber(out int value, out string? error))
                     return global::Darp.Luau.LuauOutcome.Error(error);
-                int value = (int)valueRaw;
                 self.@class = value;
                 return global::Darp.Luau.LuauOutcome.Ok();
             }
@@ -46,9 +45,8 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserData<global::Pla
             {
                 if (!args.TryValidateArgumentCount(1, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadNumber(parameterIndex: 1, out double a1Raw, out error))
+                if (!args.TryReadNumber(parameterIndex: 1, out int a1, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                int a1 = (int)a1Raw;
                 var returns = self.@default(a1);
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             }

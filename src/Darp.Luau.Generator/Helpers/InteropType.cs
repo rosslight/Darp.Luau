@@ -5,5 +5,6 @@ internal readonly record struct InteropType(
     bool IsNullable,
     string? OriginalTypeName,
     bool IsGeneratedUserdata = false,
-    string? TupleElementName = null
+    string? TupleElementName = null,
+    string? EnumUnderlyingTypeName = null
 );

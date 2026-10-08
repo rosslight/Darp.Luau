@@ -17,7 +17,7 @@ file static class CreateFunctionInterceptors
         {
             if (!args.TryValidateArgumentCount(1, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumberOrNil(parameterIndex: 1, out double? a1Raw, out error))
+            if (!args.TryReadNumberOrNil(parameterIndex: 1, out int? a1Raw, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
             global::MyEnum? a1 = a1Raw.HasValue ? (global::MyEnum)a1Raw.Value : null;
             var returns = onLuaCall(a1);

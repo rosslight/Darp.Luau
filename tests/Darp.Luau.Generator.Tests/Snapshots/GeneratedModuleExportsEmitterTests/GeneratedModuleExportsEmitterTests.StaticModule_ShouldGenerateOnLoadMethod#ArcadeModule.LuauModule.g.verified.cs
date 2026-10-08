@@ -14,12 +14,10 @@ public static partial class ArcadeModule
         {
             if (!args.TryValidateArgumentCount(2, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out double a1Raw, out error))
+            if (!args.TryReadNumber(parameterIndex: 1, out int a1, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            int a1 = (int)a1Raw;
-            if (!args.TryReadNumber(parameterIndex: 2, out double a2Raw, out error))
+            if (!args.TryReadNumber(parameterIndex: 2, out int a2, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            int a2 = (int)a2Raw;
             var returns = global::ArcadeModule.AddScore(a1, a2);
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

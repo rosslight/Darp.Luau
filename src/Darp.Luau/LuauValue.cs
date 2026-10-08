@@ -1,7 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -290,97 +292,7 @@ public readonly struct LuauValue : IDisposable
                 }
                 return false;
             case LuauValueType.Number:
-                if (typeof(T) == typeof(double))
-                {
-                    double temp = _union.ValueDouble;
-                    value = Unsafe.As<double, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(Half))
-                {
-                    var temp = (Half)_union.ValueDouble;
-                    value = Unsafe.As<Half, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(float))
-                {
-                    float temp = (float)_union.ValueDouble;
-                    value = Unsafe.As<float, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(decimal))
-                {
-                    decimal temp = (decimal)_union.ValueDouble;
-                    value = Unsafe.As<decimal, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(double))
-                {
-                    double temp = _union.ValueDouble;
-                    value = Unsafe.As<double, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(sbyte))
-                {
-                    sbyte temp = (sbyte)_union.ValueDouble;
-                    value = Unsafe.As<sbyte, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(byte))
-                {
-                    byte temp = (byte)_union.ValueDouble;
-                    value = Unsafe.As<byte, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(short))
-                {
-                    short temp = (short)_union.ValueDouble;
-                    value = Unsafe.As<short, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(ushort))
-                {
-                    ushort temp = (ushort)_union.ValueDouble;
-                    value = Unsafe.As<ushort, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(int))
-                {
-                    int temp = (int)_union.ValueDouble;
-                    value = Unsafe.As<int, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(uint))
-                {
-                    uint temp = (uint)_union.ValueDouble;
-                    value = Unsafe.As<uint, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(long))
-                {
-                    long temp = (long)_union.ValueDouble;
-                    value = Unsafe.As<long, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(ulong))
-                {
-                    ulong temp = (ulong)_union.ValueDouble;
-                    value = Unsafe.As<ulong, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(Int128))
-                {
-                    var temp = (Int128)_union.ValueDouble;
-                    value = Unsafe.As<Int128, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(UInt128))
-                {
-                    UInt128 temp = (UInt128)_union.ValueDouble;
-                    value = Unsafe.As<UInt128, T>(ref temp)!;
-                    return true;
-                }
-                return false;
+                return TryGetNumber(_union.ValueDouble, out value);
             case LuauValueType.Boolean:
                 if (typeof(T) == typeof(bool))
                 {
@@ -510,6 +422,57 @@ public readonly struct LuauValue : IDisposable
             default:
                 throw new InvalidOperationException($"Unsupported Luau value type: {Type}.");
         }
+    }
+
+    /// <summary> Converts a number to <typeparamref name="T"/> when that is a numeric type that can hold it. </summary>
+    private static bool TryGetNumber<T>(double number, [NotNullWhen(true)] out T? value)
+        where T : allows ref struct
+    {
+        if (typeof(T) == typeof(double))
+            return TryGetNumber<double, T>(number, out value);
+        if (typeof(T) == typeof(int))
+            return TryGetNumber<int, T>(number, out value);
+        if (typeof(T) == typeof(float))
+            return TryGetNumber<float, T>(number, out value);
+        if (typeof(T) == typeof(long))
+            return TryGetNumber<long, T>(number, out value);
+        if (typeof(T) == typeof(uint))
+            return TryGetNumber<uint, T>(number, out value);
+        if (typeof(T) == typeof(ulong))
+            return TryGetNumber<ulong, T>(number, out value);
+        if (typeof(T) == typeof(short))
+            return TryGetNumber<short, T>(number, out value);
+        if (typeof(T) == typeof(ushort))
+            return TryGetNumber<ushort, T>(number, out value);
+        if (typeof(T) == typeof(byte))
+            return TryGetNumber<byte, T>(number, out value);
+        if (typeof(T) == typeof(sbyte))
+            return TryGetNumber<sbyte, T>(number, out value);
+        if (typeof(T) == typeof(decimal))
+            return TryGetNumber<decimal, T>(number, out value);
+        if (typeof(T) == typeof(Half))
+            return TryGetNumber<Half, T>(number, out value);
+        if (typeof(T) == typeof(Int128))
+            return TryGetNumber<Int128, T>(number, out value);
+        if (typeof(T) == typeof(UInt128))
+            return TryGetNumber<UInt128, T>(number, out value);
+
+        value = default;
+        return false;
+    }
+
+    private static bool TryGetNumber<TNumber, T>(double number, [NotNullWhen(true)] out T? value)
+        where TNumber : struct, INumber<TNumber>
+        where T : allows ref struct
+    {
+        if (LuauNumber.TryConvert(number, out TNumber converted))
+        {
+            value = Unsafe.As<TNumber, T>(ref converted)!;
+            return true;
+        }
+
+        value = default;
+        return false;
     }
 
     internal static unsafe LuauValue ToValue(LuauState state, int index = -1)

@@ -9,7 +9,8 @@ internal static class LuauMarshalEmitter
             param.Type,
             param.IsNullable,
             param.OriginalTypeName,
-            GetDotnetType(param)
+            GetDotnetType(param),
+            param.EnumUnderlyingTypeName
         );
     }
 
@@ -20,7 +21,8 @@ internal static class LuauMarshalEmitter
             param.Type,
             param.IsNullable,
             param.OriginalTypeName,
-            GetDotnetType(param)
+            GetDotnetType(param),
+            param.EnumUnderlyingTypeName
         );
     }
 
@@ -34,7 +36,8 @@ internal static class LuauMarshalEmitter
         LuauInteropKind type,
         bool isNullable,
         string? originalTypeName,
-        string dotnetType
+        string dotnetType,
+        string? enumUnderlyingTypeName
     )
     {
         return type switch
@@ -75,16 +78,8 @@ internal static class LuauMarshalEmitter
                         return global::Darp.Luau.LuauReturn.Error(error);
                     string a{parameterIndex} = global::System.Text.Encoding.UTF8.GetString(a{parameterIndex}Raw);
                     """,
-            LuauInteropKind.Number => isNullable
-                ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """,
-            LuauInteropKind.NumberByte
+            LuauInteropKind.Number
+            or LuauInteropKind.NumberByte
             or LuauInteropKind.NumberUShort
             or LuauInteropKind.NumberUInt
             or LuauInteropKind.NumberULong
@@ -98,23 +93,21 @@ internal static class LuauMarshalEmitter
             or LuauInteropKind.NumberFloat
             or LuauInteropKind.NumberDecimal => isNullable
                 ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
+                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
                         return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
                     """
                 : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
+                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
                         return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
                     """,
             LuauInteropKind.Enum => isNullable
                 ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
+                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out {enumUnderlyingTypeName}? a{parameterIndex}Raw, out error))
                         return global::Darp.Luau.LuauReturn.Error(error);
                     {dotnetType} a{parameterIndex} = a{parameterIndex}Raw.HasValue ? ({originalTypeName})a{parameterIndex}Raw.Value : null;
                     """
                 : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
+                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out {enumUnderlyingTypeName} a{parameterIndex}Raw, out error))
                         return global::Darp.Luau.LuauReturn.Error(error);
                     {dotnetType} a{parameterIndex} = ({originalTypeName})a{parameterIndex}Raw;
                     """,
@@ -147,7 +140,8 @@ internal static class LuauMarshalEmitter
         LuauInteropKind type,
         bool isNullable,
         string? originalTypeName,
-        string dotnetType
+        string dotnetType,
+        string? enumUnderlyingTypeName
     )
     {
         return type switch
@@ -170,16 +164,8 @@ internal static class LuauMarshalEmitter
                     if (!args.TryReadUtf8String(out {dotnetType}? {variableName}, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
                     """,
-            LuauInteropKind.Number => isNullable
-                ? $"""
-                    if (!args.TryReadNumberOrNil(out {dotnetType} {variableName}, out string? error))
-                        return global::Darp.Luau.LuauOutcome.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadNumber(out {dotnetType} {variableName}, out string? error))
-                        return global::Darp.Luau.LuauOutcome.Error(error);
-                    """,
-            LuauInteropKind.NumberByte
+            LuauInteropKind.Number
+            or LuauInteropKind.NumberByte
             or LuauInteropKind.NumberUShort
             or LuauInteropKind.NumberUInt
             or LuauInteropKind.NumberULong
@@ -193,23 +179,21 @@ internal static class LuauMarshalEmitter
             or LuauInteropKind.NumberFloat
             or LuauInteropKind.NumberDecimal => isNullable
                 ? $"""
-                    if (!args.TryReadNumberOrNil(out double? {variableName}Raw, out string? error))
+                    if (!args.TryReadNumberOrNil(out {dotnetType} {variableName}, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
-                    {dotnetType} {variableName} = ({dotnetType}){variableName}Raw;
                     """
                 : $"""
-                    if (!args.TryReadNumber(out double {variableName}Raw, out string? error))
+                    if (!args.TryReadNumber(out {dotnetType} {variableName}, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
-                    {dotnetType} {variableName} = ({dotnetType}){variableName}Raw;
                     """,
             LuauInteropKind.Enum => isNullable
                 ? $"""
-                    if (!args.TryReadNumberOrNil(out double? {variableName}Raw, out string? error))
+                    if (!args.TryReadNumberOrNil(out {enumUnderlyingTypeName}? {variableName}Raw, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
                     {dotnetType} {variableName} = {variableName}Raw.HasValue ? ({originalTypeName}){variableName}Raw.Value : null;
                     """
                 : $"""
-                    if (!args.TryReadNumber(out double {variableName}Raw, out string? error))
+                    if (!args.TryReadNumber(out {enumUnderlyingTypeName} {variableName}Raw, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
                     {dotnetType} {variableName} = ({originalTypeName}){variableName}Raw;
                     """,
