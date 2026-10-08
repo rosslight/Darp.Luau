@@ -306,7 +306,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
             byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nSizeByteCode);
             try
             {
-                int nStatus = luau_load(ML, chunkname, pByteCode, nSizeByteCode, 0);
+                int nStatus = LuauVm.Load(req._state, ML, chunkname, pByteCode, nSizeByteCode, 0);
                 bOk = nStatus == 0;
                 if (!bOk)
                 {
