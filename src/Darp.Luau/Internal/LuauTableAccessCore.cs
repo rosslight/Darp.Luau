@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -26,7 +27,7 @@ internal static unsafe class LuauTableAccessCore
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         using PopDisposable _ = source.PushToTop(); // [table]
-        if (lua_getreadonly(L, -1) != 0)
+        if (LuauNativeMethods.IsReadOnly(L, -1))
             throw new LuaException("Could not set the table value: attempt to modify a readonly table");
 
         if (HasMetamethod(L, -1, "__newindex\0"u8))
@@ -94,6 +95,18 @@ internal static unsafe class LuauTableAccessCore
 #pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
         _ = source.PushToTop(); // [table]
 #pragma warning restore CA2000
+        return TryPushValueOrPopTable(state, L, key, out actualType, out error);
+    }
+
+    /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pops the table when it fails. </summary>
+    private static bool TryPushValueOrPopTable(
+        LuauState state,
+        lua_State* L,
+        in IntoLuau key,
+        out lua_Type actualType,
+        [NotNullWhen(false)] out string? error
+    )
+    {
         try
         {
             if (TryPushValue(state, L, key, out actualType, out error))
@@ -119,7 +132,12 @@ internal static unsafe class LuauTableAccessCore
     )
         where T : IReferenceSource, allows ref struct
     {
-        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
+        LuauState state = source.Validate();
+        L = state.L;
+#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
+        _ = source.PushToTop(); // [table]
+#pragma warning restore CA2000
+        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
             return false;
         if (actualType == expectedType)
             return true;
@@ -145,7 +163,12 @@ internal static unsafe class LuauTableAccessCore
         where T : IReferenceSource, allows ref struct
     {
         isNil = false;
-        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
+        LuauState state = source.Validate();
+        L = state.L;
+#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
+        _ = source.PushToTop(); // [table]
+#pragma warning restore CA2000
+        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
             return false;
 
         if (actualType == lua_Type.LUA_TNIL)
@@ -164,6 +187,7 @@ internal static unsafe class LuauTableAccessCore
     }
 
     /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pushes nothing when it fails. </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryPushValue(
         LuauState state,
         lua_State* L,
@@ -188,7 +212,7 @@ internal static unsafe class LuauTableAccessCore
     /// <summary> Whether the table at <paramref name="tableIndex"/> has the metamethod <paramref name="name"/>. </summary>
     private static bool HasMetamethod(lua_State* L, int tableIndex, ReadOnlySpan<byte> name)
     {
-        if (lua_getmetatable(L, tableIndex) == 0)
+        if (!LuauNativeMethods.TryPushMetatable(L, tableIndex))
             return false;
         fixed (byte* pName = name)
         {

@@ -421,19 +421,22 @@ public sealed unsafe class LuauState : IDisposable
             if (!state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
 
-            using CallbackScope callbackScope = state.EnterCallback();
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
             using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
 #endif
             int topBeforeInvoke = numberOfParameters;
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
+            // Counted by hand instead of with a CallbackScope: this is the hottest callback path, and a scope would
+            // put a second exception region around it. Either the try block ends or the catch block starts.
+            state._callbackDepth++;
             try
             {
                 LuauReturn result = _onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
                 int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
+                state._callbackDepth--;
 #if DEBUG
                 // A yield leaves the stack as it is; an error leaves its message.
                 nestedGuard.OverwriteExpectedDelta(
@@ -449,6 +452,7 @@ public sealed unsafe class LuauState : IDisposable
             }
             catch (Exception exception)
             {
+                state._callbackDepth--;
                 lua_settop(luaState, topBeforeInvoke);
                 int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
 #if DEBUG

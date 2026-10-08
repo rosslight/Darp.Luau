@@ -19,22 +19,27 @@ internal static class LuauStateMarshal
     public static unsafe int ReturnCallbackResult(LuauState state, lua_State* luaState, in LuauReturn result)
     {
         if (result.IsPending)
-        {
-            if (CoroutineDriver.TryAwait(state, luaState, result))
-                return DARP_LUAU_CALLBACK_YIELD;
-
-            result.Release();
-            return ReturnError(
-                luaState,
-                AsyncDriveTable.IsDriving(luaState)
-                    ? CoroutineDriver.AwaitNotYieldableError
-                    : CoroutineDriver.AwaitRejectedError
-            );
-        }
+            return ReturnPendingResult(state, luaState, result);
 
         return result.TryPushValues(state, luaState, out int outputCount, out string? error)
             ? ReturnSuccess(luaState, outputCount)
             : ReturnError(luaState, error);
+    }
+
+    // Kept out of line: most callbacks complete at once and should not pay for this path.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static unsafe int ReturnPendingResult(LuauState state, lua_State* luaState, in LuauReturn result)
+    {
+        if (CoroutineDriver.TryAwait(state, luaState, result))
+            return DARP_LUAU_CALLBACK_YIELD;
+
+        result.Release();
+        return ReturnError(
+            luaState,
+            AsyncDriveTable.IsDriving(luaState)
+                ? CoroutineDriver.AwaitNotYieldableError
+                : CoroutineDriver.AwaitRejectedError
+        );
     }
 
     public static unsafe int ReturnError(lua_State* state, ReadOnlySpan<byte> message)
