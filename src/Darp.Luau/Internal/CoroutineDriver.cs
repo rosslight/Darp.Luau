@@ -51,7 +51,6 @@ internal readonly struct CoroutineDriver
     private readonly int _coroutineRoot;
     private readonly int _argumentCount;
     private readonly int _minResultCount;
-    private readonly CancellationToken _cancellationToken;
 
     // The slot of an async drive in the state's AsyncDriveTable.
     private readonly int _slot;
@@ -71,7 +70,6 @@ internal readonly struct CoroutineDriver
         _coroutineRoot = coroutineRoot;
         _argumentCount = argumentCount;
         _minResultCount = minResultCount;
-        _cancellationToken = cancellationToken;
         _slot = allowsAwait ? state.AsyncDrives.Add(coroutine, cancellationToken) : NoSlot;
     }
 
@@ -315,7 +313,7 @@ internal readonly struct CoroutineDriver
                 }
 
                 // The conversion of the result is part of this call too: it may run a script with a sync host call.
-                using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, _cancellationToken);
+                using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, StoppingToken);
                 LuauReturn result = failure is null
                     ? GetResult(pending)
                     : LuauReturn.Error(LuauStateMarshal.FormatCallbackException(failure));
@@ -371,12 +369,13 @@ internal readonly struct CoroutineDriver
         // A sync resume takes no token. Like every sync host call, it runs under the token that is in charge.
         if (_slot == NoSlot)
             return LuauVm.Resume(_state, _coroutine, null, argumentCount);
-        using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, _cancellationToken);
+        using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, StoppingToken);
         return LuauVm.Resume(_state, _coroutine, null, argumentCount);
     }
 
     /// <summary> The token whose cancellation stops the script of this drive. </summary>
-    private CancellationToken StoppingToken => _slot == NoSlot ? _state.InterruptToken : _cancellationToken;
+    private CancellationToken StoppingToken =>
+        _slot == NoSlot ? _state.InterruptToken : _state.AsyncDrives.GetCancellationToken(_slot);
 
     private void ThrowIfStateDisposed()
     {

@@ -80,10 +80,15 @@ internal static unsafe class ScriptInterrupt
     /// </remarks>
     /// <exception cref="LuaException">Thrown when <paramref name="status"/> is not successful.</exception>
     /// <exception cref="OperationCanceledException">Thrown instead when the token that stops the script is cancelled.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfNotOk(LuauState state, lua_State* L, int status, string description)
     {
-        if (status == 0)
-            return;
+        if (status != 0)
+            ThrowFailure(state, L, status, description);
+    }
+
+    private static void ThrowFailure(LuauState state, lua_State* L, int status, string description)
+    {
         try
         {
             LuaException.ThrowIfNotOk(L, status, description);
