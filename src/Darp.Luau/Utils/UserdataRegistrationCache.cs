@@ -21,7 +21,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     private readonly ConditionalWeakTable<object, ObjectIdentity> _identityByUserdata = new();
     private readonly int _identityMapReference = CreateIdentityMapReference(state);
 
-    // Stored in Luau as a number, which holds every integer a state can count to.
+    // Stored in Luau as a number, which is exact up to 2^53: more userdata than a state can create.
     private long _nextIdentity;
     private bool _userdataCallbacksRegistered;
 

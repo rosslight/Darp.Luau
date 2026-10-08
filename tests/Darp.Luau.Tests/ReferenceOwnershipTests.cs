@@ -218,6 +218,17 @@ public sealed class ReferenceOwnershipTests : IDisposable
     }
 
     [Fact]
+    public void MultiResults_WhenALaterValueCannotBeRead_ShouldReleaseTheOnesAlreadyRead()
+    {
+        ulong baseline = ActiveReferences;
+
+        // A vector has no managed form, so reading it throws.
+        Should.Throw<NotSupportedException>(() => _state.Load("return {}, vector.create(1, 2, 3)").ExecuteMulti());
+
+        ActiveReferences.ShouldBe(baseline);
+    }
+
+    [Fact]
     public void DisposedLuauValue_ShouldNotBeCopied()
     {
         LuauValue value = _state.CreateTable().DisposeAndToLuauValue();

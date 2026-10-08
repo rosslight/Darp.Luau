@@ -225,15 +225,21 @@ internal static unsafe class LuauFunctionInvokeCore
     public static LuauValue[] ResultSelectorMulti(LuauArgs a)
     {
         var values = new LuauValue[a.ArgumentCount];
-        for (int i = 1; i <= values.Length; i++)
+        try
         {
-            if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
+            for (int i = 1; i <= values.Length; i++)
             {
-                foreach (LuauValue read in values)
-                    read.Dispose();
-                throw new ArgumentOutOfRangeException(nameof(a), error);
+                if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
+                    throw new ArgumentOutOfRangeException(nameof(a), error);
+                values[i - 1] = value;
             }
-            values[i - 1] = value;
+        }
+        catch
+        {
+            // Reading a value that has no managed form throws. Entries that were not read are nil.
+            foreach (LuauValue read in values)
+                read.Dispose();
+            throw;
         }
 
         return values;
