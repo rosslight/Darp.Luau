@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -29,6 +30,7 @@ internal static unsafe class LuauVm
 {
     /// <summary> Calls the function below its <paramref name="nargs"/> arguments. </summary>
     /// <returns>The status. On an error, the error object replaces the function and its arguments.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int PCall(LuauState state, lua_State* L, int nargs, int nresults)
     {
         state.VmDepth++;
@@ -38,6 +40,7 @@ internal static unsafe class LuauVm
     }
 
     /// <summary> Starts or continues <paramref name="coroutine"/> with its top <paramref name="narg"/> values. </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Resume(LuauState state, lua_State* coroutine, lua_State* from, int narg)
     {
         state.VmDepth++;
@@ -47,6 +50,7 @@ internal static unsafe class LuauVm
     }
 
     /// <summary> Continues a coroutine that waits in a managed callback. Its top values become the results. </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeCallback(LuauState state, lua_State* coroutine, int narg)
     {
         state.VmDepth++;
@@ -56,6 +60,7 @@ internal static unsafe class LuauVm
     }
 
     /// <summary> Continues a suspended coroutine by raising the error on top of its stack where it waits. </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeError(LuauState state, lua_State* coroutine)
     {
         state.VmDepth++;
@@ -66,6 +71,7 @@ internal static unsafe class LuauVm
 
     /// <summary> Replaces the key on top with <c>t[key]</c> for the table at <paramref name="idx"/>. </summary>
     /// <returns>The type of the value, or the negated status with the error object in place of the key.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetTable(LuauState state, lua_State* L, int idx)
     {
         state.VmDepth++;
@@ -76,6 +82,7 @@ internal static unsafe class LuauVm
 
     /// <summary> Does <c>t[key] = value</c> for the table at <paramref name="idx"/> and pops key and value. </summary>
     /// <returns>The status. On an error, the error object replaces key and value.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int SetTable(LuauState state, lua_State* L, int idx)
     {
         state.VmDepth++;

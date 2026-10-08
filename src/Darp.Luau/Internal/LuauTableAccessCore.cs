@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -82,6 +83,19 @@ internal static unsafe class LuauTableAccessCore
 #pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
         _ = source.PushToTop(); // [table]
 #pragma warning restore CA2000
+        return TryPushValueOrPopTable(state, L, key, out actualType, out error);
+    }
+
+    /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pops the table when it fails. </summary>
+    /// <remarks> Not generic, and the getters call it directly: one call between them and Luau. </remarks>
+    private static bool TryPushValueOrPopTable(
+        LuauState state,
+        lua_State* L,
+        in IntoLuau key,
+        out lua_Type actualType,
+        [NotNullWhen(false)] out string? error
+    )
+    {
         try
         {
             if (TryPushValue(state, L, key, out actualType, out error))
@@ -107,7 +121,12 @@ internal static unsafe class LuauTableAccessCore
     )
         where T : IReferenceSource, allows ref struct
     {
-        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
+        LuauState state = source.Validate();
+        L = state.L;
+#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
+        _ = source.PushToTop(); // [table]
+#pragma warning restore CA2000
+        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
             return false;
         if (actualType == expectedType)
             return true;
@@ -133,7 +152,12 @@ internal static unsafe class LuauTableAccessCore
         where T : IReferenceSource, allows ref struct
     {
         isNil = false;
-        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
+        LuauState state = source.Validate();
+        L = state.L;
+#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
+        _ = source.PushToTop(); // [table]
+#pragma warning restore CA2000
+        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
             return false;
 
         if (actualType == lua_Type.LUA_TNIL)
@@ -152,6 +176,7 @@ internal static unsafe class LuauTableAccessCore
     }
 
     /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pushes nothing when it fails. </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryPushValue(
         LuauState state,
         lua_State* L,
