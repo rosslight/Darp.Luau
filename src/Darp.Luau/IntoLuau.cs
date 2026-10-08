@@ -240,9 +240,9 @@ public readonly ref struct IntoLuau
             case Kind.Number:
                 return IntoLuauCopied.FromNumber(_number);
             case Kind.Integer:
-                return IntoLuauCopied.FromInteger(_integer);
+                return IntoLuauCopied.FromNumber(_integer);
             case Kind.Unsigned:
-                return IntoLuauCopied.FromUnsigned((uint)_integer);
+                return IntoLuauCopied.FromNumber((uint)_integer);
             case Kind.Value:
                 if (!_luauValue.TryGet(out LuauValue copiedValue))
                     throw new InvalidOperationException("Could not capture LuauValue for deferred return.");

@@ -11,10 +11,6 @@ internal readonly struct IntoLuauCopied
     private enum Kind
     {
         Nil = 0,
-        Bool,
-        Number,
-        Integer,
-        Unsigned,
         String,
         Buffer,
         Value,
@@ -23,82 +19,40 @@ internal readonly struct IntoLuauCopied
         BorrowedReference,
     }
 
+    // The kinds share their storage: every LuauReturn embeds four copies, and the work of an awaiting managed
+    // callback holds its LuauReturn on the heap.
     private readonly Kind _type;
-    private readonly bool _bool;
-    private readonly double _number;
-    private readonly int _integer;
-    private readonly string? _string;
-    private readonly byte[]? _buffer;
+
+    /// <summary> The value of <see cref="Kind.Value"/> and <see cref="Kind.BorrowedValue"/>. </summary>
     private readonly LuauValue _value;
-    private readonly Func<LuauState, LuauUserdata>? _factory;
-    private readonly RegistryReferenceTracker.TrackedReference? _reference;
 
-    private IntoLuauCopied(bool valueBool) => (_type, _bool) = (Kind.Bool, valueBool);
+    /// <summary> The string, buffer, userdata factory or borrowed reference of the other kinds. </summary>
+    private readonly object? _object;
 
-    private IntoLuauCopied(double valueNumber) => (_type, _number) = (Kind.Number, valueNumber);
+    private IntoLuauCopied(Kind type, LuauValue value) => (_type, _value) = (type, value);
 
-    private IntoLuauCopied(int valueInteger) => (_type, _integer) = (Kind.Integer, valueInteger);
+    private IntoLuauCopied(Kind type, object value) => (_type, _object) = (type, value);
 
-    private IntoLuauCopied(uint valueUnsigned) => (_type, _integer) = (Kind.Unsigned, (int)valueUnsigned);
+    internal static IntoLuauCopied FromBool(bool value) => new(Kind.Value, (LuauValue)value);
 
-    private IntoLuauCopied(string valueString)
-    {
-        _type = Kind.String;
-        _string = valueString;
-    }
+    // Luau has a single number type: an integer is pushed as the same number.
+    internal static IntoLuauCopied FromNumber(double value) => new(Kind.Value, (LuauValue)value);
 
-    private IntoLuauCopied(byte[] valueBuffer)
-    {
-        _type = Kind.Buffer;
-        _buffer = valueBuffer;
-    }
+    internal static IntoLuauCopied FromString(string value) => new(Kind.String, value);
 
-    private IntoLuauCopied(LuauValue value)
-    {
-        _type = Kind.Value;
-        _value = value;
-    }
+    internal static IntoLuauCopied FromBuffer(byte[] value) => new(Kind.Buffer, value);
 
-    private IntoLuauCopied(Func<LuauState, LuauUserdata> factory)
-    {
-        _type = Kind.UserdataFactory;
-        _factory = factory;
-    }
-
-    private IntoLuauCopied(LuauValue value, bool isOwned)
-    {
-        _type = isOwned ? Kind.Value : Kind.BorrowedValue;
-        _value = value;
-    }
-
-    private IntoLuauCopied(RegistryReferenceTracker.TrackedReference reference)
-    {
-        _type = Kind.BorrowedReference;
-        _reference = reference;
-    }
-
-    internal static IntoLuauCopied FromBool(bool value) => new(value);
-
-    internal static IntoLuauCopied FromNumber(double value) => new(value);
-
-    internal static IntoLuauCopied FromInteger(int value) => new(value);
-
-    internal static IntoLuauCopied FromUnsigned(uint value) => new(value);
-
-    internal static IntoLuauCopied FromString(string value) => new(value);
-
-    internal static IntoLuauCopied FromBuffer(byte[] value) => new(value);
-
-    internal static IntoLuauCopied FromValue(LuauValue value) => new(value);
+    internal static IntoLuauCopied FromValue(LuauValue value) => new(Kind.Value, value);
 
     /// <summary> Refers to a value the caller keeps owning; it must stay alive until the copy is pushed. </summary>
-    internal static IntoLuauCopied FromBorrowedValue(LuauValue value) => new(value, isOwned: false);
+    internal static IntoLuauCopied FromBorrowedValue(LuauValue value) => new(Kind.BorrowedValue, value);
 
     /// <summary> Refers to a reference the caller keeps owning; it must stay alive until the copy is pushed. </summary>
     internal static IntoLuauCopied FromBorrowedReference(RegistryReferenceTracker.TrackedReference reference) =>
-        new(reference);
+        new(Kind.BorrowedReference, reference);
 
-    internal static IntoLuauCopied FromUserdataFactory(Func<LuauState, LuauUserdata> factory) => new(factory);
+    internal static IntoLuauCopied FromUserdataFactory(Func<LuauState, LuauUserdata> factory) =>
+        new(Kind.UserdataFactory, factory);
 
     internal unsafe void Push(LuauState state, lua_State* L)
     {
@@ -108,11 +62,12 @@ internal readonly struct IntoLuauCopied
         switch (_type)
         {
             case Kind.String:
-                Debug.Assert(_string is not null);
-                if (_string.Length > 256)
+                Debug.Assert(_object is not null);
+                var text = (string)_object;
+                if (text.Length > 256)
                 {
-                    Span<byte> utf8 = new byte[Encoding.UTF8.GetByteCount(_string)];
-                    int length = Encoding.UTF8.GetBytes(_string, utf8);
+                    Span<byte> utf8 = new byte[Encoding.UTF8.GetByteCount(text)];
+                    int length = Encoding.UTF8.GetBytes(text, utf8);
                     fixed (byte* pStr = utf8[..length])
                     {
                         lua_pushlstring(L, pStr, (nuint)length);
@@ -120,8 +75,8 @@ internal readonly struct IntoLuauCopied
                 }
                 else
                 {
-                    Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetByteCount(_string)];
-                    int length = Encoding.UTF8.GetBytes(_string, utf8);
+                    Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetByteCount(text)];
+                    int length = Encoding.UTF8.GetBytes(text, utf8);
                     fixed (byte* pStr = utf8[..length])
                     {
                         lua_pushlstring(L, pStr, (nuint)length);
@@ -129,45 +84,36 @@ internal readonly struct IntoLuauCopied
                 }
                 break;
             case Kind.Buffer:
-                Debug.Assert(_buffer is not null);
-                void* pDest = lua_newbuffer(L, (nuint)_buffer.Length);
-                var destination = new Span<byte>(pDest, _buffer.Length);
-                _buffer.CopyTo(destination);
-                break;
-            case Kind.Bool:
-                lua_pushboolean(L, _bool ? 1 : 0);
-                break;
-            case Kind.Number:
-                lua_pushnumber(L, _number);
-                break;
-            case Kind.Integer:
-                lua_pushinteger(L, _integer);
-                break;
-            case Kind.Unsigned:
-                lua_pushunsigned(L, (uint)_integer);
+                Debug.Assert(_object is not null);
+                var buffer = (byte[])_object;
+                void* pDest = lua_newbuffer(L, (nuint)buffer.Length);
+                var destination = new Span<byte>(pDest, buffer.Length);
+                buffer.CopyTo(destination);
                 break;
             case Kind.Value:
             case Kind.BorrowedValue:
                 _value.Push(L);
                 break;
             case Kind.BorrowedReference:
-                Debug.Assert(_reference is not null);
-                if (!ReferenceEquals(state, _reference.ValidateInternal()))
+                Debug.Assert(_object is not null);
+                var reference = (RegistryReferenceTracker.TrackedReference)_object;
+                if (!ReferenceEquals(state, reference.ValidateInternal()))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-                if (!_reference.IsTracked)
+                if (!reference.IsTracked)
                     throw new ObjectDisposedException(
                         nameof(LuauValue),
                         "The argument was disposed before it was used."
                     );
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
-                _ = _reference.PushToTop();
+                _ = reference.PushToTop();
 #pragma warning restore CA2000
                 if ((nint)state.L != (nint)L)
                     lua_xmove(state.L, L, 1);
                 break;
             case Kind.UserdataFactory:
-                Debug.Assert(_factory is not null);
-                LuauUserdata userdata = _factory.Invoke(state);
+                Debug.Assert(_object is not null);
+                var factory = (Func<LuauState, LuauUserdata>)_object;
+                LuauUserdata userdata = factory.Invoke(state);
 
                 if (userdata.Equals(default))
                 {

@@ -20,7 +20,7 @@ internal static class LuauStateMarshal
     {
         if (result.IsPending)
         {
-            if (CoroutineDriver.TryAwait(luaState, result))
+            if (CoroutineDriver.TryAwait(state, luaState, result))
                 return DARP_LUAU_CALLBACK_YIELD;
 
             result.Release();
