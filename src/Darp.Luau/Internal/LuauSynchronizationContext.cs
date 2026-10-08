@@ -77,7 +77,16 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     public ValueTask<T> Queue<T>(Func<ValueTask<T>> start)
     {
         var queuedStart = new QueuedStart<T>(start);
-        Post(static queued => (queued as QueuedStart<T>)?.Run(), queuedStart);
+        try
+        {
+            Post(static queued => (queued as QueuedStart<T>)?.Run(), queuedStart);
+        }
+        catch (Exception exception)
+        {
+            // The host dispatcher refused the drain. The start stays queued, but its caller is told that it failed.
+            queuedStart.Abandon();
+            return ValueTask.FromException<T>(exception);
+        }
         return new ValueTask<T>(queuedStart.Completion.Task);
     }
 
@@ -166,9 +175,23 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     private void ScheduleDrain()
     {
         if (_hostContext is null)
+        {
             ThreadPool.UnsafeQueueUserWorkItem(static context => context.Drain(), this, preferLocal: false);
-        else
+            return;
+        }
+
+        try
+        {
             _hostContext.Post(static context => (context as LuauSynchronizationContext)?.Drain(), this);
+        }
+        catch
+        {
+            // No drain will run, for example because the dispatcher has shut down. Give up ownership, so that the
+            // state stays usable: the next turn runs what is queued.
+            using (_gate.EnterScope())
+                _isActive = false;
+            throw;
+        }
     }
 
     private void Drain()
@@ -238,10 +261,17 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         // The caller's ambient data (AsyncLocal) flows into the queued start, like into any continuation.
         private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
 
+        private bool _isAbandoned;
+
         public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary> Keeps the start from running: its caller was already told that it failed. </summary>
+        public void Abandon() => _isAbandoned = true;
 
         public void Run()
         {
+            if (_isAbandoned)
+                return;
             if (_executionContext is null)
                 Start();
             else

@@ -87,6 +87,8 @@ public readonly struct LuauValue : IDisposable
         public LuauValueUnion(ulong value) => ValueHandle = value;
     }
 
+    internal bool IsNaN => Type is LuauValueType.Number && double.IsNaN(_union.ValueDouble);
+
     private LuauValue(LuauState? state, LuauValueType type, LuauValueUnion union)
     {
         Type = type;

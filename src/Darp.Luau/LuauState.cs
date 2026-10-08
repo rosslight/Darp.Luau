@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,6 +24,10 @@ public sealed unsafe class LuauState : IDisposable
     private readonly UserdataRegistrationCache _cache;
 
     private LuauModuleRequirer? _moduleRequirer;
+    private ProtectedTableAccess? _protectedTableAccess;
+
+    // The number of managed callbacks of this state that are running right now.
+    private int _callbackDepth;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -85,18 +90,28 @@ public sealed unsafe class LuauState : IDisposable
         L = luaL_newstate();
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
+        try
+        {
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
 
-        _cache = new UserdataRegistrationCache(this);
-        ReferenceTracker = new RegistryReferenceTracker(this);
+            _cache = new UserdataRegistrationCache(this);
+            ReferenceTracker = new RegistryReferenceTracker(this);
 
-        LoadStandardLibraries(builtinLibraries);
+            LoadStandardLibraries(builtinLibraries);
 
-        // Push table to stack, get the reference and pop
-        lua_pushvalue(L, LUA_GLOBALSINDEX);
-        _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
+            // Push table to stack, get the reference and pop
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+            _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
+        }
+        catch
+        {
+            // Nobody gets the state to dispose it.
+            _disposing = 1;
+            lua_close(L);
+            throw;
+        }
     }
 
     /// <summary>Loads the requested standard Luau libraries into this state.</summary>
@@ -208,6 +223,29 @@ public sealed unsafe class LuauState : IDisposable
     {
         _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
+    }
+
+    /// <summary> Reads and writes tables whose metamethods may run script code. </summary>
+    internal ProtectedTableAccess ProtectedTableAccess => _protectedTableAccess ??= new ProtectedTableAccess(this);
+
+    /// <summary> Marks a managed callback of this state as running until the scope is disposed. </summary>
+    internal CallbackScope EnterCallback()
+    {
+        _callbackDepth++;
+        return new CallbackScope(this);
+    }
+
+    /// <summary> A running managed callback. The state cannot be disposed while one exists. </summary>
+    internal readonly ref struct CallbackScope(LuauState state)
+    {
+        [SuppressMessage(
+            "Usage",
+            "CA2213:Disposable fields should be disposed",
+            Justification = "The scope references the state but does not own it."
+        )]
+        private readonly LuauState _state = state;
+
+        public void Dispose() => _state._callbackDepth--;
     }
 
     internal bool OwnsThread(lua_State* luaState)
@@ -383,11 +421,12 @@ public sealed unsafe class LuauState : IDisposable
             if (!state.OwnsThread(luaState))
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
 
+            using CallbackScope callbackScope = state.EnterCallback();
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
             using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
 #endif
-            int topBeforeInvoke = lua_gettop(luaState);
+            int topBeforeInvoke = numberOfParameters;
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
@@ -456,9 +495,8 @@ public sealed unsafe class LuauState : IDisposable
     /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<char> value)
     {
-        Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(value)];
-        int numberOfBytes = Encoding.UTF8.GetBytes(value, buffer);
-        return CreateString(buffer[..numberOfBytes]);
+        using var utf8 = new Utf8Buffer(value, stackalloc byte[Utf8Buffer.StackSize]);
+        return CreateString(utf8.Bytes);
     }
 
     /// <summary>Creates a new Luau string from UTF-8 bytes.</summary>
@@ -548,8 +586,24 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a managed callback of this state is running. Luau would continue in a closed state when the
+    /// callback returns. Dispose the state after the host call that runs the script has returned.
+    /// </exception>
+    [SuppressMessage(
+        "Design",
+        "CA1065:Do not raise exceptions in unexpected locations",
+        Justification = "Closing the state under a running callback would let Luau continue in freed memory."
+    )]
     public void Dispose()
     {
+        if (_callbackDepth > 0 && _disposing == 0)
+        {
+            throw new InvalidOperationException(
+                "A LuauState cannot be disposed while one of its managed callbacks runs. "
+                    + "Dispose it after the host call that runs the script has returned."
+            );
+        }
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();

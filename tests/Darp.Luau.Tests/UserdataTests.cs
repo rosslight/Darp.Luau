@@ -77,11 +77,7 @@ public sealed class UserdataTests
     [Theory]
     [InlineData("return failing.explode", "__index callback failed", "Boom from OnIndex")]
     [InlineData("failing.explodeSet = 1", "__newindex callback failed", "Boom from OnSetIndex")]
-    [InlineData(
-        "return getmetatable(failing).__namecall(failing, \"explodeMethod\")",
-        "__namecall callback failed",
-        "Boom from OnMethodCall"
-    )]
+    [InlineData("return failing:explodeMethod()", "__namecall callback failed", "Boom from OnMethodCall")]
     public void Userdata_CallbackErrorsFromCoroutine_ShouldBeLuaErrors(
         string callbackSource,
         string expectedCallback,
@@ -123,7 +119,7 @@ public sealed class UserdataTests
                 before = counter.value
                 counter.value = 41
                 after = counter.value
-                methodResult = getmetatable(counter).__namecall(counter, "add", 1)
+                methodResult = counter:add(1)
                 """
             )
             .Execute();
@@ -338,7 +334,7 @@ public sealed class UserdataTests
         state.Globals.Set("counter", new CounterUserdata());
 
         LuaException exception = Should.Throw<LuaException>(() =>
-            state.Load("result = getmetatable(counter).__namecall(counter, \"missingMethod\", 1)").Execute()
+            state.Load("result = counter:missingMethod(1)").Execute()
         );
 
         exception.Message.ShouldContain("unknown userdata method 'missingMethod'");
@@ -354,7 +350,7 @@ public sealed class UserdataTests
             .Load(
                 """
                 ok, err = pcall(function()
-                  return getmetatable(counter).__namecall(counter, "missingMethod", 1)
+                  return counter:missingMethod(1)
                 end)
                 """
             )
@@ -368,16 +364,59 @@ public sealed class UserdataTests
     }
 
     [Fact]
-    public void Userdata_NonStringMethodName_ShouldRaiseLuaException()
+    public void Userdata_Metatable_ShouldBeHiddenFromScripts()
     {
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() =>
-            state.Load("x = getmetatable(counter).__namecall(counter, 1, 1)").Execute()
-        );
+        // Every userdata of a state shares one metatable. A script that could change it would change them all.
+        state
+            .Load(
+                """
+                locked = getmetatable(counter)
+                canSet = pcall(setmetatable, counter, {})
+                counter.value = 5
+                after = counter:add(1)
+                """
+            )
+            .Execute();
 
-        exception.Message.ShouldContain("userdata method call requires a string method name");
+        state.Globals.TryGet("locked", out string? locked).ShouldBeTrue();
+        locked.ShouldBe("The metatable is locked");
+        state.Globals.TryGet("canSet", out bool canSet).ShouldBeTrue();
+        canSet.ShouldBeFalse();
+        state.Globals.TryGet("after", out int after).ShouldBeTrue();
+        after.ShouldBe(6);
+    }
+
+    [Fact]
+    public void Userdata_HugeMemberName_ShouldNotOverflowTheStack()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        // The script chooses how long the name is, so it must not size a stack buffer.
+        state
+            .Load(
+                """
+                local name = string.rep("x", 4 * 1024 * 1024)
+                missing = counter[name]
+                setOk = pcall(function() counter[name] = 1 end)
+                counter.value = 2
+                after = counter.value
+                """
+            )
+            .Execute();
+        state.Load($"callOk = pcall(function() return counter:{new string('x', 100_000)}() end)").Execute();
+
+        state.Globals.TryGet("missing", out LuauValue missing).ShouldBeTrue();
+        missing.Type.ShouldBe(LuauValueType.Nil);
+        state.Globals.TryGet("setOk", out bool setOk).ShouldBeTrue();
+        setOk.ShouldBeFalse();
+        state.Globals.TryGet("callOk", out bool callOk).ShouldBeTrue();
+        callOk.ShouldBeFalse();
+        state.Globals.TryGet("after", out int after).ShouldBeTrue();
+        after.ShouldBe(2);
     }
 
     [Fact]
@@ -514,9 +553,7 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() =>
-            state.Load("x = getmetatable(failing).__namecall(failing, \"explodeMethod\")").Execute()
-        );
+        LuaException exception = Should.Throw<LuaException>(() => state.Load("x = failing:explodeMethod()").Execute());
 
         exception.Message.ShouldContain("__namecall callback failed");
         exception.Message.ShouldContain("Boom from OnMethodCall");
@@ -532,7 +569,7 @@ public sealed class UserdataTests
             .Load(
                 """
                 ok, err = pcall(function()
-                  return getmetatable(failing).__namecall(failing, "explodeMethod")
+                  return failing:explodeMethod()
                 end)
                 """
             )
@@ -556,7 +593,7 @@ public sealed class UserdataTests
             .Load(
                 """
                 counter.value = 10
-                first, second = getmetatable(counter).__namecall(counter, "pair")
+                first, second = counter:pair()
                 """
             )
             .Execute();
@@ -578,7 +615,7 @@ public sealed class UserdataTests
             .Load(
                 """
                 counter.value = 10
-                noResult = getmetatable(counter).__namecall(counter, "touch")
+                noResult = counter:touch()
                 after = counter.value
                 """
             )
@@ -601,9 +638,9 @@ public sealed class UserdataTests
             .Load(
                 """
                 ok, err = pcall(function()
-                  return getmetatable(counter).__namecall(counter, "badUnknown")
+                  return counter:badUnknown()
                 end)
-                after = getmetatable(counter).__namecall(counter, "add", 1)
+                after = counter:add(1)
                 """
             )
             .Execute();

@@ -221,12 +221,9 @@ public unsafe partial struct LuauTable
         using var guard = new StackGuard(_state.L, expectedDelta: 0);
 #endif
         value = default;
-        TryGet(key, out lua_State* L, out error);
-        if (L is null)
-        {
-            error ??= "Could not access Lua state.";
+        RegistryReferenceTracker.TrackedReference reference = _state.GetTrackedReferenceOrThrow(_handle);
+        if (!LuauTableAccessCore.TryGet(reference, key, out lua_State* L, out _, out error))
             return false;
-        }
 
         value = LuauValue.ToValue(_state);
         lua_pop(L, 2);
@@ -323,21 +320,6 @@ public unsafe partial struct LuauTable
         value = new LuauUserdata(_state, handle);
         lua_pop(L, 2);
         return true;
-    }
-
-    private void TryGet(in IntoLuau key, out lua_State* L, [NotNullWhen(false)] out string? error)
-    {
-        L = null;
-        error = null;
-
-        _state.ThrowIfDisposed();
-        L = _state.L;
-        var trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-#pragma warning disable CA2000 // This lookup intentionally leaves the table on the stack so the caller can inspect the fetched value and pop both entries later.
-        _ = trackedReference.PushToTop();
-#pragma warning restore CA2000
-        key.Push(_state);
-        _ = (lua_Type)lua_gettable(L, -2);
     }
 
     private bool TryGetRequired(

@@ -83,6 +83,7 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
     private static int RequireCallbackCore(lua_State* L, void* ctx)
     {
         LuauModuleRequirer requirer = FromVoidPtr(ctx);
+        using LuauState.CallbackScope callbackScope = requirer._state.EnterCallback();
         if (!LuauStateMarshal.TryGetString(L, 1, out ReadOnlySpan<byte> utf8ModuleName))
             return LuauStateMarshal.ReturnError(L, "bad argument #1 to 'require' (string expected)");
 

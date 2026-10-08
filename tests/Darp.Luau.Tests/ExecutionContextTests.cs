@@ -224,6 +224,52 @@ public sealed class ExecutionContextTests : IDisposable
     public void Dispose() => _state.Dispose();
 
     /// <summary> A host dispatcher that runs everything posted to it on one dedicated thread. </summary>
+    [Fact]
+    public async Task HostDispatcher_ThatRefusesWork_ShouldFailTheCallAndLeaveTheStateUsable()
+    {
+        var dispatcher = new RefusingSynchronizationContext { Refuse = true };
+        using var state = new LuauState(LuauLibraries.All, null, dispatcher);
+
+        // Started off the dispatcher, so the call is posted to it.
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(() =>
+            state.Load("ran = true return 1").ExecuteAsync<int>([], TestToken).AsTask()
+        );
+        exception.Message.ShouldContain("shut down");
+
+        dispatcher.Refuse = false;
+        (await state.Load("return 2").ExecuteAsync<int>([], TestToken)).ShouldBe(2);
+        // The refused call was reported as failed, so it does not run later.
+        (await state.Load("return ran == nil").ExecuteAsync<bool>([], TestToken)).ShouldBeTrue();
+    }
+
+    /// <summary> Runs posted work on the thread pool, one item at a time, unless it refuses to. </summary>
+    private sealed class RefusingSynchronizationContext : SynchronizationContext
+    {
+        private readonly SemaphoreSlim _turn = new(1, 1);
+
+        public bool Refuse { get; set; }
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            if (Refuse)
+                throw new InvalidOperationException("the dispatcher has shut down");
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                _turn.Wait();
+                try
+                {
+                    SetSynchronizationContext(this);
+                    d(state);
+                }
+                finally
+                {
+                    SetSynchronizationContext(null);
+                    _turn.Release();
+                }
+            });
+        }
+    }
+
     private sealed class SingleThreadSynchronizationContext : SynchronizationContext, IDisposable
     {
         private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = [];

@@ -24,7 +24,12 @@ internal static class LuauStateMarshal
                 return DARP_LUAU_CALLBACK_YIELD;
 
             result.Release();
-            return ReturnError(luaState, CoroutineDriver.AwaitRejectedError);
+            return ReturnError(
+                luaState,
+                AsyncDriveTable.IsDriving(luaState)
+                    ? CoroutineDriver.AwaitNotYieldableError
+                    : CoroutineDriver.AwaitRejectedError
+            );
         }
 
         return result.TryPushValues(state, luaState, out int outputCount, out string? error)
@@ -53,8 +58,20 @@ internal static class LuauStateMarshal
         ReturnError(state, FormatCallbackException(exception, callbackName));
 
     /// <summary> Formats an exception thrown by a managed callback as the Luau error message the script receives. </summary>
-    public static string FormatCallbackException(Exception exception, string callbackName = "managed function") =>
-        $"{callbackName} callback failed: {exception.GetType().Name}: {exception.Message}";
+    public static string FormatCallbackException(Exception exception, string callbackName = "managed function")
+    {
+        string message;
+        try
+        {
+            message = exception.Message;
+        }
+        catch (Exception)
+        {
+            // The message of an exception is code of its author. It must not fail the report of the exception.
+            message = "<the exception message is not available>";
+        }
+        return $"{callbackName} callback failed: {exception.GetType().Name}: {message}";
+    }
 
     public static unsafe int ReturnSuccess(lua_State* state, int outputCount)
     {
@@ -113,12 +130,8 @@ internal static class LuauStateMarshal
 
     public static unsafe void PushString(lua_State* state, ReadOnlySpan<char> message)
     {
-        Span<byte> utf8Message = stackalloc byte[Encoding.UTF8.GetMaxByteCount(message.Length)];
-        int utf8Length = Encoding.UTF8.GetBytes(message, utf8Message);
-        fixed (byte* pMessage = utf8Message)
-        {
-            lua_pushlstring(state, pMessage, (nuint)utf8Length);
-        }
+        using var utf8Message = new Utf8Buffer(message, stackalloc byte[Utf8Buffer.StackSize]);
+        PushString(state, utf8Message.Bytes);
     }
 
     public static unsafe void PushString(lua_State* state, ReadOnlySpan<byte> message)

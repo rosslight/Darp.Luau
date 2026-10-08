@@ -46,7 +46,8 @@ internal sealed class AsyncDriveTable
     /// <param name="coroutine">The driven coroutine, or <c>null</c> when its state is disposed and its memory is gone.</param>
     public unsafe void Remove(int slot, lua_State* coroutine)
     {
-        if (coroutine is not null)
+        // The coroutine may have been taken from the drive and may be run by another one by now.
+        if (coroutine is not null && TryGetSlot(coroutine, out int currentSlot) && currentSlot == slot)
             lua_setthreaddata(coroutine, null);
         _slots[slot] = new Slot { NextFreeSlot = _firstFreeSlot };
         _firstFreeSlot = slot;

@@ -97,51 +97,82 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult Reset(lua_State* L, void* ctx, byte* requirerChunkname)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+        try
+        {
+            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
-        ReadOnlySpan<byte> chunkName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(requirerChunkname);
-        if (chunkName.SequenceEqual("=stdin"u8))
-            return req._navigator.ResetToStdIn();
-        if (chunkName.StartsWith(ChunkNamePrefix))
-            return req._navigator.ResetToPath(Encoding.UTF8.GetString(chunkName[1..]));
+            ReadOnlySpan<byte> chunkName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(requirerChunkname);
+            if (chunkName.SequenceEqual("=stdin"u8))
+                return req._navigator.ResetToStdIn();
+            if (chunkName.StartsWith(ChunkNamePrefix))
+                return req._navigator.ResetToPath(Encoding.UTF8.GetString(chunkName[1..]));
 
-        return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+        }
+        catch (Exception)
+        {
+            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult JumpToAlias(lua_State* L, void* ctx, byte* path)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+        try
+        {
+            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
-        string strPath = ReadUtf8Z(path);
-        if (!FileUtils.IsAbsolutePath(strPath))
+            string strPath = ReadUtf8Z(path);
+            if (!FileUtils.IsAbsolutePath(strPath))
+                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+
+            return req._navigator.ResetToPath(strPath);
+        }
+        catch (Exception)
+        {
             return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
-
-        return req._navigator.ResetToPath(strPath);
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToParent(lua_State* L, void* ctx)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        return req._navigator.ToParent();
+        try
+        {
+            return FromVoidPtr(ctx)._navigator.ToParent();
+        }
+        catch (Exception)
+        {
+            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToChild(lua_State* L, void* ctx, byte* name)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        string strName = ReadUtf8Z(name);
-        return req._navigator.ToChild(strName);
+        try
+        {
+            return FromVoidPtr(ctx)._navigator.ToChild(ReadUtf8Z(name));
+        }
+        catch (Exception)
+        {
+            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static bool IsModulePresent(lua_State* L, void* ctx)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
+        try
+        {
+            LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
-        return req._virtualFileSystem.FileExists(req._navigator.RealPath);
+            return req._virtualFileSystem.FileExists(req._navigator.RealPath);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -153,9 +184,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         nuint* sizeOut
     )
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        return Write($"@{req._navigator.RealPath}", buffer, bufferSize, sizeOut);
+        return Write(ctx, static req => $"@{req._navigator.RealPath}", buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -167,9 +196,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         nuint* sizeOut
     )
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        return Write(req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
+        return Write(ctx, static req => req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -181,17 +208,20 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         nuint* sizeOut
     )
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        return Write(req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
+        return Write(ctx, static req => req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_ConfigStatus GetConfigStatus(lua_State* L, void* ctx)
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        return req._navigator.GetConfigStatus();
+        try
+        {
+            return FromVoidPtr(ctx)._navigator.GetConfigStatus();
+        }
+        catch (Exception)
+        {
+            return luarequire_ConfigStatus.CONFIG_ABSENT;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -203,9 +233,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         nuint* sizeOut
     )
     {
-        LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-
-        return Write(req._navigator.GetConfig(), buffer, bufferSize, sizeOut);
+        return Write(ctx, static req => req._navigator.GetConfig(), buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -272,7 +300,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
                     errorMessage =
                         lua_isstring(ML, -1) == 0
                             ? $"unknown error while loading module '{strPath}'"
-                            : $"error while loading module '{strPath}': {ReadUtf8Z((byte*)lua_tostring(ML, -1))}";
+                            : $"error while loading module '{strPath}': {ReadString(ML, -1)}";
                 }
             }
             finally
@@ -298,8 +326,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
             }
             else
             {
-                string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
-                errorMessage = $"error while running module '{strPath}': {strMsg}";
+                errorMessage = $"error while running module '{strPath}': {ReadString(ML, -1)}";
             }
         }
 
@@ -324,6 +351,25 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         return nResults;
     }
 
+    /// <summary> Writes what <paramref name="read"/> gets from the requirer behind <paramref name="ctx"/>. </summary>
+    private static luarequire_WriteResult Write(
+        void* ctx,
+        Func<LuauScriptModuleRequirer, string?> read,
+        byte* bufDest,
+        nuint nSizeBufDest,
+        nuint* nSizeBufDestOut
+    )
+    {
+        try
+        {
+            return Write(read(FromVoidPtr(ctx)), bufDest, nSizeBufDest, nSizeBufDestOut);
+        }
+        catch (Exception)
+        {
+            return luarequire_WriteResult.WRITE_FAILURE;
+        }
+    }
+
     private static luarequire_WriteResult Write(
         string? strSrc,
         byte* bufDest,
@@ -343,6 +389,14 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         var buffer = new Span<byte>(bufDest, (int)nSizeBufDest);
         *nSizeBufDestOut = (nuint)Encoding.UTF8.GetBytes(strSrc, buffer);
         return luarequire_WriteResult.WRITE_SUCCESS;
+    }
+
+    /// <summary> Reads the string on the stack with its length: an error message may contain NUL bytes. </summary>
+    private static string ReadString(lua_State* L, int stackIndex)
+    {
+        nuint length = 0;
+        byte* text = lua_tolstring(L, stackIndex, &length);
+        return text is null ? string.Empty : Encoding.UTF8.GetString(text, (int)length);
     }
 
     private static string ReadUtf8Z(byte* ptr)

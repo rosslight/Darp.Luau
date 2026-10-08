@@ -1521,6 +1521,35 @@ public sealed class FunctionTests : IDisposable
         }
     }
 
+    [Fact]
+    public void CallbackException_WhoseMessageThrows_ShouldStillBeALuaError()
+    {
+        using LuauFunction fail = _state.CreateFunctionBuilder(_ => throw new BrokenMessageException());
+        _state.Globals.Set("fail", fail);
+
+        LuaException exception = Should.Throw<LuaException>(() => _state.Load("fail()").Execute());
+
+        exception.Message.ShouldContain(nameof(BrokenMessageException));
+        exception.Message.ShouldContain("the exception message is not available");
+    }
+
+    [Fact]
+    public void CallbackError_WithAVeryLongMessage_ShouldReachTheScript()
+    {
+        string message = new('x', 1024 * 1024);
+        using LuauFunction fail = _state.CreateFunctionBuilder(_ => LuauReturn.Error(message));
+        _state.Globals.Set("fail", fail);
+
+        int length = _state.Load("local _, err = pcall(fail) return #err").Execute<int>();
+
+        length.ShouldBeGreaterThanOrEqualTo(message.Length);
+    }
+
+    private sealed class BrokenMessageException : Exception
+    {
+        public override string Message => throw new InvalidOperationException("no message today");
+    }
+
     public void Dispose()
     {
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);
