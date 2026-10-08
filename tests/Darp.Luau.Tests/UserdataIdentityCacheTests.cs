@@ -86,21 +86,12 @@ public sealed class UserdataIdentityCacheTests : IDisposable
                 weakKeys = setmetatable({}, { __mode = "k" })
                 weakKeys[oldUserdata] = true
                 oldUserdata = nil
-                hasCollectGarbage = collectgarbage ~= nil
-                if hasCollectGarbage then
-                  collectgarbage("collect")
-                end
-                oldCollected = next(weakKeys) == nil
                 """
             )
             .Execute();
+        _state.CollectGarbage();
 
-        _state.Globals.TryGet("hasCollectGarbage", out bool hasCollectGarbage).ShouldBeTrue();
-        if (!hasCollectGarbage)
-            return;
-
-        _state.Globals.TryGet("oldCollected", out bool oldCollected).ShouldBeTrue();
-        oldCollected.ShouldBeTrue();
+        _state.Load("return next(weakKeys) == nil").Execute<bool>().ShouldBeTrue();
 
         using LuauUserdata newUserdata = _state.GetOrCreateUserdata(value);
         _state.Globals.Set("newUserdata", newUserdata);

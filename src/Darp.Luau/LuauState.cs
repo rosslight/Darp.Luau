@@ -57,13 +57,6 @@ public sealed unsafe class LuauState : IDisposable
     internal LuauMemoryStatistics MemoryStatistics =>
         ReferenceTracker.GetStatistics(activeManagedCallbacks: _activeManagedCallbacks);
 
-    /// <summary> Runs a full Luau garbage collection. Scripts cannot: Luau gives them no <c>collectgarbage("collect")</c>. </summary>
-    internal void CollectGarbage()
-    {
-        this.ThrowIfDisposed();
-        _ = lua_gc(L, (int)lua_GCOp.LUA_GCCOLLECT, 0);
-    }
-
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
     public LuauState()
