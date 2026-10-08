@@ -42,8 +42,12 @@ public sealed class BufferTests : IDisposable
         using LuauValue value = buffer.DisposeAndToLuauValue();
         value.Type.ShouldBe(LuauValueType.Buffer);
 
-        value.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
-        found.ToArray().ShouldBe<byte>(expected.ToArray());
+        value.TryGet(out LuauBuffer owned).ShouldBeTrue();
+        using (owned)
+        {
+            owned.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
+            found.ToArray().ShouldBe<byte>(expected.ToArray());
+        }
     }
 
     [Fact]
