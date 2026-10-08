@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction<Increment>((ref int value) => value++);
+                                             ^^^
+    }
+*/
+ : (8,45)-(8,48),
+      Message: Type 'int' used for parameter 'value', which is passed by reference (ref, in or out) is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

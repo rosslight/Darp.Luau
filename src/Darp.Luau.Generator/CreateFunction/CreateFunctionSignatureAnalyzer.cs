@@ -9,6 +9,18 @@ namespace Darp.Luau.Generator.CreateFunction;
 
 internal static class CreateFunctionSignatureAnalyzer
 {
+    /// <summary> The most parameters <c>System.Action</c> and <c>System.Func</c> have. </summary>
+    private const int MaxParameterCount = 16;
+
+    /// <summary> The location of the callback argument, or of the call when there is none. </summary>
+    private static Location GetCallbackLocation(IInvocationOperation invocationOperation)
+    {
+        var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
+        return syntax.ArgumentList.Arguments.Count == 0
+            ? syntax.GetLocation()
+            : syntax.ArgumentList.Arguments[0].Expression.GetLocation();
+    }
+
     public static CreateFunctionAnalysisResult Analyze(IInvocationOperation invocationOperation)
     {
         var diagnostics = new List<Diagnostic>();
@@ -90,6 +102,20 @@ internal static class CreateFunctionSignatureAnalyzer
             return false;
         }
 
+        if (invokeMethod.Parameters.Length > MaxParameterCount)
+        {
+            // The interceptor takes the callback as an Action or Func, which stop at 16 parameters.
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    GetCallbackLocation(invocationOperation),
+                    delegateType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    $"a callback with more than {MaxParameterCount} parameters"
+                )
+            );
+            return false;
+        }
+
         if (invokeMethod.ReturnsVoid && IsAsyncCallback(invocationOperation))
         {
             // An async void callback reports success at once and runs on unobserved; nothing could await its work.
@@ -117,6 +143,19 @@ internal static class CreateFunctionSignatureAnalyzer
             string usageDescription = parameter.Name is { Length: > 0 }
                 ? $"parameter '{parameter.Name}'"
                 : $"parameter #{i + 1}";
+
+            if (parameter.RefKind is not RefKind.None)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                        parameterLocation,
+                        parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        $"{usageDescription}, which is passed by reference (ref, in or out)"
+                    )
+                );
+                return false;
+            }
 
             if (
                 !TryMapTypeToInteropType(
@@ -156,6 +195,23 @@ internal static class CreateFunctionSignatureAnalyzer
             invokeMethod.ReturnType,
             out ITypeSymbol? awaitedType
         );
+        if (
+            awaitable is not AwaitableReturnKind.None
+            && invokeMethod.ReturnNullableAnnotation is NullableAnnotation.Annotated
+        )
+        {
+            // A callback that returns null instead of a task would fail when its result is awaited.
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    GetReturnLocation(invocationOperation),
+                    invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    "the result of an async callback (the task must not be nullable)"
+                )
+            );
+            return false;
+        }
+
         (ITypeSymbol? returnType, NullableAnnotation returnNullableAnnotation) =
             awaitable is AwaitableReturnKind.None
                 ? (invokeMethod.ReturnType, invokeMethod.ReturnNullableAnnotation)
@@ -185,18 +241,33 @@ internal static class CreateFunctionSignatureAnalyzer
     }
 
     /// <summary> Whether the callback is an async lambda or an async method. A delegate held in a variable is not seen. </summary>
-    private static bool IsAsyncCallback(IInvocationOperation invocationOperation)
-    {
-        IOperation? callback = invocationOperation.Arguments.FirstOrDefault()?.Value;
-        while (callback is IConversionOperation conversion)
-            callback = conversion.Operand;
+    private static bool IsAsyncCallback(IInvocationOperation invocationOperation) =>
+        IsAsyncCallback(invocationOperation.Arguments.FirstOrDefault()?.Value);
 
-        return callback
-            is IDelegateCreationOperation
+    private static bool IsAsyncCallback(IOperation? callback)
+    {
+        while (callback is IConversionOperation or IParenthesizedOperation)
+        {
+            callback = callback switch
+            {
+                IConversionOperation conversion => conversion.Operand,
+                IParenthesizedOperation parenthesized => parenthesized.Operand,
+                _ => null,
+            };
+        }
+
+        return callback switch
+        {
+            // Either branch may be the callback that runs.
+            IConditionalOperation conditional => IsAsyncCallback(conditional.WhenTrue)
+                || IsAsyncCallback(conditional.WhenFalse),
+            IDelegateCreationOperation
             {
                 Target: IAnonymousFunctionOperation { Symbol.IsAsync: true }
                     or IMethodReferenceOperation { Method.IsAsync: true }
-            };
+            } => true,
+            _ => false,
+        };
     }
 
     private static bool TryMapTypeToInteropType(

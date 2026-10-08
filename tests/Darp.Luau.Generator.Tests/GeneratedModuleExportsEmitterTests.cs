@@ -72,6 +72,29 @@ public sealed class GeneratedModuleExportsEmitterTests
     }
 
     [Fact]
+    public async Task StaticModule_WithMembersNamedLikeGeneratedLocalsOrKeywords_ShouldReferToTheMembers()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("names")]
+            public static partial class NamesModule
+            {
+                [LuauMember("module")]
+                public static int module => 1;
+
+                [LuauMember("state")]
+                public static int state => 2;
+
+                [LuauMember("give_back")]
+                public static int @return(int @params) => @params;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task InstanceModule_ShouldGenerateOnLoadMethod()
     {
         const string code = """

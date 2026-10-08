@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction<Func<Task<int>?>>(() => null);
+                                                     ^^^^
+    }
+*/
+ : (9,53)-(9,57),
+      Message: Type 'global::System.Threading.Tasks.Task<int>' used for the result of an async callback (the task must not be nullable) is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -29,7 +29,11 @@ internal static class ExportProjector
         return member switch
         {
             NormalizedExportPropertyMember property => new GeneratedExportPropertyIr(
-                property.ManagedName,
+                // A static property is read by its qualified name: a bare name such as 'module' or 'state' would
+                // bind to a local of the generated method instead.
+                property.PropertySymbol.IsStatic
+                    ? $"{property.PropertySymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{EscapeIdentifier(property.ManagedName)}"
+                    : EscapeIdentifier(property.ManagedName),
                 property.LuauName,
                 property.PathSegments,
                 property.Property.Getter is null ? null : new GeneratedExportAccessorIr(property.Property.Getter.Type),
@@ -38,7 +42,7 @@ internal static class ExportProjector
             NormalizedExportMethodMember method => new GeneratedExportMethodIr(
                 method.MethodSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 method.MethodSymbol.IsStatic,
-                method.ManagedName,
+                EscapeIdentifier(method.ManagedName),
                 method.LuauName,
                 method.PathSegments,
                 method.Signature
@@ -46,6 +50,10 @@ internal static class ExportProjector
             _ => throw new InvalidOperationException($"Unsupported normalized member type '{member.GetType().Name}'"),
         };
     }
+
+    /// <summary> Writes a member name the way source code refers to it: <c>@return</c> for a member named <c>return</c>. </summary>
+    private static string EscapeIdentifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) is SyntaxKind.None ? name : $"@{name}";
 
     private static GeneratedModuleExportNodeIr ProjectNode(ValidatedModuleExportNode node)
     {
@@ -94,6 +102,8 @@ internal static class ExportProjector
         const string globalPrefix = "global::";
         if (name.StartsWith(globalPrefix, StringComparison.Ordinal))
             name = name[globalPrefix.Length..];
+        // A type or namespace named like a keyword is displayed as '@class', and a hint name must not contain '@'.
+        name = name.Replace("@", string.Empty);
 
         return name + (kind == LuauExportedTypeKind.Module ? ".LuauModule.g.cs" : ".LuauUserdata.g.cs");
     }
