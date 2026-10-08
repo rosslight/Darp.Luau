@@ -22,25 +22,16 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserData<global::Pla
                 if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-                return global::Darp.Luau.LuauReturn.Await(Complete(self.LoadAsync(args.CancellationToken, a1)));
-                
-                static async global::System.Threading.Tasks.ValueTask<global::Darp.Luau.LuauReturn> Complete(global::System.Threading.Tasks.Task<string?> pending)
-                {
-                    var returns = await pending;
-                    return global::Darp.Luau.LuauReturn.Ok(returns);
-                }
+                return global::Darp.Luau.LuauReturn.Await(
+                    new global::System.Threading.Tasks.ValueTask<string?>(self.LoadAsync(args.CancellationToken, a1)),
+                    static returns => global::Darp.Luau.LuauReturn.Ok(returns)
+                );
             }
             case "save":
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                return global::Darp.Luau.LuauReturn.Await(Complete(self.SaveAsync(args.CancellationToken)));
-                
-                static async global::System.Threading.Tasks.ValueTask<global::Darp.Luau.LuauReturn> Complete(global::System.Threading.Tasks.Task pending)
-                {
-                    await pending;
-                    return global::Darp.Luau.LuauReturn.Ok();
-                }
+                return global::Darp.Luau.LuauReturn.Await(new global::System.Threading.Tasks.ValueTask(self.SaveAsync(args.CancellationToken)));
             }
             case "stats":
             {
@@ -49,13 +40,10 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserData<global::Pla
                 if (!args.TryReadNumber(parameterIndex: 1, out double a1Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 int a1 = (int)a1Raw;
-                return global::Darp.Luau.LuauReturn.Await(Complete(self.GetStatsAsync(a1)));
-                
-                static async global::System.Threading.Tasks.ValueTask<global::Darp.Luau.LuauReturn> Complete(global::System.Threading.Tasks.ValueTask<(int, global::Player?)> pending)
-                {
-                    var returns = await pending;
-                    return global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2 is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata(returns.Item2));
-                }
+                return global::Darp.Luau.LuauReturn.Await(
+                    self.GetStatsAsync(a1),
+                    static returns => global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2 is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata(returns.Item2))
+                );
             }
             default:
                 return global::Darp.Luau.LuauReturn.NotHandledError;

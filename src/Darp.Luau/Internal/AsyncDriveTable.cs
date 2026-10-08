@@ -52,14 +52,14 @@ internal sealed class AsyncDriveTable
         _firstFreeSlot = slot;
     }
 
-    /// <summary> The work the drive in <paramref name="slot"/> awaits, <c>null</c> while its coroutine runs. </summary>
-    public Task<LuauReturn>? GetPending(int slot) => _slots[slot].Pending;
+    /// <summary> The work the drive in <paramref name="slot"/> awaits, none while its coroutine runs. </summary>
+    public PendingWork GetPending(int slot) => _slots[slot].Pending;
 
-    public void SetPending(int slot, Task<LuauReturn>? pending) => _slots[slot].Pending = pending;
+    public void ClearPending(int slot) => _slots[slot].Pending = default;
 
     /// <summary> Hands the pending work of a managed callback to the drive of <paramref name="coroutine"/>. </summary>
     /// <returns><c>false</c> when no async drive runs the coroutine.</returns>
-    public unsafe bool TrySetPending(lua_State* coroutine, Task<LuauReturn> pending)
+    public unsafe bool TrySetPending(lua_State* coroutine, PendingWork pending)
     {
         if (!TryGetSlot(coroutine, out int slot))
             return false;
@@ -69,7 +69,7 @@ internal sealed class AsyncDriveTable
 
     /// <summary> Whether <paramref name="coroutine"/> is suspended in a managed callback its drive awaits. </summary>
     public unsafe bool IsAwaiting(lua_State* coroutine) =>
-        TryGetSlot(coroutine, out int slot) && _slots[slot].Pending is not null;
+        TryGetSlot(coroutine, out int slot) && !_slots[slot].Pending.IsNone;
 
     /// <summary> The token of the async host call driving <paramref name="coroutine"/>, if any. </summary>
     public unsafe CancellationToken GetCancellationToken(lua_State* coroutine) =>
@@ -84,7 +84,7 @@ internal sealed class AsyncDriveTable
     private struct Slot
     {
         public CancellationToken CancellationToken;
-        public Task<LuauReturn>? Pending;
+        public PendingWork Pending;
 
         // Links the free slots.
         public int NextFreeSlot;
