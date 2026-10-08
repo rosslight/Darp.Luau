@@ -877,6 +877,59 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
+    public void ScriptModule_FileSystemThrowsWhileResolving_ShouldFailTheRequire()
+    {
+        var fs = new ReadFailureFileSystem { FailDependencyRead = false, ThrowDependencyLookup = true };
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        // Luau calls the file system while it resolves the path. An exception there must not leave the callback.
+        Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+
+        fs.ThrowDependencyLookup = false;
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
+    public void ScriptModule_FileSystemDisposingTheState_ShouldBeRefused()
+    {
+        var fs = new ReadFailureFileSystem { FailDependencyRead = false };
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+        // The file system runs inside the native require. Closing the state there would free it under Luau.
+        fs.OnDependencyLookup = state.Dispose;
+
+        Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        state.IsDisposed.ShouldBeFalse();
+
+        fs.OnDependencyLookup = null;
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
+    public void ScriptModule_ErrorWithAnEmbeddedNul_ShouldKeepTheWholeMessage()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", "local _, err = pcall(require, './dependency') return err"),
+            ("./dependency.luau", "error('left\\0right', 0)"),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        string error = state.LoadFile("./main.luau").Execute<string>();
+
+        error.ShouldContain("left\0right");
+    }
+
+    [Fact]
     public void EnableScriptModules_ShouldInstallRequire()
     {
         var fs = new FakeFileSystem([]);
@@ -1054,11 +1107,32 @@ public sealed class ScriptModuleTests
 
         public bool ThrowDependencyRead { get; set; }
 
+        public bool ThrowDependencyLookup { get; set; }
+
+        public Action? OnDependencyLookup { get; set; }
+
         public string GetCurrentDirectory() => _inner.GetCurrentDirectory();
 
-        public bool FileExists([NotNullWhen(true)] string? path) => _inner.FileExists(path);
+        public bool FileExists([NotNullWhen(true)] string? path)
+        {
+            ThrowIfDependencyLookup(path);
+            return _inner.FileExists(path);
+        }
 
-        public bool DirectoryExists([NotNullWhen(true)] string? path) => _inner.DirectoryExists(path);
+        public bool DirectoryExists([NotNullWhen(true)] string? path)
+        {
+            ThrowIfDependencyLookup(path);
+            return _inner.DirectoryExists(path);
+        }
+
+        private void ThrowIfDependencyLookup(string? path)
+        {
+            if (path?.Contains("dependency", StringComparison.Ordinal) != true)
+                return;
+            OnDependencyLookup?.Invoke();
+            if (ThrowDependencyLookup)
+                throw new InvalidOperationException("boom from the file system");
+        }
 
         public string? ReadFile(string path)
         {

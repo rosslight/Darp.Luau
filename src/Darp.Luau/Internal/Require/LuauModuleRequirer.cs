@@ -19,7 +19,7 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
     {
         _state = state;
         _hostModules = new LuauHostModuleRequirer(state);
-        _scriptModules = new LuauScriptModuleRequirer(virtualFileSystem);
+        _scriptModules = new LuauScriptModuleRequirer(state, virtualFileSystem);
         _handle = GCHandle.Alloc(this);
 
         try
@@ -54,14 +54,15 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
             proxyRequireHandle
         );
 
+        lua_State* L = _state.L;
+        LuauStateMarshal.PushString(L, "require"u8); // [name]
 #pragma warning disable CA2000 // The native require callback captures this stack value as an upvalue.
-        _ = proxyRequireReference.PushToTop();
+        _ = proxyRequireReference.PushToTop(); // [name, proxy]
 #pragma warning restore CA2000
         fixed (byte* pRequireName = "require\0"u8)
-        {
-            darp_luau_pushrequirecallback(_state.L, &RequireCallback, ToVoidPtr(), pRequireName);
-            lua_setglobal(_state.L, pRequireName);
-        }
+            darp_luau_pushrequirecallback(L, &RequireCallback, ToVoidPtr(), pRequireName); // [name, require]
+        // The globals may be frozen or have metamethods by now, so Luau decides whether this works.
+        LuaException.ThrowIfNotOk(L, LuauVm.SetTable(_state, L, LUA_GLOBALSINDEX), "lua_settable");
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

@@ -37,7 +37,7 @@ The arguments of the first resume become the arguments of the function. The argu
 | --- | --- | --- |
 | `Suspended` | not started yet, yielded, or waiting for an awaiting callback | yes, unless it is waiting for a callback |
 | `Running` | a host call or another coroutine is executing it | no |
-| `Finished` | its function returned, or its awaited work was canceled | no |
+| `Finished` | its function returned, its awaited work was canceled, or a script closed it | no |
 | `Error` | it stopped with an error | no |
 
 `Running` also covers what `coroutine.status(...)` calls `normal`: a coroutine that resumed another coroutine and waits for it.
@@ -127,6 +127,15 @@ Otherwise `TryGetAwaiter(...)` refuses. Generated callbacks then raise a Luau er
 
 This does not depend on timing: a callback that awaits fails in these places even when its work would already be complete.
 
+## While a callback awaits
+
+A coroutine that waits for a callback is suspended, and only the host continues it, with the result of the work. A script that holds the coroutine cannot take that over:
+
+- `coroutine.resume(...)` on it fails with `cannot resume a coroutine that is waiting for a managed callback`. The error is raised inside the waiting coroutine, where the call to the callback was.
+- `coroutine.close(...)` on it ends it.
+
+In both cases the async host call fails with `LuaException`, and the result of the work is dropped when it arrives. The host call no longer runs the coroutine, so a callback cannot await in whatever the coroutine does next.
+
 ## Read arguments before the first await
 
 `LuauArgs` and borrowed views such as `LuauFunctionView` are valid only while the callback runs. The awaited work runs after the callback has returned, so it cannot use them:
@@ -162,6 +171,7 @@ The compiler enforces most of this: `LuauArgs` and views are `ref struct` types 
 
 - An exception from the awaited work or from the conversion of its value, or `LuauReturn.Error(...)`, becomes a Luau error at the call site. `pcall(...)` can catch it.
 - An error the script does not catch fails the async method with `LuaException`.
+- A script that yields out of `ExecuteAsync(...)` or `InvokeAsync(...)` fails the method with `LuaException`. Its coroutine is finished, so a script that kept it cannot continue it later.
 
 ## Cancellation
 
@@ -203,7 +213,7 @@ var lua = new LuauState(LuauLibraries.All, null, SynchronizationContext.Current)
 
 ### Rules for the host
 
-The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does no bookkeeping. Use it only
+The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does not take part in the turns: it does not wait for one and does not start one. Use it only
 
 - when no async host call is outstanding: await all of them first,
 - inside turns, that is, in managed callbacks and in the code after their captured `await`s, or
@@ -212,6 +222,10 @@ The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) doe
 Without a host dispatcher, an outstanding async call may run its next turn on a thread-pool thread at any moment, so synchronous use from your own thread is not safe until you awaited it.
 
 Await in-flight async calls before you dispose the state. If the state is disposed between turns anyway, the pending call fails with `ObjectDisposedException`.
+
+`Dispose()` throws `InvalidOperationException` while the state runs a script. That is the case inside every callback of it: managed functions, userdata members, module loaders, and the file system that `require(...)` uses. Luau would continue in a closed state otherwise. Dispose the state after the host call that runs the script has returned.
+
+If the host dispatcher throws when work is posted to it, for example because it has shut down, a call that could not start fails with that exception and the state stays usable. A call that was already waiting for a callback cannot continue anywhere else and never completes, so await in-flight calls before you shut the dispatcher down.
 
 ### Code that leaves the turn
 
@@ -225,4 +239,4 @@ Do not block on async work inside a turn, for example with `.Result` or `.Wait()
 
 Do not start async host calls from callbacks of a synchronous call such as `Execute(...)`; the synchronous call is not a turn and keeps running while the async call continues elsewhere.
 
-Do not resume a coroutine from a script while the host is awaiting a callback inside it. The host cannot prevent `coroutine.resume(...)`, and the callback would receive the script's values instead of its own result.
+Do not resume a coroutine from a script while the host is awaiting a callback inside it. The resume fails and ends the host call; see [While a callback awaits](#while-a-callback-awaits).

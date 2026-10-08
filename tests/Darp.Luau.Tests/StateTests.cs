@@ -190,6 +190,100 @@ public sealed class StateTests : IDisposable
         exception.Message.ShouldContain("boom");
     }
 
+    [Fact]
+    public void Dispose_InsideACallback_ShouldThrowAndLeaveTheStateUsable()
+    {
+        using var state = new LuauState();
+        using LuauFunction quit = state.CreateFunctionBuilder(_ =>
+        {
+            state.Dispose();
+            return LuauReturn.Ok();
+        });
+        state.Globals.Set("quit", quit);
+
+        // Luau would continue in a closed state when the callback returns.
+        LuaException exception = Should.Throw<LuaException>(() => state.Load("quit()").Execute());
+
+        exception.Message.ShouldContain("cannot be disposed while it runs a script");
+        state.IsDisposed.ShouldBeFalse();
+        state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
+    }
+
+    [Fact]
+    public void Dispose_InsideAUserdataCallback_ShouldThrow()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("disposer", IntoLuau.FromUserdata(new DisposingUserdata(state)));
+
+        Should.Throw<LuaException>(() => state.Load("return disposer.anything").Execute());
+        Should.Throw<LuaException>(() => state.Load("disposer.anything = 1").Execute());
+        Should.Throw<LuaException>(() => state.Load("disposer:anything()").Execute());
+
+        state.IsDisposed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Dispose_AfterACallbackFailed_ShouldWork()
+    {
+        var state = new LuauState();
+        using LuauFunction fail = state.CreateFunctionBuilder(_ => throw new InvalidOperationException("boom"));
+        state.Globals.Set("fail", fail);
+        Should.Throw<LuaException>(() => state.Load("fail()").Execute());
+
+        state.Dispose();
+
+        state.IsDisposed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateString_WithLongText_ShouldRoundTrip()
+    {
+        using var state = new LuauState();
+        string text = new('ä', 100_000);
+
+        using LuauString value = state.CreateString(text);
+        state.Globals.Set("text", value);
+
+        state.Load("return #text").Execute<int>().ShouldBe(200_000);
+        state.Globals.TryGet("text", out string? roundTripped).ShouldBeTrue();
+        roundTripped.ShouldBe(text);
+    }
+
+    private sealed class DisposingUserdata(LuauState state) : ILuauUserData<DisposingUserdata>
+    {
+        private readonly LuauState _state = state;
+
+        public static LuauReturnSingle OnIndex(
+            DisposingUserdata self,
+            in LuauState state,
+            in ReadOnlySpan<char> fieldName
+        )
+        {
+            self._state.Dispose();
+            return LuauReturnSingle.NotHandled;
+        }
+
+        public static LuauOutcome OnSetIndex(
+            DisposingUserdata self,
+            LuauArgsSingle args,
+            in ReadOnlySpan<char> fieldName
+        )
+        {
+            self._state.Dispose();
+            return LuauOutcome.NotHandledError;
+        }
+
+        public static LuauReturn OnMethodCall(
+            DisposingUserdata self,
+            LuauArgs functionArgs,
+            in ReadOnlySpan<char> methodName
+        )
+        {
+            self._state.Dispose();
+            return LuauReturn.NotHandledError;
+        }
+    }
+
     public void Dispose()
     {
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1U);

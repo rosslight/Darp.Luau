@@ -28,6 +28,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         public int Value { get; } = value;
     }
 
+    // The name buffers of the callbacks below are written before they are read.
+    [SkipLocalsInit]
     public unsafe GCHandle Register<T>()
         where T : class, ILuauUserData<T>
     {
@@ -54,9 +56,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return LuauStateMarshal.ReturnError(L, "userdata index access requires a string member name"u8);
 
-            Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
-            int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
+            using var memberName = new Utf16Buffer(utf8MemberName, stackalloc char[Utf16Buffer.StackSize]);
+            ReadOnlySpan<char> resolvedMemberName = memberName.Chars;
 
             LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
 
@@ -75,9 +76,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return LuauStateMarshal.ReturnError(L, "userdata assignment requires a string member name"u8);
 
-            Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
-            int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
+            using var memberName = new Utf16Buffer(utf8MemberName, stackalloc char[Utf16Buffer.StackSize]);
+            ReadOnlySpan<char> resolvedMemberName = memberName.Chars;
 
             var args = new LuauArgs(lua, L, argumentCount: 1, firstParameterStackIndex: 3);
             Debug.Assert(args.ArgumentCount == 1);
@@ -95,28 +95,19 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (userdata is not T target)
                 return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
 
-            int firstParameterStackIndex;
-            int numberOfParameters;
-            if (LuauStateMarshal.TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
-            {
-                numberOfParameters = Math.Max(0, lua_gettop(L) - 1);
-                firstParameterStackIndex = 2;
-            }
-            else if (LuauStateMarshal.TryGetString(L, 2, out utf8MethodName))
-            {
-                numberOfParameters = Math.Max(0, lua_gettop(L) - 2);
-                firstParameterStackIndex = 3;
-            }
-            else
-            {
-                return LuauStateMarshal.ReturnError(L, "userdata method call requires a string method name"u8);
-            }
+            // Scripts cannot get the metatable, so only a method call (userdata:name(...)) gets here.
+            if (!LuauStateMarshal.TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
+                return LuauStateMarshal.ReturnError(L, "userdata method call requires a method name"u8);
 
             int topBeforeInvoke = lua_gettop(L);
-            var functionArgs = new LuauArgs(lua, L, numberOfParameters, firstParameterStackIndex);
-            Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
-            int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
-            ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
+            var functionArgs = new LuauArgs(
+                lua,
+                L,
+                argumentCount: Math.Max(0, topBeforeInvoke - 1),
+                firstParameterStackIndex: 2
+            );
+            using var methodName = new Utf16Buffer(utf8MethodName, stackalloc char[Utf16Buffer.StackSize]);
+            ReadOnlySpan<char> resolvedMethodName = methodName.Chars;
             try
             {
                 LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
@@ -169,7 +160,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         lua_getref(L, _identityMapReference); // [userdata, identityMap]
         lua_pushinteger(L, identity); // [userdata, identityMap, identity]
         lua_pushvalue(L, -3); // [userdata, identityMap, identity, userdata]
-        lua_settable(L, -3); // [userdata, identityMap]
+        lua_rawset(L, -3); // [userdata, identityMap]
         lua_pop(L, 1); // [userdata]
 
         ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
@@ -202,7 +193,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         fixed (byte* pWeakValues = "v"u8)
         {
             lua_pushlstring(L, pWeakValues, 1);
-            lua_setfield(L, -2, pModeName);
+            lua_rawsetfield(L, -2, pModeName);
         }
 
         _ = lua_setmetatable(L, -2);
@@ -216,7 +207,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 #endif
         lua_getref(L, _identityMapReference); // [cache]
         lua_pushinteger(L, identity); // [cache, identity]
-        _ = lua_gettable(L, -2); // [cache, value]
+        _ = lua_rawget(L, -2); // [cache, value]
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
@@ -249,22 +240,28 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             lua_newtable(L);
 
+            // Every userdata of the state shares this metatable, so a script must not get or change it.
+            fixed (byte* pMetatableName = "__metatable\0"u8)
+            {
+                LuauStateMarshal.PushString(L, "The metatable is locked"u8);
+                lua_rawsetfield(L, -2, pMetatableName);
+            }
             fixed (byte* pIndexName = "__index\0"u8)
             {
                 _state.PushNativeCallback(&IndexCallback, null, pIndexName);
-                lua_setfield(L, -2, pIndexName);
+                lua_rawsetfield(L, -2, pIndexName);
             }
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
                 _state.PushNativeCallback(&NewIndexCallback, null, pNewIndexName);
-                lua_setfield(L, -2, pNewIndexName);
+                lua_rawsetfield(L, -2, pNewIndexName);
             }
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
                 _state.PushNativeCallback(&MethodCallback, null, pNameCallName);
-                lua_setfield(L, -2, pNameCallName);
+                lua_rawsetfield(L, -2, pNameCallName);
             }
-
+            lua_setreadonly(L, -1, 1);
             lua_setuserdatametatable(L, LuauUserdataNative.Tag);
             lua_setuserdatadtor(L, LuauUserdataNative.Tag, &UserdataDestructor);
             _userdataCallbacksRegistered = true;

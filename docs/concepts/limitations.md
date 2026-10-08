@@ -23,6 +23,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and only where Luau can yield: not inside a metamethod, a `table.sort` comparator, or a sync `Invoke(...)` made from another callback. Anywhere else it fails with a Luau error before its work starts. Coroutines that scripts create and resume themselves get that error too; there is no scheduler for them.
 - A delegate that was created from an `async` lambda and is typed `Action` runs as `async void`. The generator rejects that where it can see the lambda; a delegate held in a variable is not checked.
 - `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
+- An exception that the host's `ILuauFileSystem` throws while Luau resolves a `require(...)` path is reported as a module that was not found. Only an exception from reading the module file carries its message into the Luau error.
 
 ## What this means in practice
 

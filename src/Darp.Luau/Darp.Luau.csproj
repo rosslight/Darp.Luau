@@ -6,6 +6,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
     <NoWarn>CA2225;CA1031</NoWarn>
+    <!-- A banned call (BannedSymbols.txt) does not compile, also in a local build without /warnaserror. -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
 
     <Description>A .NET wrapper around Luau focused on native AOT compatibility, typed value access, and explicit ownership.</Description>
   </PropertyGroup>
@@ -14,7 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Darp.Luau.Native" Version="0.6.1" />
+    <PackageReference Include="Darp.Luau.Native" Version="0.8.0" />
+    <!-- Enforces BannedSymbols.txt: the calls that only Internal/LuauVm.cs may make. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
+    <AdditionalFiles Include="BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>

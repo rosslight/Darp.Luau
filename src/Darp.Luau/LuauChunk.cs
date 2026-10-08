@@ -333,7 +333,7 @@ public readonly ref struct LuauChunk
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, nArgs, nResults, 0);
+            int status = LuauVm.PCall(state, L, nArgs, nResults);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
             var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
             return resultSelector(result);
@@ -359,7 +359,7 @@ public readonly ref struct LuauChunk
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, nArgs, nResults, 0);
+            int status = LuauVm.PCall(state, L, nArgs, nResults);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
         }
         finally
@@ -452,36 +452,43 @@ public readonly ref struct LuauChunk
         ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? DefaultChunkName : _chunkName;
         int nChunkNameBytes = Encoding.UTF8.GetByteCount(chunkName);
         byte[] chunkNameArray = ArrayPool<byte>.Shared.Rent(nChunkNameBytes + 1);
-        int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameArray);
-        chunkNameArray[actualChunkNameBytes] = 0;
-        ReadOnlySpan<byte> chunkNameBuffer = chunkNameArray.AsSpan(0, actualChunkNameBytes);
-
-        if (_sourceKind == LuauChunkSourceKind.Utf8Bytes)
-        {
-            fixed (byte* pChunkName = chunkNameBuffer)
-            fixed (byte* pSource = _utf8Source)
-            {
-                CompileAndLoadByteCode(L, pSource, (nuint)_utf8Source.Length, pChunkName);
-            }
-            return;
-        }
-
-        int nBytes = Encoding.UTF8.GetByteCount(_charSource);
-        byte[] bytesSource = ArrayPool<byte>.Shared.Rent(nBytes);
         try
         {
-            Span<byte> bytesSpan = bytesSource.AsSpan(0, nBytes);
-            int actualNBytes = Encoding.UTF8.GetBytes(_charSource, bytesSpan);
-            bytesSpan = bytesSpan[..actualNBytes];
-            fixed (byte* pChunkName = chunkNameBuffer)
-            fixed (byte* pSource = bytesSpan)
+            int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameArray);
+            chunkNameArray[actualChunkNameBytes] = 0;
+            ReadOnlySpan<byte> chunkNameBuffer = chunkNameArray.AsSpan(0, actualChunkNameBytes);
+
+            if (_sourceKind == LuauChunkSourceKind.Utf8Bytes)
             {
-                CompileAndLoadByteCode(L, pSource, (nuint)bytesSpan.Length, pChunkName);
+                fixed (byte* pChunkName = chunkNameBuffer)
+                fixed (byte* pSource = _utf8Source)
+                {
+                    CompileAndLoadByteCode(L, pSource, (nuint)_utf8Source.Length, pChunkName);
+                }
+                return;
+            }
+
+            int nBytes = Encoding.UTF8.GetByteCount(_charSource);
+            byte[] bytesSource = ArrayPool<byte>.Shared.Rent(nBytes);
+            try
+            {
+                Span<byte> bytesSpan = bytesSource.AsSpan(0, nBytes);
+                int actualNBytes = Encoding.UTF8.GetBytes(_charSource, bytesSpan);
+                bytesSpan = bytesSpan[..actualNBytes];
+                fixed (byte* pChunkName = chunkNameBuffer)
+                fixed (byte* pSource = bytesSpan)
+                {
+                    CompileAndLoadByteCode(L, pSource, (nuint)bytesSpan.Length, pChunkName);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(bytesSource);
             }
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(bytesSource);
+            ArrayPool<byte>.Shared.Return(chunkNameArray);
         }
     }
 
@@ -514,7 +521,14 @@ public readonly ref struct LuauChunk
             }
             try
             {
-                int loadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
+                int loadStatus = LuauVm.Load(
+                    GetState(),
+                    L,
+                    pChunkName,
+                    pByteCode,
+                    nSizeByteCode,
+                    environmentStackIndex
+                );
                 LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
             }
             finally

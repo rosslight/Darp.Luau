@@ -77,7 +77,17 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     public ValueTask<T> Queue<T>(Func<ValueTask<T>> start)
     {
         var queuedStart = new QueuedStart<T>(start);
-        Post(static queued => (queued as QueuedStart<T>)?.Run(), queuedStart);
+        try
+        {
+            Post(static queued => (queued as QueuedStart<T>)?.Run(), queuedStart);
+        }
+        catch (Exception exception)
+        {
+            // The host dispatcher refused the drain. The start stays queued; unless another turn ran it in the
+            // meantime, it never runs and its caller is told that it failed.
+            if (queuedStart.TryAbandon())
+                return ValueTask.FromException<T>(exception);
+        }
         return new ValueTask<T>(queuedStart.Completion.Task);
     }
 
@@ -166,9 +176,23 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     private void ScheduleDrain()
     {
         if (_hostContext is null)
+        {
             ThreadPool.UnsafeQueueUserWorkItem(static context => context.Drain(), this, preferLocal: false);
-        else
+            return;
+        }
+
+        try
+        {
             _hostContext.Post(static context => (context as LuauSynchronizationContext)?.Drain(), this);
+        }
+        catch
+        {
+            // No drain will run, for example because the dispatcher has shut down. Give up ownership, so that the
+            // state stays usable: the next turn runs what is queued.
+            using (_gate.EnterScope())
+                _isActive = false;
+            throw;
+        }
     }
 
     private void Drain()
@@ -238,10 +262,19 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         // The caller's ambient data (AsyncLocal) flows into the queued start, like into any continuation.
         private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
 
+        // 0 while queued. Running and abandoning both claim it, on different threads, so exactly one of them wins.
+        private int _isClaimed;
+
         public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary> Keeps the start from running, so that its caller can be told that it failed. </summary>
+        /// <returns><c>false</c> when it runs or ran already.</returns>
+        public bool TryAbandon() => Interlocked.Exchange(ref _isClaimed, 1) == 0;
 
         public void Run()
         {
+            if (Interlocked.Exchange(ref _isClaimed, 1) != 0)
+                return;
             if (_executionContext is null)
                 Start();
             else

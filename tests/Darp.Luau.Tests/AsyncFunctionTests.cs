@@ -1031,6 +1031,160 @@ public sealed class AsyncFunctionTests : IDisposable
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
     }
 
+    [Fact]
+    public async Task ScriptResumingACoroutineThatAwaits_ShouldFailAndEndTheHostCall()
+    {
+        var work = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction slow = SetAsyncGlobal("slow", (_, _) => new ValueTask<LuauReturn>(work.Task));
+
+        ValueTask pending = _state
+            .Load(
+                """
+                waiting = coroutine.running()
+                received = slow()
+                continued = true
+                """
+            )
+            .ExecuteAsync([], TestToken);
+        pending.IsCompleted.ShouldBeFalse();
+
+        // Only the host delivers the result of the callback. A script cannot forge it.
+        _state.Load("ok, err = coroutine.resume(waiting, 'forged')").Execute();
+        work.SetResult(LuauReturn.Ok(1));
+
+        LuaException exception = await Should.ThrowAsync<LuaException>(() => pending.AsTask());
+        exception.Message.ShouldContain("resumed or closed the coroutine");
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+        _state.Globals.TryGet("err", out string? error).ShouldBeTrue();
+        error.ShouldContain("waiting for a managed callback");
+        _state.Globals.ContainsKey("received").ShouldBeFalse();
+        _state.Globals.ContainsKey("continued").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ScriptResumingACoroutineThatAwaits_WhenItCatchesTheError_ShouldNotGetTheResultLater()
+    {
+        var work = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction slow = SetAsyncGlobal("slow", (_, _) => new ValueTask<LuauReturn>(work.Task));
+
+        ValueTask pending = _state
+            .Load(
+                """
+                waiting = coroutine.running()
+                local _, first = pcall(slow)
+                caught = first
+                -- The host call no longer runs this coroutine, so it cannot await again.
+                local _, second = pcall(slow)
+                refused = second
+                received = coroutine.yield("parked")
+                """
+            )
+            .ExecuteAsync([], TestToken);
+        pending.IsCompleted.ShouldBeFalse();
+
+        _state.Load("ok, parked = coroutine.resume(waiting)").Execute();
+        _startedWorkCount.ShouldBe(1);
+        work.SetResult(LuauReturn.Ok("late"));
+
+        LuaException exception = await Should.ThrowAsync<LuaException>(() => pending.AsTask());
+        exception.Message.ShouldContain("resumed or closed the coroutine");
+        _state.Globals.TryGet("caught", out string? caught).ShouldBeTrue();
+        caught.ShouldContain("waiting for a managed callback");
+        _state.Globals.TryGet("refused", out string? refused).ShouldBeTrue();
+        refused.ShouldContain(AwaitRejectedMessage);
+        _state.Globals.TryGet("parked", out string? parked).ShouldBeTrue();
+        parked.ShouldBe("parked");
+        // The coroutine still waits at its own yield. The result of the callback was not delivered there.
+        _state.Globals.ContainsKey("received").ShouldBeFalse();
+        _state.Load("return coroutine.status(waiting)").Execute<string>().ShouldBe("suspended");
+    }
+
+    [Fact]
+    public async Task LostCoroutine_ThatAnotherHostCallRunsByNow_ShouldNotGetTheResultOfTheFirstCall()
+    {
+        var first = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction slow = SetAsyncGlobal("slow", (_, _) => new ValueTask<LuauReturn>(first.Task));
+        using LuauFunction slower = SetAsyncGlobal("slower", (_, _) => new ValueTask<LuauReturn>(second.Task));
+        using LuauFunction body = _state
+            .Load(
+                """
+                pcall(slow)
+                coroutine.yield("parked")
+                received = slower()
+                """
+            )
+            .ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(body);
+        _state.Globals.Set("waiting", coroutine);
+
+        // The first call loses the coroutine to a script, and a second call picks it up where the script left it.
+        ValueTask firstCall = coroutine.ResumeAsync([], TestToken);
+        _state.Load("coroutine.resume(waiting)").Execute();
+        ValueTask secondCall = coroutine.ResumeAsync([], TestToken);
+        secondCall.IsCompleted.ShouldBeFalse();
+
+        first.SetResult(LuauReturn.Ok("from the first callback"));
+        await Should.ThrowAsync<LuaException>(() => firstCall.AsTask());
+        _state.Globals.ContainsKey("received").ShouldBeFalse();
+
+        second.SetResult(LuauReturn.Ok("from the second callback"));
+        await secondCall;
+        _state.Globals.TryGet("received", out string? received).ShouldBeTrue();
+        received.ShouldBe("from the second callback");
+    }
+
+    [Fact]
+    public async Task ScriptClosingACoroutineThatAwaits_ShouldEndTheHostCall()
+    {
+        var work = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction slow = SetAsyncGlobal("slow", (_, _) => new ValueTask<LuauReturn>(work.Task));
+        using LuauFunction body = _state.Load("received = slow()").ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(body);
+        _state.Globals.Set("waiting", coroutine);
+
+        ValueTask pending = coroutine.ResumeAsync([], TestToken);
+        pending.IsCompleted.ShouldBeFalse();
+
+        _state.Load("closed = coroutine.close(waiting)").Execute();
+        coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
+        work.SetResult(LuauReturn.Ok(1));
+
+        LuaException exception = await Should.ThrowAsync<LuaException>(() => pending.AsTask());
+        exception.Message.ShouldContain("resumed or closed the coroutine");
+        _state.Globals.TryGet("closed", out bool closed).ShouldBeTrue();
+        closed.ShouldBeTrue();
+        _state.Globals.ContainsKey("received").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task InvocationThatYields_ShouldLeaveNoCoroutineToContinue()
+    {
+        LuaException exception = await Should.ThrowAsync<LuaException>(() =>
+            _state
+                .Load(
+                    """
+                    kept = coroutine.running()
+                    coroutine.yield()
+                    leaked = true
+                    """
+                )
+                .ExecuteAsync([], TestToken)
+                .AsTask()
+        );
+        exception.Message.ShouldContain("attempt to yield");
+
+        // The call is over. A script that kept its coroutine cannot run the rest of it later.
+        _state.Load("resumed = coroutine.resume(kept) status = coroutine.status(kept)").Execute();
+
+        _state.Globals.TryGet("resumed", out bool resumed).ShouldBeTrue();
+        resumed.ShouldBeFalse();
+        _state.Globals.TryGet("status", out string? status).ShouldBeTrue();
+        status.ShouldBe("dead");
+        _state.Globals.ContainsKey("leaked").ShouldBeFalse();
+    }
+
     public void Dispose() => _state.Dispose();
 }
 

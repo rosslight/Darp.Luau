@@ -21,6 +21,8 @@ lua.Globals.Set("config", config);
 
 `LuauState.Globals` is just another `LuauTable`, so the same patterns apply there too.
 
+`Set` writes like a script does, so `__newindex` runs for a new key. It throws `LuaException` when Luau rejects the write: the metamethod raises an error, the table is frozen with `table.freeze(...)`, or the key is `nil` or NaN. A `null` key throws `ArgumentNullException`.
+
 ## Choose a read API
 
 Pick the read family that matches how strict the table contract is:
@@ -50,6 +52,8 @@ bool? enabled = config.GetBooleanOrNil("enabled");
 ```
 
 Normal table lookup returns `nil` for both missing keys and keys explicitly set to `nil`, so the `*OrNil` methods treat both cases the same.
+
+Reads use `__index` like a script does. When the metamethod raises an error, `Get*` throws and `TryGet*` returns `false`; the overloads with an `out string? error` carry the message.
 
 If you use span-based overloads such as `TryGetUtf8StringOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)` or `TryGetBufferOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)`, `isNil` tells you whether the lookup resolved to `nil`.
 
@@ -90,7 +94,7 @@ if (config.ContainsKey("save"))
 }
 ```
 
-This is metamethod-aware. A `__index` lookup can make a key appear present, and a key whose resolved value is `nil` counts as missing.
+This is metamethod-aware. A `__index` lookup can make a key appear present, and a key whose resolved value is `nil` counts as missing. `ContainsKey` throws `LuaException` when `__index` raises an error.
 
 ## Dense arrays and list-like tables
 
@@ -138,6 +142,10 @@ using LuauFunction readValue = lua.CreateFunctionBuilder(static args =>
 - `TryGetUtf8String(..., out ReadOnlySpan<byte>)` and `TryGetBuffer(..., out ReadOnlySpan<byte>)` expose Luau-owned memory. Consume it immediately and copy it if you need a longer lifetime.
 - Owned wrappers returned by `GetLuau*` need disposal.
 - `LuauTableView` follows the same callback-scoped lifetime rules as the other `*View` types.
+
+## String representation
+
+`ToString()` on a table, function, userdata, or coroutine returns its type and address, such as `table: 0x000001c2a4f0e8d0`. It runs no script code, so it ignores `__tostring`. Call the global `tostring` through `Invoke(...)` when you want what a script would see.
 
 ## Guidance
 

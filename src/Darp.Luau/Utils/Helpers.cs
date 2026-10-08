@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
@@ -19,59 +19,32 @@ internal static class Helpers
         ObjectDisposedException.ThrowIf(state.IsDisposed, state);
     }
 
-    /// <summary> Return the string representation of a string </summary>
+    /// <summary> Describes the referenced value like Luau's <c>tostring</c> does without metamethods. </summary>
     /// <param name="state"> The state the reference is associated with </param>
     /// <param name="handle"> The tracked handle </param>
-    /// <returns> The resulting string </returns>
+    /// <returns> The type and the address of the value, such as <c>table: 0x000001c2a4f0e8d0</c> </returns>
     public static unsafe string HandleToString(LuauState? state, ulong handle)
     {
         if (state is null || state.IsDisposed)
             return "<nil>";
-        lua_State* L = state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var trackedReference = state.GetTrackedReferenceOrThrow(handle);
+        if (!state.TryGetTrackedReference(handle, out RegistryReferenceTracker.TrackedReference? trackedReference))
+            return "<disposed>";
         using PopDisposable _ = trackedReference.PushToTop(); // [value]
-        fixed (byte* pToStrFunc = "tostring"u8)
-        {
-            var type = (lua_Type)lua_getglobal(L, pToStrFunc); // [value, tostring]
-            Debug.Assert(type == lua_Type.LUA_TFUNCTION);
-        }
-        lua_pushvalue(L, -2); // [value, tostring, value]
-        lua_call(L, 1, 1); // [value, result]
-
-        nuint length;
-        byte* pStr = lua_tolstring(L, -1, &length);
-        string str = pStr is null ? "<no_str>" : Encoding.UTF8.GetString(pStr, (int)length);
-        lua_pop(L, 1);
-        return str;
+        return StackString(state, -1);
     }
 
-    /// <summary> Return the string representation of a string </summary>
+    /// <summary> Describes the value on the stack like Luau's <c>tostring</c> does without metamethods. </summary>
     /// <param name="state"> The state the stackIndex is associated with </param>
     /// <param name="stackIndex"> The stackIndex </param>
-    /// <returns> The resulting string </returns>
+    /// <returns> The type and the address of the value, such as <c>table: 0x000001c2a4f0e8d0</c> </returns>
+    /// <remarks> Runs no script code: <c>__tostring</c> or a replaced global <c>tostring</c> could raise an error. </remarks>
     public static unsafe string StackString(LuauState state, int stackIndex)
     {
         state.ThrowIfDisposed();
         lua_State* L = state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var toStringFunc = "tostring"u8;
-
-        fixed (byte* pToStrFunc = toStringFunc)
-        {
-            lua_getglobal(L, pToStrFunc); // [tostring]
-        }
-        lua_pushvalue(L, stackIndex < 0 ? stackIndex - 1 : stackIndex); // [tostring, value]
-        lua_call(L, 1, 1); // [value, result]
-
-        nuint length;
-        byte* pStr = lua_tolstring(L, -1, &length);
-        string str = pStr is null ? "<no_str>" : Encoding.UTF8.GetString(pStr, (int)length);
-        lua_pop(L, 1);
-        return str;
+        string typeName = Encoding.UTF8.GetString(
+            MemoryMarshal.CreateReadOnlySpanFromNullTerminated(lua_typename(L, lua_type(L, stackIndex)))
+        );
+        return $"{typeName}: 0x{(nuint)lua_topointer(L, stackIndex):x16}";
     }
 }

@@ -259,6 +259,8 @@ Thrown exceptions become Luau errors too, including inside `pcall(...)`.
 
 Methods can return zero, one, or many values through `LuauReturn.Ok(...)`.
 
+Scripts cannot get or replace the metatable of a userdata: `getmetatable(value)` returns the string `The metatable is locked`. All userdata of a state share one metatable, so a script that could change it would change every value.
+
 ## Identity and lifetime
 
 Managed userdata keeps object identity:
