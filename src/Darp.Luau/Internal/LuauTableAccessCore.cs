@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -72,6 +73,8 @@ internal static unsafe class LuauTableAccessCore
     }
 
     /// <summary> Pushes the table and the value at <paramref name="key"/>. Pushes nothing when it fails. </summary>
+    /// <remarks> Inlined into the typed getters, so that a read is one call into this class. </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool TryGet<T>(
         scoped in T source,
         in IntoLuau key,
@@ -89,13 +92,18 @@ internal static unsafe class LuauTableAccessCore
         PushOrPop(state, L, key, pushedCount: 1); // [table, key]
 
         int result = LuauVm.GetTable(state, L, -2); // [table, value] or [table, error]
-        if (result >= 0)
-        {
-            actualType = (lua_Type)result;
-            error = null;
-            return true;
-        }
+        if (result < 0)
+            return FailGet(L, out actualType, out error);
 
+        actualType = (lua_Type)result;
+        error = null;
+        return true;
+    }
+
+    /// <summary> Turns the error object above the table into the outcome of a failed read and pops both. </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool FailGet(lua_State* L, out lua_Type actualType, out string error)
+    {
         error = PopErrorMessage(L);
         lua_pop(L, 1);
         actualType = lua_Type.LUA_TNIL;
