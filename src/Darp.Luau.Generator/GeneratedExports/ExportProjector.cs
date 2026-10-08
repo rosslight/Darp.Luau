@@ -102,6 +102,8 @@ internal static class ExportProjector
         const string globalPrefix = "global::";
         if (name.StartsWith(globalPrefix, StringComparison.Ordinal))
             name = name[globalPrefix.Length..];
+        // A type or namespace named like a keyword is displayed as '@class', and a hint name must not contain '@'.
+        name = name.Replace("@", string.Empty);
 
         return name + (kind == LuauExportedTypeKind.Module ? ".LuauModule.g.cs" : ".LuauUserdata.g.cs");
     }

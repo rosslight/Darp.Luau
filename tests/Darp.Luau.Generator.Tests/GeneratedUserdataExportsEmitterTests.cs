@@ -104,6 +104,26 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithAKeywordTypeName_ShouldGenerate()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            namespace @event
+            {
+                [LuauUserdata]
+                public sealed partial class @class
+                {
+                    [LuauMember("level")]
+                    public int Level { get; set; }
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataHooks()
     {
         const string code = """
