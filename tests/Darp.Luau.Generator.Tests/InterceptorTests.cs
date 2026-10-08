@@ -540,6 +540,7 @@ public class InterceptorTests
                 public static void DoSomething(LuauState state)
                 {
                     state.CreateFunction<Action>(async () => await Task.Yield());
+                    state.CreateFunction((Action)(async () => await Task.Yield()));
                     state.CreateFunction<Action<int>>(TickAsync);
                 }
 

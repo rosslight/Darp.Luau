@@ -313,6 +313,12 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
+    public void Awaiter_ThatWasNotGranted_ShouldRefuseToAwait()
+    {
+        Should.Throw<InvalidOperationException>(() => default(LuauAwaiter).Await(ValueTask.CompletedTask));
+    }
+
+    [Fact]
     public void PendingResult_ReturnedWhereItCannotBeAwaited_ShouldBeALuaError()
     {
         LuauReturn pendingElsewhere = default;
