@@ -23,13 +23,17 @@ namespace Darp.Luau.Internal;
 /// </para>
 /// <para>
 /// Cancellation is cooperative: the driver awaits the work as is, and the token only reaches it through the
-/// callback. Work that ends with <see cref="OperationCanceledException"/> finishes the coroutine.
+/// callback. Work that ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes
+/// the coroutine.
 /// </para>
 /// </remarks>
 internal readonly struct CoroutineDriver
 {
     public const string AwaitRejectedError =
         "async managed callback requires an async host invocation (InvokeAsync, ExecuteAsync or ResumeAsync)";
+
+    public const string AwaitNotYieldableError =
+        "async managed callback cannot suspend the script here: Luau cannot yield across this call";
 
     private const int NoSlot = -1;
 
@@ -281,23 +285,29 @@ internal readonly struct CoroutineDriver
             // The work stays pending while awaiting: the coroutine is suspended, not running.
             while (status == (int)lua_Status.LUA_YIELD && drives.GetPending(_slot) is { IsNone: false } pending)
             {
-                LuauReturn result;
+                // Assigned after the await only, so that it does not become a field of the state machine.
+                Exception? failure;
                 try
                 {
                     await pending.Task;
-                    result = LuauReturn.FromCompleted(pending.GetResult());
+                    failure = null;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (drives.IsCancellationRequested(_slot))
                 {
-                    // Cancellation ends the coroutine and the host call; a script pcall cannot catch it.
+                    // The host cancelled its call. That ends the coroutine and the call; a script pcall cannot
+                    // catch it. Work that is cancelled for any other reason fails like other work.
                     ThrowIfStateDisposed();
                     Finish();
                     throw;
                 }
                 catch (Exception exception)
                 {
-                    result = LuauReturn.Error(LuauStateMarshal.FormatCallbackException(exception));
+                    failure = exception;
                 }
+
+                LuauReturn result = failure is null
+                    ? GetResult(pending)
+                    : LuauReturn.Error(LuauStateMarshal.FormatCallbackException(failure));
                 drives.ClearPending(_slot);
                 status = Continue(result);
             }
@@ -355,6 +365,26 @@ internal readonly struct CoroutineDriver
 
     /// <summary> Resets the suspended coroutine, so it is finished. </summary>
     private unsafe void Finish() => lua_resetthread(_coroutine);
+
+    /// <summary> Reads the result of completed work. A failing conversion is a failure of the callback. </summary>
+    private LuauReturn GetResult(PendingWork pending)
+    {
+        // A conversion may use the state, so it does not run once the state is gone.
+        if (_state.IsDisposed)
+        {
+            pending.DropResult();
+            ThrowIfStateDisposed();
+        }
+
+        try
+        {
+            return LuauReturn.FromCompleted(pending.GetResult());
+        }
+        catch (Exception exception)
+        {
+            return LuauReturn.Error(LuauStateMarshal.FormatCallbackException(exception));
+        }
+    }
 
     /// <summary> Resumes the suspended callback with the result of its awaited work. </summary>
     private unsafe int Continue(LuauReturn result)

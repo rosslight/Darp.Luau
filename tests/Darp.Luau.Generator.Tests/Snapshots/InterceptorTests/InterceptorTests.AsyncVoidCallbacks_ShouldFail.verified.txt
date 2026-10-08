@@ -1,0 +1,61 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction<Action>(async () => await Task.Yield());
+                                                 ^^^^^^^^^^^^^^^^^^
+        state.CreateFunction((Action)(async () => await Task.Yield()));
+*/
+ : (8,49)-(8,67),
+      Message: Type 'void' used for the result of an async callback (return Task or ValueTask so the script can wait for the work) is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Action>(async () => await Task.Yield());
+        state.CreateFunction((Action)(async () => await Task.Yield()));
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        state.CreateFunction<Action<int>>(TickAsync);
+*/
+ : (9,29)-(9,69),
+      Message: Type 'void' used for the result of an async callback (return Task or ValueTask so the script can wait for the work) is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction((Action)(async () => await Task.Yield()));
+        state.CreateFunction<Action<int>>(TickAsync);
+                                          ^^^^^^^^^
+    }
+*/
+ : (10,42)-(10,51),
+      Message: Type 'void' used for the result of an async callback (return Task or ValueTask so the script can wait for the work) is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

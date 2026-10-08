@@ -8,7 +8,7 @@ namespace Darp.Luau;
 /// <summary>
 /// Represents the return value of a managed Luau callback.
 /// Use <see cref="Ok()"/> or one of the <see cref="Ok(IntoLuau)"/> overloads for successful results,
-/// <see cref="Error(string)"/> to return an error, or <see cref="Await(ValueTask{LuauReturn})"/> to finish later.
+/// <see cref="Error(string)"/> to return an error, or a <see cref="LuauAwaiter"/> to finish later.
 /// </summary>
 /// <remarks>
 /// The default value represents an error with message <c>Unknown error</c>.
@@ -28,7 +28,7 @@ public readonly struct LuauReturn
     /// <summary> Gets whether this callback result is successful. </summary>
     public bool IsOk { get; }
 
-    /// <summary> Gets whether this callback result completes later. See <see cref="Await(ValueTask{LuauReturn})"/>. </summary>
+    /// <summary> Gets whether this callback result completes later. See <see cref="LuauAwaiter"/>. </summary>
     public bool IsPending => !_pending.IsNone;
 
     /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
@@ -100,62 +100,16 @@ public readonly struct LuauReturn
     /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
     public static LuauReturn Error(string error) => new(error);
 
-    /// <summary> Creates a callback result that completes when <paramref name="pending"/> completes. </summary>
-    /// <param name="pending">The work that produces the actual result.</param>
-    /// <returns>
-    /// The result of <paramref name="pending"/> when it has already completed successfully; otherwise a pending result.
-    /// </returns>
-    /// <remarks>
-    /// <para>
-    /// A pending result suspends the calling coroutine until <paramref name="pending"/> completes. This requires an
-    /// async host invocation: <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
-    /// Anywhere else, the script receives a Luau error; the work keeps running and its result is dropped.
-    /// </para>
-    /// <para>
-    /// Read every argument before the first <c>await</c>: <see cref="LuauArgs"/> and borrowed views end with the
-    /// callback. Promote values you need afterwards with <c>ToOwned()</c>.
-    /// </para>
-    /// <para>
-    /// Work that ends with <see cref="OperationCanceledException"/> cancels the host call and finishes the
-    /// coroutine. Any other exception becomes a Luau error at the call site.
-    /// </para>
-    /// </remarks>
-    public static LuauReturn Await(ValueTask<LuauReturn> pending) =>
-        pending.IsCompletedSuccessfully
-            ? FromCompleted(pending.Result)
-            : new LuauReturn(new PendingWork(pending.AsTask()));
-
-    /// <summary> Creates a callback result that returns no values when <paramref name="pending"/> completes. </summary>
-    /// <param name="pending">The work to wait for.</param>
-    /// <inheritdoc cref="Await(ValueTask{LuauReturn})" path="/remarks"/>
-    public static LuauReturn Await(ValueTask pending) =>
-        pending.IsCompletedSuccessfully ? Ok() : new LuauReturn(PendingWork.Create(pending.AsTask()));
-
-    /// <summary>
-    /// Creates a callback result that completes with what <paramref name="complete"/> makes of the result of
-    /// <paramref name="pending"/>.
-    /// </summary>
-    /// <param name="pending">The work that produces a value.</param>
-    /// <param name="complete">
-    /// Converts the value into the actual result. It runs where the state may be used, so it can return Luau references.
-    /// </param>
-    /// <typeparam name="T">The type of the value <paramref name="pending"/> produces.</typeparam>
-    /// <inheritdoc cref="Await(ValueTask{LuauReturn})" path="/remarks"/>
-    public static LuauReturn Await<T>(ValueTask<T> pending, Func<T, LuauReturn> complete)
-    {
-        ArgumentNullException.ThrowIfNull(complete);
-        return pending.IsCompletedSuccessfully
-            ? FromCompleted(complete(pending.Result))
-            : new LuauReturn(PendingWork.Create(pending.AsTask(), complete));
-    }
-
     /// <summary>
     /// Creates a callback result that signals the member or method is not handled.
     /// </summary>
     public static LuauReturn NotHandledError => Error(NotHandled);
 
-    /// <summary> The work a pending result waits for, or <c>null</c>. </summary>
+    /// <summary> The work a pending result waits for, if any. </summary>
     internal PendingWork Pending => _pending;
+
+    /// <summary> Creates the pending result a <see cref="LuauAwaiter"/> hands out. </summary>
+    internal static LuauReturn FromPending(PendingWork pending) => new(pending);
 
     /// <summary> Unwraps the result of completed pending work. A result that is pending itself is rejected. </summary>
     internal static LuauReturn FromCompleted(LuauReturn result)
@@ -163,7 +117,7 @@ public readonly struct LuauReturn
         if (!result.IsPending)
             return result;
         result.Release();
-        return Error("nested await: the result of LuauReturn.Await must not be pending itself");
+        return Error("nested await: the result of awaited work must not be pending itself");
     }
 
     /// <summary> Pushes return values when this result is successful. </summary>

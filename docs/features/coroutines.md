@@ -66,33 +66,32 @@ string result = coroutine.Resume<string>();
 
 ## Async managed callbacks
 
-A managed callback built with `CreateFunctionBuilder(...)` can return `LuauReturn.Await(...)` with work that produces its result later:
+A managed callback built with `CreateFunctionBuilder(...)` finishes later by asking for an awaiter and handing it the work:
 
 ```csharp
 using LuauFunction fetch = lua.CreateFunctionBuilder(args =>
 {
     if (!args.TryReadUtf8String(1, out ReadOnlySpan<byte> utf8Url, out string? error))
         return LuauReturn.Error(error);
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+        return LuauReturn.Error(error);
 
     string url = Encoding.UTF8.GetString(utf8Url);
-    return LuauReturn.Await(FetchAsync(url, args.CancellationToken));
-
-    async ValueTask<LuauReturn> FetchAsync(string url, CancellationToken cancellationToken)
-    {
-        string body = await httpClient.GetStringAsync(url, cancellationToken);
-        return LuauReturn.Ok(body);
-    }
+    return awaiter.Await(
+        new ValueTask<string>(httpClient.GetStringAsync(url, args.CancellationToken)),
+        static body => LuauReturn.Ok(body)
+    );
 });
 lua.Globals.Set("fetch", fetch);
 ```
 
 For the script, `fetch(url)` is a normal call that returns the body. While the work is running, the script is suspended and no thread is blocked.
 
-- If the work has already completed successfully, `LuauReturn.Await(...)` returns its result directly and the script does not suspend.
-- The work completes with `LuauReturn.Ok(...)` or `LuauReturn.Error(...)` like a sync callback.
-- Work that produces a plain value needs no async method of its own: `LuauReturn.Await(pending, static value => LuauReturn.Ok(value))` converts the value when the work completes. `LuauReturn.Await(pending)` with a `ValueTask` returns no values.
-- A userdata method can await in the same way: return `LuauReturn.Await(...)` from `OnMethodCall`. Property reads and writes cannot await.
-- `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods await by returning `Task` or `ValueTask`. See [Async callbacks](functions.md#async-callbacks) and [Generated async methods](userdata.md#generated-async-methods).
+- Ask for the awaiter before you start the work. `TryGetAwaiter(...)` refuses where the callback cannot suspend the script, so work that nobody could await is never started. See [Where a callback can await](#where-a-callback-can-await).
+- `awaiter.Await(pending, complete)` converts the value of the work when it completes. `awaiter.Await(pending)` takes a `ValueTask` and returns no values, or a `ValueTask<LuauReturn>` when the work builds the result itself.
+- If the work has already completed successfully, its result is returned directly and the script does not suspend.
+- A userdata method awaits in the same way, with the `LuauArgs` of `OnMethodCall`. Property reads and writes cannot await.
+- `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods do all of this for you when they return `Task` or `ValueTask`. See [Async callbacks](functions.md#async-callbacks) and [Generated async methods](userdata.md#generated-async-methods).
 
 ## Run scripts that await
 
@@ -113,28 +112,38 @@ await coroutine.ResumeAsync([], cancellationToken);
 - If no callback awaits, the returned task is already completed when the method returns.
 - A script that calls `coroutine.yield(...)` outside of its own coroutines fails `ExecuteAsync(...)` and `InvokeAsync(...)` with `LuaException`, like it fails `Execute(...)`.
 
-Everywhere else, an awaiting callback raises a Luau error that `pcall(...)` can catch:
+## Where a callback can await
 
-- during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`, or
-- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`.
+A callback can suspend the script only when both of these hold:
 
-The work of a rejected callback has already started and keeps running. Its result is dropped and a fault is ignored. Luau references the work captured stay alive until the state is disposed.
+- an async host call drives the coroutine: `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`,
+- Luau can yield at that point.
+
+Otherwise `TryGetAwaiter(...)` refuses. Generated callbacks then raise a Luau error that `pcall(...)` can catch, without calling your method. That is the case
+
+- during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`, including an `Invoke(...)` that another callback makes,
+- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`,
+- inside a metamethod such as `__index` or `__lt`, a `table.sort` comparator, or a `string.gsub` replacement function.
+
+This does not depend on timing: a callback that awaits fails in these places even when its work would already be complete.
 
 ## Read arguments before the first await
 
 `LuauArgs` and borrowed views such as `LuauFunctionView` are valid only while the callback runs. The awaited work runs after the callback has returned, so it cannot use them:
 
-- read every argument before you return `LuauReturn.Await(...)`,
+- read every argument before you hand the work to the awaiter,
 - copy strings and buffers into managed values,
-- promote Luau references you need afterwards with `ToOwned()` and dispose them in the work.
+- promote Luau references you need afterwards with `ToOwned()`, after the awaiter was granted, and dispose them in the work.
 
 ```csharp
 using LuauFunction later = lua.CreateFunctionBuilder(args =>
 {
     if (!args.TryReadLuauFunction(1, out LuauFunctionView callback, out string? error))
         return LuauReturn.Error(error);
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+        return LuauReturn.Error(error);
 
-    return LuauReturn.Await(CallLaterAsync(callback.ToOwned()));
+    return awaiter.Await(CallLaterAsync(callback.ToOwned()));
 
     static async ValueTask<LuauReturn> CallLaterAsync(LuauFunction callback)
     {
@@ -151,14 +160,14 @@ The compiler enforces most of this: `LuauArgs` and views are `ref struct` types 
 
 ## Errors
 
-- An exception from the awaited work, or `LuauReturn.Error(...)`, becomes a Luau error at the call site. `pcall(...)` can catch it.
+- An exception from the awaited work or from the conversion of its value, or `LuauReturn.Error(...)`, becomes a Luau error at the call site. `pcall(...)` can catch it.
 - An error the script does not catch fails the async method with `LuaException`.
 
 ## Cancellation
 
 The `CancellationToken` passed to `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)` is available to callbacks as `args.CancellationToken`. Pass it on to the work you await. Cancellation is cooperative: the library does not stop waiting on its own.
 
-When the awaited work ends with `OperationCanceledException`:
+When the token of the host call is cancelled and the awaited work ends with `OperationCanceledException`:
 
 - the coroutine is finished; `pcall(...)` in the script cannot catch the cancellation,
 - the async method throws that `OperationCanceledException`,
@@ -166,6 +175,8 @@ When the awaited work ends with `OperationCanceledException`:
 - the state remains usable.
 
 Work that ignores the token completes normally, and the script continues with its result.
+
+Work that is cancelled for another reason, such as a timeout of its own, fails like any other work: the script receives a Luau error that `pcall(...)` can catch.
 
 ## Threading
 

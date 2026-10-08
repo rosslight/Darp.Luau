@@ -44,19 +44,22 @@ internal static class CallbackBodyEmitter
             return;
         }
 
-        // The arguments are read above, so the awaited work never touches the callback-scoped args.
+        // Asked before the call, so the callback never starts work that cannot be awaited. The arguments are read
+        // above, so that work never touches the callback-scoped args.
+        writer.WriteLine("if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))");
+        writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
         string pending =
             signature.Awaitable is AwaitableReturnKind.ValueTask
                 ? callExpression
                 : $"new {GetValueTaskType(signature)}({callExpression})";
         if (signature.ReturnTypes.Length == 0)
         {
-            writer.WriteLine($"return global::Darp.Luau.LuauReturn.Await({pending});");
+            writer.WriteLine($"return awaiter.Await({pending});");
             return;
         }
 
         // The state converts the result itself, which saves the callback an async state machine of its own.
-        writer.WriteLine("return global::Darp.Luau.LuauReturn.Await(");
+        writer.WriteLine("return awaiter.Await(");
         writer.Indent++;
         writer.WriteLine($"{pending},");
         writer.WriteLine($"static returns => {FormatOk(signature)}");

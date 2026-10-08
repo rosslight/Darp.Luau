@@ -97,7 +97,7 @@ local saved = player:save("slot1")
 
 A `CancellationToken` parameter is not a Luau argument. It receives the token of the async host call.
 
-Run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. See [Coroutines](coroutines.md#async-managed-callbacks) for errors, cancellation, and threading.
+Run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. Where the script cannot be suspended, the method is not called and the script receives a Luau error. `async void` methods are rejected. See [Coroutines](coroutines.md#async-managed-callbacks) for errors, cancellation, and threading.
 
 ### Generated userdata rules
 
@@ -192,17 +192,17 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 
 ### Async methods
 
-`OnMethodCall` can return `LuauReturn.Await(...)` with work that completes later, like a callback built with `CreateFunctionBuilder(...)`. The script waits at `player:save()` without blocking a thread:
+`OnMethodCall` can finish later through the awaiter of its `LuauArgs`, like a callback built with `CreateFunctionBuilder(...)`. The script waits at `player:save()` without blocking a thread:
 
 ```csharp
 case "save":
-    return LuauReturn.Await(SaveAsync(self, functionArgs.CancellationToken));
-
-static async ValueTask<LuauReturn> SaveAsync(PlayerUserdata self, CancellationToken cancellationToken)
-{
-    await File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), cancellationToken);
-    return LuauReturn.Ok();
-}
+    if (!functionArgs.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
+        return LuauReturn.Error(error);
+    return awaiter.Await(
+        new ValueTask(
+            File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), functionArgs.CancellationToken)
+        )
+    );
 ```
 
 The same rules apply: run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and read every argument before you return. `OnIndex` and `OnSetIndex` cannot await. See [Coroutines](coroutines.md#async-managed-callbacks).

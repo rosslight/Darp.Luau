@@ -418,6 +418,20 @@ internal static class ExportAnalyzer
             return false;
         }
 
+        if (method is { IsAsync: true, ReturnsVoid: true })
+        {
+            ReportUnsupportedMethodShape(
+                exportedTypeKind,
+                method,
+                location,
+                diagnostics,
+                "async void methods are not supported; return Task or ValueTask so the script can wait for the work"
+            );
+            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            returns = ImmutableEquatableArray<InteropType>.Empty;
+            return false;
+        }
+
         if (method.ReturnsByRef || method.ReturnsByRefReadonly)
         {
             ReportUnsupportedMethodShape(
@@ -453,7 +467,11 @@ internal static class ExportAnalyzer
                 return false;
             }
 
-            if (parameter.IsOptional || parameter.HasExplicitDefaultValue)
+            // A cancellation token is never a Luau argument, so its default value is never used.
+            bool isCancellationToken =
+                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                == "global::System.Threading.CancellationToken";
+            if ((parameter.IsOptional || parameter.HasExplicitDefaultValue) && !isCancellationToken)
             {
                 ReportUnsupportedMethodShape(
                     exportedTypeKind,

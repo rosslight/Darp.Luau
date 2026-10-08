@@ -37,6 +37,13 @@ internal readonly struct PendingWork
             _ => throw new InvalidOperationException("There is no pending work."),
         };
 
+    /// <summary> Gives up the result of the completed work without converting it. </summary>
+    public void DropResult()
+    {
+        if (_work is Task<LuauReturn> { IsCompletedSuccessfully: true } task)
+            task.Result.Release();
+    }
+
     private abstract class Conversion
     {
         public abstract Task Work { get; }

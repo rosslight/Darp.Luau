@@ -20,7 +20,9 @@ file static class CreateFunctionInterceptors
             if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
             string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-            return global::Darp.Luau.LuauReturn.Await(
+            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            return awaiter.Await(
                 new global::System.Threading.Tasks.ValueTask<string?>(onLuaCall(a1)),
                 static returns => global::Darp.Luau.LuauReturn.Ok(returns)
             );

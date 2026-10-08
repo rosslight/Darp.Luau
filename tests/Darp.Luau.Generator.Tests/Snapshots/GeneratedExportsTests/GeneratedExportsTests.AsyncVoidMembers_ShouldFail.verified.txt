@@ -1,0 +1,42 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+{
+    [LuauMember("save")]
+     ^^^^^^^^^^^^^^^^^^
+    public async void Save() => await Task.Yield();
+*/
+ : (6,5)-(6,23),
+      Message: Generated userdata method 'Save' uses an unsupported parameter or return shape: async void methods are not supported; return Task or ValueTask so the script can wait for the work,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    [LuauMember("tick")]
+     ^^^^^^^^^^^^^^^^^^
+    public static async void Tick() => await Task.Yield();
+*/
+ : (13,5)-(13,23),
+      Message: Generated module function 'Tick' uses an unsupported parameter or return shape: async void methods are not supported; return Task or ValueTask so the script can wait for the work,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
