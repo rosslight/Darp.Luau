@@ -36,7 +36,8 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> The async host calls in progress, for the managed callbacks they run. </summary>
     internal AsyncDriveTable AsyncDrives { get; } = new();
 
-    private readonly List<GCHandle> _callbackHandles = [];
+    /// <summary> The managed callbacks whose function Luau has not collected yet. </summary>
+    private int _activeManagedCallbacks;
 
     /// <summary> The global table. Used as a entry point </summary>
     public LuauTable Globals => new(this, _globalsHandle);
@@ -51,9 +52,7 @@ public sealed unsafe class LuauState : IDisposable
     /// Gets current memory-related tracking counters for this state.
     /// </summary>
     internal LuauMemoryStatistics MemoryStatistics =>
-        ReferenceTracker.GetStatistics(
-            activeManagedCallbacks: _callbackHandles.Count(static handle => handle.IsAllocated)
-        );
+        ReferenceTracker.GetStatistics(activeManagedCallbacks: _activeManagedCallbacks);
 
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
@@ -242,22 +241,28 @@ public sealed unsafe class LuauState : IDisposable
     internal void PushNativeCallback(
         delegate* unmanaged[Cdecl]<lua_State*, void*, int> callback,
         void* context,
-        byte* debugName = null
+        byte* debugName = null,
+        delegate* unmanaged[Cdecl]<void*, void> contextDestructor = null
     )
     {
         this.ThrowIfDisposed();
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        darp_luau_pushcallback(L, callback, context, debugName);
+        darp_luau_pushcallback(L, callback, context, contextDestructor, debugName);
     }
 
-    internal GCHandle TrackCallbackContext(object context)
+    /// <summary> Runs when Luau frees the function of a managed callback: it collected it, or the state closes. </summary>
+    /// <remarks>
+    /// No call can still need the handle: it is only read when a call starts, and a call keeps its function alive.
+    /// </remarks>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void CallbackContextDestructor(void* ctx)
     {
-        this.ThrowIfDisposed();
-        var handle = GCHandle.Alloc(context);
-        _callbackHandles.Add(handle);
-        return handle;
+        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+        if (handle.Target is FunctionBuilderCallbackContext context)
+            context.State._activeManagedCallbacks--;
+        handle.Free();
     }
 
     /// <summary> Creates a coroutine that runs <paramref name="body"/> when it is first resumed. </summary>
@@ -357,11 +362,17 @@ public sealed unsafe class LuauState : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         var context = new FunctionBuilderCallbackContext(this, onCalled);
-        GCHandle handle = TrackCallbackContext(context);
+        var handle = GCHandle.Alloc(context);
         fixed (byte* pDebugName = "managed function\0"u8)
         {
-            PushNativeCallback(&FunctionBuilderCallback, (void*)GCHandle.ToIntPtr(handle), pDebugName);
+            PushNativeCallback(
+                &FunctionBuilderCallback,
+                (void*)GCHandle.ToIntPtr(handle),
+                pDebugName,
+                &CallbackContextDestructor
+            );
         }
+        _activeManagedCallbacks++;
         ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauFunction(this, reference);
     }
@@ -390,6 +401,8 @@ public sealed unsafe class LuauState : IDisposable
     {
         private readonly LuauState _state = state;
         private readonly LuauFunctionBuilder _onCalled = onCalled;
+
+        public LuauState State => _state;
 
         public int Invoke(lua_State* luaState)
         {
@@ -585,12 +598,7 @@ public sealed unsafe class LuauState : IDisposable
         _moduleRequirer?.Dispose();
         _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
+        // Closing frees every function, which releases the handles of the managed callbacks.
         LuauVm.Close(this);
-        foreach (GCHandle callbackHandle in _callbackHandles)
-        {
-            if (callbackHandle.IsAllocated)
-                callbackHandle.Free();
-        }
-        _callbackHandles.Clear();
     }
 }
