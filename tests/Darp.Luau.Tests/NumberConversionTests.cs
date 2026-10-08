@@ -57,14 +57,41 @@ public sealed class NumberConversionTests : IDisposable
     {
         TryGet("9007199254740992", out long exact).ShouldBeTrue();
         exact.ShouldBe(9007199254740992);
-        // Luau has no number between 2^63 - 1024 and 2^63, so the largest long is written as 2^63.
-        TryGet("9223372036854775807", out long max).ShouldBeTrue();
-        max.ShouldBe(long.MaxValue);
-        TryGet("1e19", out long _).ShouldBeFalse();
+        TryGet("-9223372036854775808", out long min).ShouldBeTrue();
+        min.ShouldBe(long.MinValue);
         TryGet("1e19", out ulong big).ShouldBeTrue();
         big.ShouldBe(10000000000000000000);
         TryGet("1e30", out Int128 wide).ShouldBeTrue();
         ((double)wide).ShouldBe(1e30);
+        TryGet("1e30", out System.Numerics.BigInteger unbounded).ShouldBeTrue();
+        ((double)unbounded).ShouldBe(1e30);
+    }
+
+    [Fact]
+    public void WideIntegers_ShouldRejectTheFirstNumberAboveTheirRange()
+    {
+        // Luau reads the literal 9223372036854775807 as 2^63: a double has no number in between. A long cannot hold
+        // 2^63, and saturating to its largest value would be a different number.
+        TryGet("9223372036854775807", out long _).ShouldBeFalse();
+        TryGet("9223372036854775808", out long _).ShouldBeFalse();
+        TryGet("9223372036854775808", out nint _).ShouldBeFalse();
+        TryGet("18446744073709551616", out ulong _).ShouldBeFalse();
+        TryGet("2^127", out Int128 _).ShouldBeFalse();
+        TryGet("2^128", out UInt128 _).ShouldBeFalse();
+        TryGet("1e19", out long _).ShouldBeFalse();
+
+        TryGet("9223372036854775808", out ulong above).ShouldBeTrue();
+        above.ShouldBe(9223372036854775808);
+    }
+
+    [Fact]
+    public void IntegerTypes_ShouldRejectNaNAndInfinityWithoutThrowing()
+    {
+        TryGet("math.huge", out System.Numerics.BigInteger _).ShouldBeFalse();
+        TryGet("-math.huge", out System.Numerics.BigInteger _).ShouldBeFalse();
+        TryGet("0/0", out System.Numerics.BigInteger _).ShouldBeFalse();
+        TryGet("math.huge", out UInt128 _).ShouldBeFalse();
+        TryGet("0/0", out long _).ShouldBeFalse();
     }
 
     [Fact]
@@ -80,6 +107,8 @@ public sealed class NumberConversionTests : IDisposable
         half.ShouldBe((Half)1.5);
         TryGet("0/0", out double number).ShouldBeTrue();
         double.IsNaN(number).ShouldBeTrue();
+        TryGet("0/0", out System.Runtime.InteropServices.NFloat native).ShouldBeTrue();
+        System.Runtime.InteropServices.NFloat.IsNaN(native).ShouldBeTrue();
     }
 
     [Fact]
