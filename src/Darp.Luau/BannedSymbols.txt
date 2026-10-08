@@ -1,0 +1,14 @@
+M:Darp.Luau.Native.LuauNative.lua_call(Darp.Luau.Native.lua_State*,System.Int32,System.Int32);Raises Luau errors through managed frames. Use LuauVm.PCall.
+M:Darp.Luau.Native.LuauNative.lua_pcall(Darp.Luau.Native.lua_State*,System.Int32,System.Int32,System.Int32);Enters the VM. Use LuauVm.PCall, which counts the entry.
+M:Darp.Luau.Native.LuauNative.lua_resume(Darp.Luau.Native.lua_State*,Darp.Luau.Native.lua_State*,System.Int32);Enters the VM. Use LuauVm.Resume, which counts the entry.
+M:Darp.Luau.Native.LuauNative.lua_resumeerror(Darp.Luau.Native.lua_State*,Darp.Luau.Native.lua_State*);Enters the VM. Use LuauVm.ResumeError, which counts the entry.
+M:Darp.Luau.Native.LuauNative.darp_luau_resumecallback(Darp.Luau.Native.lua_State*,Darp.Luau.Native.lua_State*,System.Int32);Enters the VM. Use LuauVm.ResumeCallback, which counts the entry.
+M:Darp.Luau.Native.LuauNative.darp_luau_pgettable(Darp.Luau.Native.lua_State*,System.Int32);Enters the VM. Use LuauVm.GetTable, which counts the entry.
+M:Darp.Luau.Native.LuauNative.darp_luau_psettable(Darp.Luau.Native.lua_State*,System.Int32);Enters the VM. Use LuauVm.SetTable, which counts the entry.
+M:Darp.Luau.Native.LuauNative.lua_close(Darp.Luau.Native.lua_State*);Use LuauVm.Close, after checking that the VM does not run.
+M:Darp.Luau.Native.LuauNative.lua_gettable(Darp.Luau.Native.lua_State*,System.Int32);Raises Luau errors through managed frames. Use LuauVm.GetTable, or lua_rawget for a table of the library.
+M:Darp.Luau.Native.LuauNative.lua_settable(Darp.Luau.Native.lua_State*,System.Int32);Raises Luau errors through managed frames. Use LuauVm.SetTable, or lua_rawset for a table of the library.
+M:Darp.Luau.Native.LuauNative.lua_getfield(Darp.Luau.Native.lua_State*,System.Int32,System.Byte*);Runs __index and raises Luau errors through managed frames. Use LuauVm.GetTable, or lua_rawgetfield for a table of the library.
+M:Darp.Luau.Native.LuauNative.lua_setfield(Darp.Luau.Native.lua_State*,System.Int32,System.Byte*);Runs __newindex and raises Luau errors through managed frames. Use LuauVm.SetTable, or lua_rawsetfield for a table of the library.
+M:Darp.Luau.Native.LuauNative.lua_getglobal(Darp.Luau.Native.lua_State*,System.Byte*);Runs __index of the globals and raises Luau errors through managed frames. Use LuauVm.GetTable.
+M:Darp.Luau.Native.LuauNative.lua_setglobal(Darp.Luau.Native.lua_State*,System.Byte*);Runs __newindex of the globals and raises Luau errors through managed frames. Use LuauVm.SetTable.

@@ -24,10 +24,9 @@ public sealed unsafe class LuauState : IDisposable
     private readonly UserdataRegistrationCache _cache;
 
     private LuauModuleRequirer? _moduleRequirer;
-    private ProtectedTableAccess? _protectedTableAccess;
 
-    // The number of managed callbacks of this state that are running right now.
-    private int _callbackDepth;
+    /// <summary> How many host calls into the VM are in progress. Only <see cref="LuauVm"/> changes it. </summary>
+    internal int VmDepth;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -109,7 +108,7 @@ public sealed unsafe class LuauState : IDisposable
         {
             // Nobody gets the state to dispose it.
             _disposing = 1;
-            lua_close(L);
+            LuauVm.Close(this);
             throw;
         }
     }
@@ -130,32 +129,32 @@ public sealed unsafe class LuauState : IDisposable
     private void OpenBuiltinLibraries(LuauLibraries libraries)
     {
         if (libraries.HasFlag(LuauLibraries.Base))
-            openlib(L, ""u8, luaopen_base);
+            openlib(this, L, ""u8, luaopen_base);
         if (libraries.HasFlag(LuauLibraries.Coroutine))
-            openlib(L, LUA_COLIBNAME, luaopen_coroutine);
+            openlib(this, L, LUA_COLIBNAME, luaopen_coroutine);
         if (libraries.HasFlag(LuauLibraries.Table))
-            openlib(L, LUA_TABLIBNAME, luaopen_table);
+            openlib(this, L, LUA_TABLIBNAME, luaopen_table);
         if (libraries.HasFlag(LuauLibraries.Os))
-            openlib(L, LUA_OSLIBNAME, luaopen_os);
+            openlib(this, L, LUA_OSLIBNAME, luaopen_os);
         if (libraries.HasFlag(LuauLibraries.String))
-            openlib(L, LUA_STRLIBNAME, luaopen_string);
+            openlib(this, L, LUA_STRLIBNAME, luaopen_string);
         if (libraries.HasFlag(LuauLibraries.Math))
-            openlib(L, LUA_MATHLIBNAME, luaopen_math);
+            openlib(this, L, LUA_MATHLIBNAME, luaopen_math);
         if (libraries.HasFlag(LuauLibraries.Debug))
-            openlib(L, LUA_DBLIBNAME, luaopen_debug);
+            openlib(this, L, LUA_DBLIBNAME, luaopen_debug);
         if (libraries.HasFlag(LuauLibraries.Utf8))
-            openlib(L, LUA_UTF8LIBNAME, luaopen_utf8);
+            openlib(this, L, LUA_UTF8LIBNAME, luaopen_utf8);
         if (libraries.HasFlag(LuauLibraries.Bit32))
-            openlib(L, LUA_BITLIBNAME, luaopen_bit32);
+            openlib(this, L, LUA_BITLIBNAME, luaopen_bit32);
         if (libraries.HasFlag(LuauLibraries.Buffer))
-            openlib(L, LUA_BUFFERLIBNAME, luaopen_buffer);
+            openlib(this, L, LUA_BUFFERLIBNAME, luaopen_buffer);
         if (libraries.HasFlag(LuauLibraries.Vector))
-            openlib(L, LUA_VECLIBNAME, luaopen_vector);
+            openlib(this, L, LUA_VECLIBNAME, luaopen_vector);
     }
 
     private delegate int OpenLibFunc(lua_State* L);
 
-    private static void openlib(lua_State* L, ReadOnlySpan<byte> name, OpenLibFunc openf)
+    private static void openlib(LuauState state, lua_State* L, ReadOnlySpan<byte> name, OpenLibFunc openf)
     {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -164,7 +163,7 @@ public sealed unsafe class LuauState : IDisposable
         lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
         fixed (byte* pName = name)
             lua_pushstring(L, pName);
-        lua_call(L, 1, 0);
+        LuaException.ThrowIfNotOk(L, LuauVm.PCall(state, L, 1, 0), "lua_pcall");
     }
 
     /// <summary> The delegate type used to load a custom module table. </summary>
@@ -223,29 +222,6 @@ public sealed unsafe class LuauState : IDisposable
     {
         _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
-    }
-
-    /// <summary> Reads and writes tables whose metamethods may run script code. </summary>
-    internal ProtectedTableAccess ProtectedTableAccess => _protectedTableAccess ??= new ProtectedTableAccess(this);
-
-    /// <summary> Marks a managed callback of this state as running until the scope is disposed. </summary>
-    internal CallbackScope EnterCallback()
-    {
-        _callbackDepth++;
-        return new CallbackScope(this);
-    }
-
-    /// <summary> A running managed callback. The state cannot be disposed while one exists. </summary>
-    internal readonly ref struct CallbackScope(LuauState state)
-    {
-        [SuppressMessage(
-            "Usage",
-            "CA2213:Disposable fields should be disposed",
-            Justification = "The scope references the state but does not own it."
-        )]
-        private readonly LuauState _state = state;
-
-        public void Dispose() => _state._callbackDepth--;
     }
 
     internal bool OwnsThread(lua_State* luaState)
@@ -339,14 +315,14 @@ public sealed unsafe class LuauState : IDisposable
         fixed (byte* pGlobalName = "_G\0"u8)
         {
             lua_pushvalue(L, -1);
-            lua_setfield(L, -2, pGlobalName);
+            lua_rawsetfield(L, -2, pGlobalName);
         }
 
         lua_newtable(L);
         fixed (byte* pIndexName = "__index\0"u8)
         {
             lua_pushvalue(L, LUA_GLOBALSINDEX);
-            lua_setfield(L, -2, pIndexName);
+            lua_rawsetfield(L, -2, pIndexName);
         }
 
         _ = lua_setmetatable(L, -2);
@@ -427,16 +403,12 @@ public sealed unsafe class LuauState : IDisposable
 #endif
             int topBeforeInvoke = numberOfParameters;
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
-            // Counted by hand instead of with a CallbackScope: this is the hottest callback path, and a scope would
-            // put a second exception region around it. Either the try block ends or the catch block starts.
-            state._callbackDepth++;
             try
             {
                 LuauReturn result = _onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
                 int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
-                state._callbackDepth--;
 #if DEBUG
                 // A yield leaves the stack as it is; an error leaves its message.
                 nestedGuard.OverwriteExpectedDelta(
@@ -452,7 +424,6 @@ public sealed unsafe class LuauState : IDisposable
             }
             catch (Exception exception)
             {
-                state._callbackDepth--;
                 lua_settop(luaState, topBeforeInvoke);
                 int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
 #if DEBUG
@@ -591,20 +562,20 @@ public sealed unsafe class LuauState : IDisposable
 
     /// <inheritdoc />
     /// <exception cref="InvalidOperationException">
-    /// Thrown when a managed callback of this state is running. Luau would continue in a closed state when the
-    /// callback returns. Dispose the state after the host call that runs the script has returned.
+    /// Thrown when the state is running a script, which is the case inside every callback of it. Luau would
+    /// continue in a closed state. Dispose the state after the host call that runs the script has returned.
     /// </exception>
     [SuppressMessage(
         "Design",
         "CA1065:Do not raise exceptions in unexpected locations",
-        Justification = "Closing the state under a running callback would let Luau continue in freed memory."
+        Justification = "Closing a state that runs would let Luau continue in freed memory."
     )]
     public void Dispose()
     {
-        if (_callbackDepth > 0 && _disposing == 0)
+        if (VmDepth > 0 && _disposing == 0)
         {
             throw new InvalidOperationException(
-                "A LuauState cannot be disposed while one of its managed callbacks runs. "
+                "A LuauState cannot be disposed while it runs a script, for example from one of its callbacks. "
                     + "Dispose it after the host call that runs the script has returned."
             );
         }
@@ -614,7 +585,7 @@ public sealed unsafe class LuauState : IDisposable
         _moduleRequirer?.Dispose();
         _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
-        lua_close(L);
+        LuauVm.Close(this);
         foreach (GCHandle callbackHandle in _callbackHandles)
         {
             if (callbackHandle.IsAllocated)

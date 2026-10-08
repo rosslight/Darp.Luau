@@ -43,15 +43,6 @@ public readonly ref struct IntoLuau
     private readonly StackReference _stackReference;
     private readonly RegistryReferenceTracker.TrackedReference? _trackedReference;
 
-    /// <summary> Whether this is the number NaN, which Luau does not accept as a table key. </summary>
-    internal bool IsNaN =>
-        Type switch
-        {
-            Kind.Number => double.IsNaN(_number),
-            Kind.Value => _luauValue.IsNaN,
-            _ => false,
-        };
-
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
     private IntoLuau(double valueNumber) => (Type, _number) = (Kind.Number, valueNumber);

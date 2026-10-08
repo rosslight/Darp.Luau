@@ -333,7 +333,7 @@ public readonly ref struct LuauChunk
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, nArgs, nResults, 0);
+            int status = LuauVm.PCall(state, L, nArgs, nResults);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
             var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
             return resultSelector(result);
@@ -359,7 +359,7 @@ public readonly ref struct LuauChunk
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, nArgs, nResults, 0);
+            int status = LuauVm.PCall(state, L, nArgs, nResults);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
         }
         finally

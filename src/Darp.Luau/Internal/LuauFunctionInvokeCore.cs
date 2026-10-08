@@ -26,7 +26,7 @@ internal static unsafe class LuauFunctionInvokeCore
             for (int i = 0; i < length; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, length, 0, 0);
+            int status = LuauVm.PCall(state, L, length, 0);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
         }
         finally
@@ -52,7 +52,7 @@ internal static unsafe class LuauFunctionInvokeCore
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
 
-            int status = lua_pcall(L, nArgs, LuaMultRet, 0);
+            int status = LuauVm.PCall(state, L, nArgs, LuaMultRet);
             LuaException.ThrowIfNotOk(L, status, "lua_pcall");
             var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
             return func(result);
