@@ -17,12 +17,10 @@ file static class CreateFunctionInterceptors
         {
             if (!args.TryValidateArgumentCount(2, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out double a1Raw, out error))
+            if (!args.TryReadNumber(parameterIndex: 1, out decimal a1, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            decimal a1 = (decimal)a1Raw;
-            if (!args.TryReadNumber(parameterIndex: 2, out double a2Raw, out error))
+            if (!args.TryReadNumber(parameterIndex: 2, out decimal a2, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            decimal a2 = (decimal)a2Raw;
             var returns = onLuaCall(a1, a2);
             return global::Darp.Luau.LuauReturn.Ok((double)returns.Item1, (double)returns.Item2);
         }

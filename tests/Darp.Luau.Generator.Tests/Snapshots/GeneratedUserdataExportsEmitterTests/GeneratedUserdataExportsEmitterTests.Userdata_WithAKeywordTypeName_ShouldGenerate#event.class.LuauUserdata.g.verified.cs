@@ -23,9 +23,8 @@ namespace @event
             {
                 case "level":
                 {
-                    if (!args.TryReadNumber(out double valueRaw, out string? error))
+                    if (!args.TryReadNumber(out int value, out string? error))
                         return global::Darp.Luau.LuauOutcome.Error(error);
-                    int value = (int)valueRaw;
                     self.Level = value;
                     return global::Darp.Luau.LuauOutcome.Ok();
                 }

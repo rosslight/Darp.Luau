@@ -314,7 +314,8 @@ public sealed class LuauTableNumberOverloadTests
     {
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
-        table.Set("value", 12.75);
+        // The number that is stored is the one that is expected back: a read does not change it.
+        table.Set("value", Convert.ToDouble(expected, System.Globalization.CultureInfo.InvariantCulture));
 
         tryGetNumber(table, "value", out T value).ShouldBeTrue();
         value.ShouldBe(expected);
@@ -341,7 +342,8 @@ public sealed class LuauTableNumberOverloadTests
     {
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
-        table.Set("value", 12.75);
+        // The number that is stored is the one that is expected back: a read does not change it.
+        table.Set("value", Convert.ToDouble(expected, System.Globalization.CultureInfo.InvariantCulture));
 
         tryGetNumberOrNil(table, "value", out T? value).ShouldBeTrue();
         value.ShouldBe(expected);

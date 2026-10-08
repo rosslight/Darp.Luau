@@ -1,246 +1,65 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Text;
+using Darp.Luau.Internal;
 
 namespace Darp.Luau;
 
 public readonly ref partial struct LuauArgs
 {
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out sbyte value, [NotNullWhen(false)] out string? error)
+    /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a Lua number that
+    /// <typeparamref name="T"/> can hold.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives the number when the read succeeds.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <typeparam name="T">The numeric type to read, such as <see cref="int"/> or <see cref="float"/>.</typeparam>
+    /// <returns><c>true</c> when the parameter is a number that <typeparamref name="T"/> can hold; otherwise <c>false</c>.</returns>
+    /// <remarks>
+    /// An integer type only takes whole numbers in its range: <c>1.5</c>, <c>-1</c> for an unsigned type, NaN and
+    /// infinity fail instead of being truncated or wrapped. <see cref="float"/> and <see cref="Half"/> take the
+    /// nearest value they have. <see cref="decimal"/> takes every finite number in its range.
+    /// </remarks>
+    public bool TryReadNumber<T>(int parameterIndex, out T value, [NotNullWhen(false)] out string? error)
+        where T : struct, INumber<T>
     {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
+        value = default;
+        if (!TryReadNumber(parameterIndex, out double number, out error))
             return false;
+        if (LuauNumber.TryConvert(number, out value))
+            return true;
 
-        value = (sbyte)rawValue;
-        return true;
+        error = LuauNumber.DescribeMismatch<T>($"Parameter {parameterIndex}", number);
+        return false;
     }
 
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out sbyte? value, [NotNullWhen(false)] out string? error)
+    /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a Lua number that
+    /// <typeparamref name="T"/> can hold, or as <c>nil</c>.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives the number, or <c>null</c> when the parameter is <c>nil</c>.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <typeparam name="T">The numeric type to read, such as <see cref="int"/> or <see cref="float"/>.</typeparam>
+    /// <returns><c>true</c> when the parameter is <c>nil</c> or a number that <typeparamref name="T"/> can hold; otherwise <c>false</c>.</returns>
+    /// <remarks> See <see cref="TryReadNumber{T}(int, out T, out string)"/> for what a type can hold. </remarks>
+    public bool TryReadNumberOrNil<T>(int parameterIndex, out T? value, [NotNullWhen(false)] out string? error)
+        where T : struct, INumber<T>
     {
         value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
+        if (!TryReadNumberOrNil(parameterIndex, out double? number, out error))
             return false;
+        if (number is not { } present)
+            return true;
+        if (LuauNumber.TryConvert(present, out T converted))
+        {
+            value = converted;
+            return true;
+        }
 
-        value = (sbyte?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out byte value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (byte)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out byte? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (byte?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out short value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (short)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out short? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (short?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out ushort value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (ushort)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out ushort? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (ushort?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out int value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (int)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out int? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (int?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out uint value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (uint)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out uint? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (uint?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out long value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (long)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out long? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (long?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumber(int parameterIndex, out ulong value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (ulong)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out ulong? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (ulong?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/>.</remarks>
-    public bool TryReadNumber(int parameterIndex, out float value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (float)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/>.</remarks>
-    public bool TryReadNumberOrNil(int parameterIndex, out float? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (float?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumber(int, out double, out string)"/>
-    public bool TryReadNumber(int parameterIndex, out decimal value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double rawValue, out error))
-            return false;
-
-        value = (decimal)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryReadNumberOrNil(int, out double?, out string)"/>
-    public bool TryReadNumberOrNil(int parameterIndex, out decimal? value, [NotNullWhen(false)] out string? error)
-    {
-        value = null;
-        if (!TryReadNumberOrNil(parameterIndex, out double? rawValue, out error))
-            return false;
-
-        value = (decimal?)rawValue;
-        return true;
+        error = LuauNumber.DescribeMismatch<T>($"Parameter {parameterIndex}", present);
+        return false;
     }
 
     /// <inheritdoc cref="TryReadUtf8String(int, out ReadOnlySpan{byte}, out string)"/>

@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Text;
+using Darp.Luau.Internal;
 
 namespace Darp.Luau;
 
@@ -33,235 +35,44 @@ public partial struct LuauTable
     /// <returns><c>true</c> when the value is number or <c>nil</c>; otherwise <c>false</c>.</returns>
     public bool TryGetNumberOrNil(IntoLuau key, out double? value) => TryGetNumberOrNil(key, out value, out _);
 
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out sbyte value)
+    /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua number that <typeparamref name="T"/> can hold. </summary>
+    /// <param name="key">Table key to resolve.</param>
+    /// <param name="value">Resolved number when successful.</param>
+    /// <typeparam name="T">The numeric type to read, such as <see cref="int"/> or <see cref="float"/>.</typeparam>
+    /// <returns><c>true</c> when the value is a number that <typeparamref name="T"/> can hold; otherwise <c>false</c>.</returns>
+    /// <remarks>
+    /// An integer type only takes whole numbers in its range: <c>1.5</c>, <c>-1</c> for an unsigned type, NaN and
+    /// infinity fail instead of being truncated or wrapped. <see cref="float"/> and <see cref="Half"/> take the
+    /// nearest value they have. <see cref="decimal"/> takes every finite number in its range.
+    /// </remarks>
+    public bool TryGetNumber<T>(IntoLuau key, out T value)
+        where T : struct, INumber<T>
     {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-        value = (sbyte)rawValue;
-        return true;
+        value = default;
+        return TryGetNumber(key, out double number, out _) && LuauNumber.TryConvert(number, out value);
     }
 
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out sbyte? value)
+    /// <summary>
+    /// Attempts to get the value for <paramref name="key"/> as a Lua number that <typeparamref name="T"/> can hold,
+    /// or as <c>nil</c>.
+    /// </summary>
+    /// <param name="key">Table key to resolve.</param>
+    /// <param name="value">Resolved number, or <c>null</c> when the value is <c>nil</c>.</param>
+    /// <typeparam name="T">The numeric type to read, such as <see cref="int"/> or <see cref="float"/>.</typeparam>
+    /// <returns><c>true</c> when the value is <c>nil</c> or a number that <typeparamref name="T"/> can hold; otherwise <c>false</c>.</returns>
+    /// <remarks> See <see cref="TryGetNumber{T}(IntoLuau, out T)"/> for what a type can hold. </remarks>
+    public bool TryGetNumberOrNil<T>(IntoLuau key, out T? value)
+        where T : struct, INumber<T>
     {
         value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
+        if (!TryGetNumberOrNil(key, out double? number, out _))
             return false;
-        value = (sbyte?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out byte value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-        value = (byte)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out byte? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-        value = (byte?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out short value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
+        if (number is not { } present)
+            return true;
+        if (!LuauNumber.TryConvert(present, out T converted))
             return false;
 
-        value = (short)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out short? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (short?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out ushort value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (ushort)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out ushort? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (ushort?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out int value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (int)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out int? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (int?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out uint value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (uint)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out uint? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (uint?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out long value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (long)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out long? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (long?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumber(IntoLuau key, out ulong value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (ulong)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public bool TryGetNumberOrNil(IntoLuau key, out ulong? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (ulong?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    public bool TryGetNumber(IntoLuau key, out float value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (float)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    public bool TryGetNumberOrNil(IntoLuau key, out float? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (float?)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    public bool TryGetNumber(IntoLuau key, out decimal value)
-    {
-        value = 0;
-        if (!TryGetNumber(key, out double rawValue, out _))
-            return false;
-
-        value = (decimal)rawValue;
-        return true;
-    }
-
-    /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    public bool TryGetNumberOrNil(IntoLuau key, out decimal? value)
-    {
-        value = null;
-        if (!TryGetNumberOrNil(key, out double? rawValue, out _))
-            return false;
-
-        value = (decimal?)rawValue;
+        value = converted;
         return true;
     }
 
