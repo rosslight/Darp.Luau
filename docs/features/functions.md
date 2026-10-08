@@ -68,7 +68,8 @@ This is the normal callback API when your callback shape is simple and static.
 - `LuauValue`,
 - managed userdata types, either generated with `[LuauUserdata]` or implemented manually with `ILuauUserData<TSelf>`,
 - borrowed callback views such as `LuauTableView` or `LuauFunctionView`,
-- `void`, one managed return value, or a top-level tuple return whose elements are individually supported.
+- `void`, one managed return value, or a top-level tuple return whose elements are individually supported,
+- `Task` or `ValueTask` around any of these returns, and a `CancellationToken` parameter. See [Async callbacks](#async-callbacks).
 
 Managed userdata support here is the typed managed path, not the raw userdata wrapper path. Use `LuauUserdataView` when you want a borrowed userdata view directly; use `[LuauUserdata]` or `ILuauUserData<TSelf>` when you want `CreateFunction(...)` to marshal to and from your managed type.
 
@@ -130,7 +131,20 @@ For string- and buffer-specific callback shapes and ownership rules, see [String
 
 ## Async callbacks
 
-A callback built with `CreateFunctionBuilder(...)` can return `LuauReturn.Await(...)` with work that completes later. The script waits for it without blocking a thread:
+A `CreateFunction(...)` delegate can return `Task`, `Task<T>`, `ValueTask`, or `ValueTask<T>`. The script waits for it without blocking a thread and receives the awaited result:
+
+```csharp
+using LuauFunction delay = lua.CreateFunction(
+    (int milliseconds, CancellationToken cancellationToken) => Task.Delay(milliseconds, cancellationToken)
+);
+lua.Globals.Set("delay", delay);
+
+await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
+```
+
+A `CancellationToken` parameter is not a Luau argument. It receives the token of the async host call.
+
+A callback built with `CreateFunctionBuilder(...)` awaits by returning `LuauReturn.Await(...)` with work that completes later:
 
 ```csharp
 using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
@@ -150,7 +164,7 @@ lua.Globals.Set("delay", delay);
 await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
 ```
 
-Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Read all arguments before you return `LuauReturn.Await(...)`. `CreateFunction(...)` does not support `Task`-returning delegates yet. See [Coroutines](coroutines.md).
+Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Read all arguments before you return `LuauReturn.Await(...)`. See [Coroutines](coroutines.md).
 
 ## Error behavior
 

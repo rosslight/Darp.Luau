@@ -47,6 +47,7 @@ internal static class EmitterHelper
             LuauInteropKind.LuauStringView => "global::Darp.Luau.LuauStringView",
             LuauInteropKind.LuauBufferView => "global::Darp.Luau.LuauBufferView",
             LuauInteropKind.LuauUserdataView => "global::Darp.Luau.LuauUserdataView",
+            LuauInteropKind.CancellationToken => "global::System.Threading.CancellationToken",
             LuauInteropKind.Enum or LuauInteropKind.ManagedUserdata => throw new ArgumentOutOfRangeException(
                 nameof(type),
                 type,
@@ -59,19 +60,34 @@ internal static class EmitterHelper
 
     public static string GetFunctionRepresentation(InteropSignature signature)
     {
-        ImmutableEquatableArray<InteropType> parameters = signature.Parameters;
-        ImmutableEquatableArray<InteropType> returnParameters = signature.ReturnTypes;
-        return (parameters.Length, returnParameters.Length) switch
+        string parameters = string.Join(",", signature.Parameters.Select(GetDotnetType));
+        return (signature.Parameters.Length, GetReturnType(signature)) switch
         {
-            (0, 0) => "global::System.Action",
-            (_, 0) => $"global::System.Action<{string.Join(",", parameters.Select(GetDotnetType))}>",
-            (0, 1) => $"global::System.Func<{GetDotnetType(returnParameters[0])}>",
-            (0, _) =>
-                $"global::System.Func<({string.Join(", ", returnParameters.Select((x, i) => GetTupleReturnType(x, i + 1)))})>",
-            (_, 1) =>
-                $"global::System.Func<{string.Join(",", parameters.Select(GetDotnetType))}, {GetDotnetType(returnParameters[0])}>",
-            (_, _) =>
-                $"global::System.Func<{string.Join(",", parameters.Select(GetDotnetType))}, ({string.Join(", ", returnParameters.Select((x, i) => GetTupleReturnType(x, i + 1)))})>",
+            (0, null) => "global::System.Action",
+            (_, null) => $"global::System.Action<{parameters}>",
+            (0, { } returnType) => $"global::System.Func<{returnType}>",
+            (_, { } returnType) => $"global::System.Func<{parameters}, {returnType}>",
         };
+    }
+
+    /// <summary> The C# return type of a callback with this signature, or <c>null</c> when it returns nothing. </summary>
+    public static string? GetReturnType(InteropSignature signature)
+    {
+        ImmutableEquatableArray<InteropType> returnTypes = signature.ReturnTypes;
+        string? resultType = returnTypes.Length switch
+        {
+            0 => null,
+            1 => GetDotnetType(returnTypes[0]),
+            _ => $"({string.Join(", ", returnTypes.Select((x, i) => GetTupleReturnType(x, i + 1)))})",
+        };
+        string? awaitable = signature.Awaitable switch
+        {
+            AwaitableReturnKind.Task => "global::System.Threading.Tasks.Task",
+            AwaitableReturnKind.ValueTask => "global::System.Threading.Tasks.ValueTask",
+            _ => null,
+        };
+        if (awaitable is null)
+            return resultType;
+        return resultType is null ? awaitable : $"{awaitable}<{resultType}>";
     }
 }

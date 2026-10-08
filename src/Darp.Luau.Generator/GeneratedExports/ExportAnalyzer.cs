@@ -277,7 +277,7 @@ internal static class ExportAnalyzer
             exportedName,
             pathSegments,
             discoveredMethod.Origin,
-            new NormalizedMethodContract(parameters, returns, awaitable)
+            new InteropSignature(parameters, returns, awaitable)
         );
     }
 
@@ -403,7 +403,7 @@ internal static class ExportAnalyzer
         out AwaitableReturnKind awaitable
     )
     {
-        awaitable = GetAwaitableKind(method.ReturnType, out ITypeSymbol? awaitedType);
+        awaitable = InteropTypeMapper.GetAwaitableKind(method.ReturnType, out ITypeSymbol? awaitedType);
         if (method.IsGenericMethod)
         {
             ReportUnsupportedMethodShape(
@@ -507,26 +507,6 @@ internal static class ExportAnalyzer
 
         parameters = parameterBuilder.ToImmutableEquatableArray();
         return true;
-    }
-
-    /// <summary>
-    /// Recognizes <c>Task</c> and <c>ValueTask</c>. <paramref name="awaitedType"/> is the type they produce, or
-    /// <c>null</c> when they produce nothing.
-    /// </summary>
-    private static AwaitableReturnKind GetAwaitableKind(ITypeSymbol type, out ITypeSymbol? awaitedType)
-    {
-        awaitedType = null;
-        if (
-            type is not INamedTypeSymbol { Name: "Task" or "ValueTask", Arity: 0 or 1 } namedType
-            || namedType.ContainingNamespace.ToDisplayString() != "System.Threading.Tasks"
-        )
-        {
-            return AwaitableReturnKind.None;
-        }
-
-        if (namedType.Arity == 1)
-            awaitedType = namedType.TypeArguments[0];
-        return namedType.Name == "Task" ? AwaitableReturnKind.Task : AwaitableReturnKind.ValueTask;
     }
 
     /// <summary>

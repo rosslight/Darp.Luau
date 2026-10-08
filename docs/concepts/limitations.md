@@ -19,7 +19,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
 - Managed interop is documented for strings, numbers, booleans, tables, functions, coroutines, userdata, and buffers. Vector values are not documented as a managed interop surface yet.
-- Async managed callbacks are available through `CreateFunctionBuilder(...)` and `LuauReturn.Await(...)`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. Generated `[LuauModule]` functions and `[LuauUserdata]` methods can return `Task` or `ValueTask`. Generator-backed `CreateFunction(...)` does not support `Task`-returning delegates yet.
+- Async managed callbacks are available through `CreateFunctionBuilder(...)` and `LuauReturn.Await(...)`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
 - An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. Coroutines that scripts create and resume themselves get a Luau error instead; there is no scheduler for them.
 - `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
 

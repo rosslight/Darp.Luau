@@ -41,9 +41,7 @@ internal static class ExportProjector
                 method.ManagedName,
                 method.LuauName,
                 method.PathSegments,
-                method.Method.Parameters,
-                method.Method.ReturnTypes,
-                method.Method.Awaitable
+                method.Signature
             ),
             _ => throw new InvalidOperationException($"Unsupported normalized member type '{member.GetType().Name}'"),
         };

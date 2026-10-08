@@ -790,6 +790,36 @@ public sealed class AsyncFunctionTests : IDisposable
         (await pending).ShouldBe(42);
     }
 
+    [Fact]
+    public async Task CreateFunction_WithAnAsyncDelegate_ShouldSuspendTheScriptAndResumeItWithTheResult()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction add = _state.CreateFunction(async (int value) => (value + await gate.Task, "added"));
+        _state.Globals.Set("add", add);
+
+        ValueTask<(int, string)> pending = _state.Load("return add(40)").ExecuteAsync<int, string>([], TestToken);
+
+        pending.IsCompleted.ShouldBeFalse();
+        gate.SetResult(2);
+        (await pending).ShouldBe((42, "added"));
+    }
+
+    [Fact]
+    public async Task CreateFunction_ShouldPassTheCancellationTokenOfTheHostCall()
+    {
+        using var cts = new CancellationTokenSource();
+        using LuauFunction wait = _state.CreateFunction(
+            (CancellationToken cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken)
+        );
+        _state.Globals.Set("wait", wait);
+
+        ValueTask pending = _state.Load("wait()").ExecuteAsync([], cts.Token);
+        pending.IsCompleted.ShouldBeFalse();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+    }
+
     public void Dispose() => _state.Dispose();
 }
 

@@ -76,40 +76,10 @@ internal static class CreateFunctionEmitter
 
     private static void WriteFunctionBody(IndentedTextWriter writer, InteropSignature signature)
     {
-        string[] paramExtractions = signature
-            .Parameters.Select((paramType, i) => LuauMarshalEmitter.GenerateParameterRead(i + 1, paramType))
-            .ToArray();
-
-        string callExpression =
-            $"onLuaCall({string.Join(", ", Enumerable.Range(1, paramExtractions.Length).Select(i => $"a{i}"))})";
-
         writer.WriteLine("global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine($"if (!args.TryValidateArgumentCount({signature.Parameters.Length}, out string? error))");
-        writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
-        writer.WriteMultiLine(string.Join("\n", paramExtractions));
-        if (signature.ReturnTypes.Length == 0)
-        {
-            writer.WriteLine($"{callExpression};");
-            writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
-        }
-        else
-        {
-            writer.WriteLine($"var returns = {callExpression};");
-            if (signature.ReturnTypes.Length == 1)
-            {
-                writer.WriteLine(
-                    $"return global::Darp.Luau.LuauReturn.Ok({LuauMarshalEmitter.FormatIntoLuauExpression("returns", signature.ReturnTypes[0])});"
-                );
-            }
-            else
-            {
-                writer.WriteLine(
-                    $"return global::Darp.Luau.LuauReturn.Ok({string.Join(", ", signature.ReturnTypes.Select((x, i) => LuauMarshalEmitter.FormatIntoLuauExpression($"returns.Item{i + 1}", x)))});"
-                );
-            }
-        }
+        CallbackBodyEmitter.Write(writer, signature, "onLuaCall");
         writer.Indent--;
         writer.WriteLine("}");
     }

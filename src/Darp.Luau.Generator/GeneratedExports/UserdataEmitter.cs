@@ -179,7 +179,7 @@ internal static class UserdataEmitter
             writer.WriteLine($"case {keyLiteral}:");
             writer.WriteLine("{");
             writer.Indent++;
-            ExportCallbackEmitter.WriteMethodBody(writer, method, "self");
+            CallbackBodyEmitter.Write(writer, method.Signature, $"self.{method.ManagedName}");
             writer.Indent--;
             writer.WriteLine("}");
         }

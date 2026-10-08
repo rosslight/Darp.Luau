@@ -138,12 +138,21 @@ internal static class CreateFunctionSignatureAnalyzer
             parameters.Add(parameterType);
         }
 
+        AwaitableReturnKind awaitable = InteropTypeMapper.GetAwaitableKind(
+            invokeMethod.ReturnType,
+            out ITypeSymbol? awaitedType
+        );
+        (ITypeSymbol? returnType, NullableAnnotation returnNullableAnnotation) =
+            awaitable is AwaitableReturnKind.None
+                ? (invokeMethod.ReturnType, invokeMethod.ReturnNullableAnnotation)
+                : (awaitedType, awaitedType?.NullableAnnotation ?? NullableAnnotation.None);
         if (
-            !TryExtractReturnTypes(
+            returnType is not null
+            && !TryExtractReturnTypes(
                 invocationOperation,
                 apiSymbols,
-                invokeMethod.ReturnType,
-                invokeMethod.ReturnNullableAnnotation,
+                returnType,
+                returnNullableAnnotation,
                 returnOverrides,
                 returnTypes,
                 diagnostics
@@ -155,7 +164,8 @@ internal static class CreateFunctionSignatureAnalyzer
 
         signature = new InteropSignature(
             parameters.ToImmutableEquatableArray(),
-            returnTypes.ToImmutableEquatableArray()
+            returnTypes.ToImmutableEquatableArray(),
+            awaitable
         );
         return true;
     }
