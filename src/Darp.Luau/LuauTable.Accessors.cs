@@ -66,7 +66,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private bool TryGetUtf8String(
+    internal bool TryGetUtf8String(
         scoped in IntoLuau key,
         out ReadOnlySpan<byte> value,
         [NotNullWhen(false)] out string? error
@@ -91,7 +91,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private bool TryGetUtf8StringOrNil(
+    internal bool TryGetUtf8StringOrNil(
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil,
@@ -121,7 +121,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private bool TryGetBuffer(
+    internal bool TryGetBuffer(
         scoped in IntoLuau key,
         out ReadOnlySpan<byte> value,
         [NotNullWhen(false)] out string? error
@@ -148,7 +148,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private bool TryGetBufferOrNil(
+    internal bool TryGetBufferOrNil(
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil,

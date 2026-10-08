@@ -20,12 +20,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     private readonly Dictionary<Type, GCHandle> _registrations = [];
     private readonly ConditionalWeakTable<object, ObjectIdentity> _identityByUserdata = new();
     private readonly int _identityMapReference = CreateIdentityMapReference(state);
-    private int _nextIdentity;
+
+    // Stored in Luau as a number, which holds every integer a state can count to.
+    private long _nextIdentity;
     private bool _userdataCallbacksRegistered;
 
-    private sealed class ObjectIdentity(int value)
+    private sealed class ObjectIdentity(long value)
     {
-        public int Value { get; } = value;
+        public long Value { get; } = value;
     }
 
     // The name buffers of the callbacks below are written before they are read.
@@ -136,7 +138,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     {
         EnsureUserdataCallbacksRegistered();
 
-        int identity = _identityByUserdata.GetValue(userdata, _ => new ObjectIdentity(++_nextIdentity)).Value;
+        long identity = _identityByUserdata.GetValue(userdata, _ => new ObjectIdentity(++_nextIdentity)).Value;
         lua_State* L = _state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -158,7 +160,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
         // stack: [userdata]
         lua_getref(L, _identityMapReference); // [userdata, identityMap]
-        lua_pushinteger(L, identity); // [userdata, identityMap, identity]
+        lua_pushnumber(L, identity); // [userdata, identityMap, identity]
         lua_pushvalue(L, -3); // [userdata, identityMap, identity, userdata]
         lua_settable(L, -3); // [userdata, identityMap]
         lua_pop(L, 1); // [userdata]
@@ -200,13 +202,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         return LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
-    private unsafe bool TryGetCachedUserdataHandle(lua_State* L, int identity, out ulong handle)
+    private unsafe bool TryGetCachedUserdataHandle(lua_State* L, long identity, out ulong handle)
     {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_getref(L, _identityMapReference); // [cache]
-        lua_pushinteger(L, identity); // [cache, identity]
+        lua_pushnumber(L, identity); // [cache, identity]
         _ = lua_gettable(L, -2); // [cache, value]
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)

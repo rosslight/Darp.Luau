@@ -805,7 +805,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("input", Convert.ToHexString(expected));
         _state.Globals.Set("f", func);
         _state.Load("result = f(input)").Execute();
-        _state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
+        LuauMarshal.TryGetBufferSpan(_state.Globals, "result", out ReadOnlySpan<byte> result).ShouldBeTrue();
         result.ToArray().ShouldBe<byte>(expected);
     }
 

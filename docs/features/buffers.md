@@ -48,17 +48,16 @@ lua.Globals.Set("payloadRef", payload);
 ```csharp
 byte[] bytes = lua.Globals.GetBuffer("payload");
 
-if (lua.Globals.TryGetBuffer("payload", out ReadOnlySpan<byte> borrowed))
+using LuauBuffer owned = lua.Globals.GetLuauBuffer("payload");
+if (owned.TryGet(out ReadOnlySpan<byte> borrowed))
 {
     Console.WriteLine(Convert.ToHexString(borrowed));
 }
-
-using LuauBuffer owned = lua.Globals.GetLuauBuffer("payload");
 ```
 
 - `GetBuffer(...)` and `TryGetBuffer(..., out byte[]?)` copy into managed memory.
-- `TryGetBuffer(..., out ReadOnlySpan<byte>)` borrows Luau-owned bytes.
-- `GetLuauBuffer(...)` and `TryGetLuauBuffer(...)` return owned wrappers that need disposal.
+- `GetLuauBuffer(...)` and `TryGetLuauBuffer(...)` return owned wrappers that need disposal. Their spans stay valid until you dispose the wrapper.
+- `LuauMarshal.TryGetBufferSpan(table, key, out ReadOnlySpan<byte>)` reads the bytes in place, without a copy and without a wrapper. Nothing keeps that memory alive; see [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed).
 - `GetBufferOrNil(...)` and `TryGetBufferOrNil(...)` handle the usual missing-key-or-`nil` case.
 
 If you only need bytes, use the copy or span APIs. Use `GetLuauBuffer(...)` when you need the Luau buffer as a first-class value.

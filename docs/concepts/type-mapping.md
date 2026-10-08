@@ -94,7 +94,7 @@ using LuauTable nested = lua.Globals.GetLuauTable("config");
 Important distinctions:
 
 - `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
-- Span-based overloads such as `TryGetUtf8String(..., out ReadOnlySpan<byte>)` and `TryGetBuffer(..., out ReadOnlySpan<byte>)` expose Luau-owned memory and should be consumed immediately.
+- `LuauMarshal.TryGetUtf8StringSpan(...)` and `LuauMarshal.TryGetBufferSpan(...)` expose Luau-owned memory of a table value without a copy. Nothing keeps that memory alive, so consume it immediately.
 - `GetLuauTable(...)`, `GetLuauFunction(...)`, `GetLuauString(...)`, `GetLuauBuffer(...)`, and `GetLuauUserdata(...)` return owned references that need disposal.
 - `TryGetUserdata<T>(...)` resolves directly back to your managed userdata instance when the value is managed userdata created by this library and matches `T`.
 

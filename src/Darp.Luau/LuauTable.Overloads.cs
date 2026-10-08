@@ -311,20 +311,6 @@ public partial struct LuauTable
                 : Encoding.UTF8.GetString(value)
             : throw CreateReadException(error);
 
-    /// <summary> Attempts to get the value for <paramref name="key"/> as a UTF-8 string. </summary>
-    /// <param name="key">Table key to resolve.</param>
-    /// <param name="value">Resolved UTF-8 bytes.</param>
-    /// <returns><c>true</c> when the value exists and is a string; otherwise <c>false</c>.</returns>
-    public bool TryGetUtf8String(IntoLuau key, out ReadOnlySpan<byte> value) => TryGetUtf8String(key, out value, out _);
-
-    /// <summary> Attempts to get the value for <paramref name="key"/> as a UTF-8 string or <c>nil</c>. </summary>
-    /// <param name="key">Table key to resolve.</param>
-    /// <param name="value">Resolved UTF-8 bytes, or <c>default</c> when the value is <c>nil</c>.</param>
-    /// <param name="isNil">Set to <c>true</c> when the value is <c>nil</c>.</param>
-    /// <returns><c>true</c> when the value is string or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public bool TryGetUtf8StringOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
-        TryGetUtf8StringOrNil(key, out value, out isNil, out _);
-
     /// <summary>
     /// Attempts to get the value for <paramref name="key"/> as a UTF-8 string decoded to managed text.
     /// </summary>
@@ -376,20 +362,6 @@ public partial struct LuauTable
                 ? null
                 : value.ToArray()
             : throw CreateReadException(error);
-
-    /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua buffer. </summary>
-    /// <param name="key">Table key to resolve.</param>
-    /// <param name="value">Resolved buffer bytes.</param>
-    /// <returns><c>true</c> when the value exists and is a buffer; otherwise <c>false</c>.</returns>
-    public bool TryGetBuffer(IntoLuau key, out ReadOnlySpan<byte> value) => TryGetBuffer(key, out value, out _);
-
-    /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua buffer or <c>nil</c>. </summary>
-    /// <param name="key">Table key to resolve.</param>
-    /// <param name="value">Resolved buffer bytes, or <c>default</c> when the value is <c>nil</c>.</param>
-    /// <param name="isNil">Set to <c>true</c> when the value is <c>nil</c>.</param>
-    /// <returns><c>true</c> when the value is buffer or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public bool TryGetBufferOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
-        TryGetBufferOrNil(key, out value, out isNil, out _);
 
     /// <summary>
     /// Attempts to get the value for <paramref name="key"/> as a managed byte array.

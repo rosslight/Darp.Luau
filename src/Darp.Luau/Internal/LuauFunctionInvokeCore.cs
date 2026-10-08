@@ -174,13 +174,53 @@ internal static unsafe class LuauFunctionInvokeCore
 
     public static TR ResultSelector<TR>(LuauArgs a) => a.Read<TR>(1);
 
-    public static (TR1, TR2) ResultSelector<TR1, TR2>(LuauArgs a) => (a.Read<TR1>(1), a.Read<TR2>(2));
+    // A result that was read holds a reference when it is a table, function or other reference type. When a later
+    // result cannot be read, the caller gets none of them, so the ones already read are released here.
 
-    public static (TR1, TR2, TR3) ResultSelector<TR1, TR2, TR3>(LuauArgs a) =>
-        (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3));
+    public static (TR1, TR2) ResultSelector<TR1, TR2>(LuauArgs a)
+    {
+        TR1 result1 = a.Read<TR1>(1);
+        try
+        {
+            return (result1, a.Read<TR2>(2));
+        }
+        catch
+        {
+            Release(result1);
+            throw;
+        }
+    }
 
-    public static (TR1, TR2, TR3, TR4) ResultSelector<TR1, TR2, TR3, TR4>(LuauArgs a) =>
-        (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3), a.Read<TR4>(4));
+    public static (TR1, TR2, TR3) ResultSelector<TR1, TR2, TR3>(LuauArgs a)
+    {
+        (TR1 result1, TR2 result2) = ResultSelector<TR1, TR2>(a);
+        try
+        {
+            return (result1, result2, a.Read<TR3>(3));
+        }
+        catch
+        {
+            Release(result1);
+            Release(result2);
+            throw;
+        }
+    }
+
+    public static (TR1, TR2, TR3, TR4) ResultSelector<TR1, TR2, TR3, TR4>(LuauArgs a)
+    {
+        (TR1 result1, TR2 result2, TR3 result3) = ResultSelector<TR1, TR2, TR3>(a);
+        try
+        {
+            return (result1, result2, result3, a.Read<TR4>(4));
+        }
+        catch
+        {
+            Release(result1);
+            Release(result2);
+            Release(result3);
+            throw;
+        }
+    }
 
     public static LuauValue[] ResultSelectorMulti(LuauArgs a)
     {
@@ -188,10 +228,20 @@ internal static unsafe class LuauFunctionInvokeCore
         for (int i = 1; i <= values.Length; i++)
         {
             if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
+            {
+                foreach (LuauValue read in values)
+                    read.Dispose();
                 throw new ArgumentOutOfRangeException(nameof(a), error);
+            }
             values[i - 1] = value;
         }
 
         return values;
+    }
+
+    private static void Release<T>(T result)
+    {
+        if (result is IDisposable disposable)
+            disposable.Dispose();
     }
 }

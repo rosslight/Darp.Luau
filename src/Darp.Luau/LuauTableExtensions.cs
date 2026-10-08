@@ -11,9 +11,21 @@ public static class LuauTableExtensions
     /// <param name="value"> The value, if present and of the correct type </param>
     /// <typeparam name="TValue"> The type of the value </typeparam>
     /// <returns> True, if the value could be retrieved and has the correct type. False, otherwise </returns>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when <typeparamref name="TValue"/> is a span. A span would point into memory that only the table
+    /// keeps alive. Read a copy, or use <see cref="LuauMarshal"/>.
+    /// </exception>
     public static bool TryGet<TValue>(this in LuauTable table, IntoLuau key, [NotNullWhen(true)] out TValue? value)
         where TValue : allows ref struct
     {
+        if (typeof(TValue) == typeof(ReadOnlySpan<byte>) || typeof(TValue) == typeof(ReadOnlySpan<char>))
+        {
+            throw new NotSupportedException(
+                $"A table value cannot be read as a span: only the table keeps its memory alive. "
+                    + $"Read a copy, or use {nameof(LuauMarshal)}."
+            );
+        }
+
         value = default;
         if (!table.TryGetLuauValue(key, out LuauValue luauValue))
             return false;

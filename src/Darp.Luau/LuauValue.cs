@@ -141,9 +141,14 @@ public readonly struct LuauValue : IDisposable
                         or LuauValueType.Thread
                         or LuauValueType.Userdata
                         or LuauValueType.Buffer
-                && _state.ReferenceTracker.HasRegistryReference(_union.ValueHandle)
             )
             {
+                // A reference that was disposed, or whose state is gone, cannot be copied.
+                if (_state.IsDisposed || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                {
+                    value = default;
+                    return false;
+                }
                 ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
                 temp = new LuauValue(_state, Type, new LuauValueUnion(newHandle));
             }

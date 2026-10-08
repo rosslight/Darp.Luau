@@ -98,7 +98,7 @@ public sealed class LuauTablePrimitiveOverloadTests
         LuauTable table = lua.CreateTable();
         table.Set("value", "hallo");
 
-        table.TryGetUtf8String("value", out ReadOnlySpan<byte> bytes).ShouldBeTrue();
+        LuauMarshal.TryGetUtf8StringSpan(table, "value", out ReadOnlySpan<byte> bytes).ShouldBeTrue();
         Encoding.UTF8.GetString(bytes).ShouldBe("hallo");
     }
 
@@ -108,11 +108,11 @@ public sealed class LuauTablePrimitiveOverloadTests
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
 
-        table.TryGetUtf8String("missing", out ReadOnlySpan<byte> missingValue).ShouldBeFalse();
+        LuauMarshal.TryGetUtf8StringSpan(table, "missing", out ReadOnlySpan<byte> missingValue).ShouldBeFalse();
         missingValue.IsEmpty.ShouldBeTrue();
 
         table.Set("wrong", 1);
-        table.TryGetUtf8String("wrong", out ReadOnlySpan<byte> wrongTypeValue).ShouldBeFalse();
+        LuauMarshal.TryGetUtf8StringSpan(table, "wrong", out ReadOnlySpan<byte> wrongTypeValue).ShouldBeFalse();
         wrongTypeValue.IsEmpty.ShouldBeTrue();
     }
 
@@ -123,7 +123,9 @@ public sealed class LuauTablePrimitiveOverloadTests
         LuauTable table = lua.CreateTable();
         table.Set("value", "hallo");
 
-        table.TryGetUtf8StringOrNil("value", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeTrue();
+        LuauMarshal
+            .TryGetUtf8StringSpanOrNil(table, "value", out ReadOnlySpan<byte> value, out bool isNil)
+            .ShouldBeTrue();
         isNil.ShouldBeFalse();
         Encoding.UTF8.GetString(value).ShouldBe("hallo");
     }
@@ -134,7 +136,9 @@ public sealed class LuauTablePrimitiveOverloadTests
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
 
-        table.TryGetUtf8StringOrNil("missing", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeTrue();
+        LuauMarshal
+            .TryGetUtf8StringSpanOrNil(table, "missing", out ReadOnlySpan<byte> value, out bool isNil)
+            .ShouldBeTrue();
         isNil.ShouldBeTrue();
         value.IsEmpty.ShouldBeTrue();
     }
@@ -146,7 +150,9 @@ public sealed class LuauTablePrimitiveOverloadTests
         LuauTable table = lua.CreateTable();
         table.Set("wrong", 1);
 
-        table.TryGetUtf8StringOrNil("wrong", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeFalse();
+        LuauMarshal
+            .TryGetUtf8StringSpanOrNil(table, "wrong", out ReadOnlySpan<byte> value, out bool isNil)
+            .ShouldBeFalse();
         isNil.ShouldBeFalse();
         value.IsEmpty.ShouldBeTrue();
     }
@@ -265,7 +271,7 @@ public sealed class LuauTablePrimitiveOverloadTests
         byte[] expected = [0x01, 0x02, 0x03];
         table.Set("value", expected);
 
-        table.TryGetBuffer("value", out ReadOnlySpan<byte> value).ShouldBeTrue();
+        LuauMarshal.TryGetBufferSpan(table, "value", out ReadOnlySpan<byte> value).ShouldBeTrue();
         value.ToArray().ShouldBe(expected);
     }
 
@@ -275,11 +281,11 @@ public sealed class LuauTablePrimitiveOverloadTests
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
 
-        table.TryGetBuffer("missing", out ReadOnlySpan<byte> missingValue).ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpan(table, "missing", out ReadOnlySpan<byte> missingValue).ShouldBeFalse();
         missingValue.IsEmpty.ShouldBeTrue();
 
         table.Set("wrong", 1);
-        table.TryGetBuffer("wrong", out ReadOnlySpan<byte> wrongTypeValue).ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpan(table, "wrong", out ReadOnlySpan<byte> wrongTypeValue).ShouldBeFalse();
         wrongTypeValue.IsEmpty.ShouldBeTrue();
     }
 
@@ -291,7 +297,7 @@ public sealed class LuauTablePrimitiveOverloadTests
         byte[] expected = [0x01, 0x02, 0x03];
         table.Set("value", expected);
 
-        table.TryGetBufferOrNil("value", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeTrue();
+        LuauMarshal.TryGetBufferSpanOrNil(table, "value", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeTrue();
         isNil.ShouldBeFalse();
         value.ToArray().ShouldBe(expected);
     }
@@ -302,7 +308,9 @@ public sealed class LuauTablePrimitiveOverloadTests
         using var lua = new LuauState();
         LuauTable table = lua.CreateTable();
 
-        table.TryGetBufferOrNil("missing", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeTrue();
+        LuauMarshal
+            .TryGetBufferSpanOrNil(table, "missing", out ReadOnlySpan<byte> value, out bool isNil)
+            .ShouldBeTrue();
         isNil.ShouldBeTrue();
         value.IsEmpty.ShouldBeTrue();
     }
@@ -314,7 +322,7 @@ public sealed class LuauTablePrimitiveOverloadTests
         LuauTable table = lua.CreateTable();
         table.Set("wrong", 1);
 
-        table.TryGetBufferOrNil("wrong", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpanOrNil(table, "wrong", out ReadOnlySpan<byte> value, out bool isNil).ShouldBeFalse();
         isNil.ShouldBeFalse();
         value.IsEmpty.ShouldBeTrue();
     }
