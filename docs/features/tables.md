@@ -21,7 +21,7 @@ lua.Globals.Set("config", config);
 
 `LuauState.Globals` is just another `LuauTable`, so the same patterns apply there too.
 
-`Set` writes like a script does, so `__newindex` runs for a new key. It throws `LuaException` when the metamethod raises an error or the table is frozen with `table.freeze(...)`, and `ArgumentException` for a `nil` or NaN key.
+`Set` writes like a script does, so `__newindex` runs for a new key. It throws `LuaException` when Luau rejects the write: the metamethod raises an error, the table is frozen with `table.freeze(...)`, or the key is `nil` or NaN. A `null` key throws `ArgumentNullException`.
 
 ## Choose a read API
 

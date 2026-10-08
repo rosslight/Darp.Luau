@@ -361,7 +361,7 @@ internal readonly struct CoroutineDriver
         return args.Length;
     }
 
-    private unsafe int Resume(int argumentCount) => lua_resume(_coroutine, null, argumentCount);
+    private unsafe int Resume(int argumentCount) => LuauVm.Resume(_state, _coroutine, null, argumentCount);
 
     private void ThrowIfStateDisposed()
     {
@@ -429,7 +429,7 @@ internal readonly struct CoroutineDriver
         try
         {
             if (result.TryPushValues(_state, _coroutine, out int resultCount, out error))
-                return darp_luau_resumecallback(_coroutine, null, resultCount);
+                return LuauVm.ResumeCallback(_state, _coroutine, resultCount);
         }
         catch (Exception exception)
         {
@@ -439,7 +439,7 @@ internal readonly struct CoroutineDriver
         // The error surfaces at the suspended call site, where a script pcall can catch it.
         lua_settop(_coroutine, topBeforePush);
         LuauStateMarshal.PushString(_coroutine, error);
-        return lua_resumeerror(_coroutine, null);
+        return LuauVm.ResumeError(_state, _coroutine);
     }
 
     private unsafe TResult ReadResults<TResult>(int status, Func<LuauArgs, TResult> resultSelector, bool yieldIsError)

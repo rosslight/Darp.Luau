@@ -204,7 +204,7 @@ public sealed class StateTests : IDisposable
         // Luau would continue in a closed state when the callback returns.
         LuaException exception = Should.Throw<LuaException>(() => state.Load("quit()").Execute());
 
-        exception.Message.ShouldContain("cannot be disposed while one of its managed callbacks runs");
+        exception.Message.ShouldContain("cannot be disposed while it runs a script");
         state.IsDisposed.ShouldBeFalse();
         state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
     }

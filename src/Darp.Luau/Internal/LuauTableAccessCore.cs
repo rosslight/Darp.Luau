@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
+using System.Text;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -8,9 +8,8 @@ namespace Darp.Luau.Internal;
 
 /// <summary> Reads and writes table values like a script does: with the metamethods of the table. </summary>
 /// <remarks>
-/// A table without <c>__index</c> or <c>__newindex</c> is accessed raw, which cannot raise a Luau error. Any other
-/// table goes through <see cref="ProtectedTableAccess"/>, because an error raised by a metamethod must not unwind
-/// through managed frames.
+/// Luau decides what an access does and whether it fails. Key and value are pushed once and <see cref="LuauVm"/>
+/// returns the outcome, so this class only moves values on the stack.
 /// </remarks>
 internal static unsafe class LuauTableAccessCore
 {
@@ -20,24 +19,11 @@ internal static unsafe class LuauTableAccessCore
         LuauState state = source.Validate();
         if (key.Type is IntoLuau.Kind.Nil)
             throw new ArgumentNullException(nameof(key), "Cannot set a table value with nil key");
-        if (key.IsNaN)
-            throw new ArgumentException("Cannot set a table value with a NaN key", nameof(key));
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         using PopDisposable _ = source.PushToTop(); // [table]
-        if (HasMetamethod(L, -1, "__newindex\0"u8))
-        {
-            // Luau decides: __newindex handles a new key even when the table is frozen.
-            if (!state.ProtectedTableAccess.TrySet(state, L, key, value, out string? error))
-                throw new LuaException($"Could not set the table value: {error}");
-            return;
-        }
-
-        if (LuauNativeMethods.IsReadOnly(L, -1))
-            throw new LuaException("Could not set the table value: attempt to modify a readonly table");
-
         key.Push(state); // [table, key]
         try
         {
@@ -48,7 +34,7 @@ internal static unsafe class LuauTableAccessCore
             lua_pop(L, 1);
             throw;
         }
-        lua_rawset(L, -3);
+        LuaException.ThrowIfNotOk(L, LuauVm.SetTable(state, L, -3), "lua_settable");
     }
 
     internal static bool ContainsKey<T>(scoped in T source, in IntoLuau key)
@@ -96,18 +82,6 @@ internal static unsafe class LuauTableAccessCore
 #pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
         _ = source.PushToTop(); // [table]
 #pragma warning restore CA2000
-        return TryPushValueOrPopTable(state, L, key, out actualType, out error);
-    }
-
-    /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pops the table when it fails. </summary>
-    private static bool TryPushValueOrPopTable(
-        LuauState state,
-        lua_State* L,
-        in IntoLuau key,
-        out lua_Type actualType,
-        [NotNullWhen(false)] out string? error
-    )
-    {
         try
         {
             if (TryPushValue(state, L, key, out actualType, out error))
@@ -133,12 +107,7 @@ internal static unsafe class LuauTableAccessCore
     )
         where T : IReferenceSource, allows ref struct
     {
-        LuauState state = source.Validate();
-        L = state.L;
-#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
-        _ = source.PushToTop(); // [table]
-#pragma warning restore CA2000
-        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
+        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
             return false;
         if (actualType == expectedType)
             return true;
@@ -164,12 +133,7 @@ internal static unsafe class LuauTableAccessCore
         where T : IReferenceSource, allows ref struct
     {
         isNil = false;
-        LuauState state = source.Validate();
-        L = state.L;
-#pragma warning disable CA2000 // The table stays on the stack below the value. The caller pops both.
-        _ = source.PushToTop(); // [table]
-#pragma warning restore CA2000
-        if (!TryPushValueOrPopTable(state, L, key, out lua_Type actualType, out error))
+        if (!TryGet(source, key, out L, out lua_Type actualType, out error))
             return false;
 
         if (actualType == lua_Type.LUA_TNIL)
@@ -188,7 +152,6 @@ internal static unsafe class LuauTableAccessCore
     }
 
     /// <summary> Pushes <c>table[key]</c> for the table on top of the stack. Pushes nothing when it fails. </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryPushValue(
         LuauState state,
         lua_State* L,
@@ -197,34 +160,20 @@ internal static unsafe class LuauTableAccessCore
         [NotNullWhen(false)] out string? error
     )
     {
-        // Pushing a userdata factory runs it. The raw read below consumes the key, and a second push for __index
-        // would run the factory again, so such a key takes the path that pushes it once.
-        if (key.Type is IntoLuau.Kind.UserdataFactory && HasMetamethod(L, -1, "__index\0"u8))
-            return state.ProtectedTableAccess.TryGet(state, L, key, out actualType, out error);
-
         key.Push(state); // [table, key]
-        actualType = (lua_Type)lua_rawget(L, -2); // [table, value]
-        error = null;
-        if (actualType is not lua_Type.LUA_TNIL)
-            return true;
-
-        // Only a missing value is looked up with __index.
-        if (!HasMetamethod(L, -2, "__index\0"u8))
-            return true;
-        lua_pop(L, 1); // [table]
-        return state.ProtectedTableAccess.TryGet(state, L, key, out actualType, out error);
-    }
-
-    /// <summary> Whether the table at <paramref name="tableIndex"/> has the metamethod <paramref name="name"/>. </summary>
-    private static bool HasMetamethod(lua_State* L, int tableIndex, ReadOnlySpan<byte> name)
-    {
-        if (!LuauNativeMethods.TryPushMetatable(L, tableIndex))
-            return false;
-        fixed (byte* pName = name)
+        int result = LuauVm.GetTable(state, L, -2); // [table, value] or [table, error]
+        if (result >= 0)
         {
-            bool hasMetamethod = (lua_Type)lua_rawgetfield(L, -1, pName) is not lua_Type.LUA_TNIL;
-            lua_pop(L, 2);
-            return hasMetamethod;
+            actualType = (lua_Type)result;
+            error = null;
+            return true;
         }
+
+        nuint length = 0;
+        byte* message = lua_tolstring(L, -1, &length);
+        error = message is null ? "<unknown lua error>" : Encoding.UTF8.GetString(message, (int)length);
+        lua_pop(L, 1);
+        actualType = lua_Type.LUA_TNIL;
+        return false;
     }
 }

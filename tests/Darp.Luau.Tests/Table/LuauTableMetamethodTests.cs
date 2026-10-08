@@ -148,14 +148,18 @@ public sealed class LuauTableMetamethodTests : IDisposable
     }
 
     [Fact]
-    public void Set_WithNaNKey_ShouldThrow()
+    public void Set_WithAKeyLuauRejects_ShouldThrow()
     {
         using LuauTable table = _state.CreateTable();
 
-        Should.Throw<ArgumentException>(() => table.Set(double.NaN, 1));
-        Should.Throw<ArgumentException>(() => table.Set((LuauValue)double.NaN, 1));
+        Should.Throw<LuaException>(() => table.Set(double.NaN, 1)).Message.ShouldContain("NaN");
+        Should.Throw<LuaException>(() => table.Set((LuauValue)double.NaN, 1)).Message.ShouldContain("NaN");
+        // A nil that only shows when the key is pushed: Luau reports it like any other failed write.
+        Should.Throw<LuaException>(() => table.Set(default(LuauValue), 1)).Message.ShouldContain("nil");
 
         table.ContainsKey(double.NaN).ShouldBeFalse();
+        table.ContainsKey(default(LuauValue)).ShouldBeFalse();
+        _state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
     }
 
     [Fact]

@@ -162,7 +162,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         lua_getref(L, _identityMapReference); // [userdata, identityMap]
         lua_pushnumber(L, identity); // [userdata, identityMap, identity]
         lua_pushvalue(L, -3); // [userdata, identityMap, identity, userdata]
-        lua_settable(L, -3); // [userdata, identityMap]
+        lua_rawset(L, -3); // [userdata, identityMap]
         lua_pop(L, 1); // [userdata]
 
         ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
@@ -195,7 +195,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         fixed (byte* pWeakValues = "v"u8)
         {
             lua_pushlstring(L, pWeakValues, 1);
-            lua_setfield(L, -2, pModeName);
+            lua_rawsetfield(L, -2, pModeName);
         }
 
         _ = lua_setmetatable(L, -2);
@@ -209,7 +209,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 #endif
         lua_getref(L, _identityMapReference); // [cache]
         lua_pushnumber(L, identity); // [cache, identity]
-        _ = lua_gettable(L, -2); // [cache, value]
+        _ = lua_rawget(L, -2); // [cache, value]
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
@@ -246,22 +246,22 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             fixed (byte* pMetatableName = "__metatable\0"u8)
             {
                 LuauStateMarshal.PushString(L, "The metatable is locked"u8);
-                lua_setfield(L, -2, pMetatableName);
+                lua_rawsetfield(L, -2, pMetatableName);
             }
             fixed (byte* pIndexName = "__index\0"u8)
             {
                 _state.PushNativeCallback(&IndexCallback, null, pIndexName);
-                lua_setfield(L, -2, pIndexName);
+                lua_rawsetfield(L, -2, pIndexName);
             }
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
                 _state.PushNativeCallback(&NewIndexCallback, null, pNewIndexName);
-                lua_setfield(L, -2, pNewIndexName);
+                lua_rawsetfield(L, -2, pNewIndexName);
             }
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
                 _state.PushNativeCallback(&MethodCallback, null, pNameCallName);
-                lua_setfield(L, -2, pNameCallName);
+                lua_rawsetfield(L, -2, pNameCallName);
             }
             lua_setreadonly(L, -1, 1);
             lua_setuserdatametatable(L, LuauUserdataNative.Tag);
@@ -292,7 +292,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            using LuauState.CallbackScope callbackScope = registration.State.EnterCallback();
             return registration.OnIndexCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
@@ -309,7 +308,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            using LuauState.CallbackScope callbackScope = registration.State.EnterCallback();
             return registration.OnNewIndexCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
@@ -326,7 +324,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            using LuauState.CallbackScope callbackScope = registration.State.EnterCallback();
             return registration.OnMethodCallback(registration.State, L, userdata);
         }
         catch (Exception exception)
