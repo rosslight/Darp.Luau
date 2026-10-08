@@ -25,6 +25,29 @@ public sealed class AsyncFunctionTests : IDisposable
         return function;
     }
 
+    /// <summary> Runs full Luau garbage collections and reuses the memory they freed. </summary>
+    private void CollectGarbage() =>
+        _state
+            .Load(
+                """
+                -- A script cannot request a collection: allocate until two generations of unreferenced tables are gone.
+                local function addUnreferenced(weak)
+                    weak[1] = {}
+                end
+                for generation = 1, 2 do
+                    local weak = setmetatable({}, { __mode = "v" })
+                    addUnreferenced(weak)
+                    local allocations = 0
+                    while weak[1] ~= nil do
+                        allocations += 1
+                        assert(allocations < 10000000, "no collection ran")
+                        local garbage = { coroutine.create(function() end) }
+                    end
+                end
+                """
+            )
+            .Execute();
+
     private static async ValueTask<LuauReturn> AddLater(Task<int> increment, double value) =>
         LuauReturn.Ok(value + await increment);
 
@@ -121,6 +144,57 @@ public sealed class AsyncFunctionTests : IDisposable
 
         gates[0].SetResult(32);
         (await first).ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task ManySuspendedInvocations_ShouldEachKeepTheirOwnTokenAndResult()
+    {
+        const int invocationCount = 10;
+        var gates = new TaskCompletionSource<int>[invocationCount];
+        var sources = new CancellationTokenSource[invocationCount];
+        var observedTokens = new CancellationToken[invocationCount];
+        using LuauFunction addLater = SetAsyncGlobal(
+            "add_later",
+            (value, _) => AddLater(gates[(int)value].Task, value)
+        );
+        using LuauFunction readToken = _state.CreateFunctionBuilder(args =>
+        {
+            args.TryReadNumber(1, out double index, out _).ShouldBeTrue();
+            observedTokens[(int)index] = args.CancellationToken;
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("read_token", readToken);
+        using LuauFunction body = _state
+            .Load(
+                """
+                local index = ...
+                local result = add_later(index)
+                read_token(index)
+                return result
+                """
+            )
+            .ToFunction();
+
+        // Two rounds, so that the second one reuses what the first one left behind.
+        for (int round = 0; round < 2; round++)
+        {
+            var pending = new Task<int>[invocationCount];
+            for (int i = 0; i < invocationCount; i++)
+            {
+                gates[i] = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+                sources[i] = new CancellationTokenSource();
+                pending[i] = body.InvokeAsync<int>([i], sources[i].Token).AsTask();
+                pending[i].IsCompleted.ShouldBeFalse();
+            }
+
+            for (int i = invocationCount - 1; i >= 0; i--)
+            {
+                gates[i].SetResult(100);
+                (await pending[i]).ShouldBe(100 + i);
+                observedTokens[i].ShouldBe(sources[i].Token);
+                sources[i].Dispose();
+            }
+        }
     }
 
     [Fact]
@@ -524,10 +598,27 @@ public sealed class AsyncFunctionTests : IDisposable
         pending.IsCompleted.ShouldBeFalse();
         coroutine.Status.ShouldBe(LuauCoroutineStatus.Suspended);
         coroutine.Dispose();
+        CollectGarbage();
         gate.SetResult(2);
 
         (await pending).ShouldBe(5);
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baseline);
+    }
+
+    [Fact]
+    public async Task SuspendedInvocation_ShouldSurviveAGarbageCollection()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction addLater = SetAsyncGlobal("add_later", (value, _) => AddLater(gate.Task, value));
+
+        ValueTask<int> pending = _state
+            .Load("local text = string.rep('x', 3) return add_later(#text)")
+            .ExecuteAsync<int>([], TestToken);
+        pending.IsCompleted.ShouldBeFalse();
+        CollectGarbage();
+        gate.SetResult(2);
+
+        (await pending).ShouldBe(5);
     }
 
     [Fact]

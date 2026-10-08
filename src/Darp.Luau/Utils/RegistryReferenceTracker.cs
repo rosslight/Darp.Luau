@@ -11,11 +11,13 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     private readonly ConcurrentDictionary<ulong, TrackedReference> _trackedReferences = [];
     private ulong _nextTrackedReferenceHandle = 1;
     private ulong _releasedRegistryReferenceCount;
+    private ulong _createdRootCount;
+    private ulong _activeRootCount;
 
     public LuauMemoryStatistics GetStatistics(int activeManagedCallbacks) =>
         new(
-            ActiveRegistryReferences: (ulong)_trackedReferences.Count,
-            CreatedRegistryReferences: _nextTrackedReferenceHandle - 1,
+            ActiveRegistryReferences: (ulong)_trackedReferences.Count + _activeRootCount,
+            CreatedRegistryReferences: _nextTrackedReferenceHandle - 1 + _createdRootCount,
             ReleasedRegistryReferences: _releasedRegistryReferenceCount,
             ActiveManagedCallbacks: activeManagedCallbacks
         );
@@ -53,6 +55,31 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         return handle;
     }
 
+    /// <summary>
+    /// Roots the value at the specified stack index for an internal owner that releases it with
+    /// <see cref="ReleaseRoot"/>.
+    /// </summary>
+    /// <remarks> Unlike a tracked reference, a root has no handle and allocates nothing. </remarks>
+    /// <returns>The registry reference of the root.</returns>
+    public unsafe int AddRoot(lua_State* L, int stackIndex)
+    {
+        int luaReference = lua_ref(L, stackIndex);
+        _createdRootCount++;
+        _activeRootCount++;
+        return luaReference;
+    }
+
+    /// <summary> Releases a root added with <see cref="AddRoot"/>. </summary>
+    /// <remarks> Does nothing after the state is disposed: its roots are released with it. </remarks>
+    public unsafe void ReleaseRoot(int luaReference)
+    {
+        if (_state.IsDisposed)
+            return;
+        _ = lua_unref(_state.L, luaReference);
+        _activeRootCount--;
+        _releasedRegistryReferenceCount++;
+    }
+
     public bool HasRegistryReference(ulong handle) => _trackedReferences.ContainsKey(handle);
 
     public ulong CountRefOrThrow(ulong handle)
@@ -79,11 +106,9 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
     public void ReleaseAll()
     {
-        if (_trackedReferences.IsEmpty)
-            return;
-
-        _releasedRegistryReferenceCount += (ulong)_trackedReferences.Count;
+        _releasedRegistryReferenceCount += (ulong)_trackedReferences.Count + _activeRootCount;
         _trackedReferences.Clear();
+        _activeRootCount = 0;
     }
 
     private ulong GetNextHandle()
