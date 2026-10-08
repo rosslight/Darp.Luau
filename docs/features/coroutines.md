@@ -90,7 +90,7 @@ For the script, `fetch(url)` is a normal call that returns the body. While the w
 
 - If the work has already completed successfully, `LuauReturn.Await(...)` returns its result directly and the script does not suspend.
 - The work completes with `LuauReturn.Ok(...)` or `LuauReturn.Error(...)` like a sync callback.
-- A pending result is only supported as the result of a managed function. Userdata hooks cannot await.
+- A userdata method can await in the same way: return `LuauReturn.Await(...)` from `OnMethodCall`. Property reads and writes cannot await.
 
 ## Run scripts that await
 
@@ -113,9 +113,8 @@ await coroutine.ResumeAsync([], cancellationToken);
 
 Everywhere else, an awaiting callback raises a Luau error that `pcall(...)` can catch:
 
-- during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`,
-- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`,
-- in userdata methods.
+- during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`, or
+- inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`.
 
 The work of a rejected callback has already started and keeps running. Its result is dropped and a fault is ignored. Luau references the work captured stay alive until the state is disposed.
 

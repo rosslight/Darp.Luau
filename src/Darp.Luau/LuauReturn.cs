@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
@@ -32,6 +33,9 @@ public readonly struct LuauReturn
 
     /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
     internal const string NotHandled = "__DARP_NOT_HANDLED__";
+
+    /// <summary> Gets whether this is <see cref="NotHandledError"/>. </summary>
+    internal bool IsNotHandled => _error == NotHandled;
 
     private LuauReturn(
         int valueCount,
@@ -156,16 +160,12 @@ public readonly struct LuauReturn
         [NotNullWhen(false)] out string? error
     )
     {
+        Debug.Assert(!IsPending, "A callback hands its pending result to the coroutine driver instead of pushing it.");
         outputCount = 0;
-        if (IsPending)
-        {
-            Release();
-            error = "LuauReturn.Await is only supported as the result of a managed function";
-            return false;
-        }
         if (!IsOk)
         {
-            error = _error ?? "Unknown error";
+            // A caller that knows what was not handled reports it before it gets here. Scripts never see the sentinel.
+            error = IsNotHandled ? "the callback did not handle the call" : _error ?? "Unknown error";
             return false;
         }
 
