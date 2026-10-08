@@ -248,6 +248,51 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task AsyncVoidMembers_ShouldFail()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player
+            {
+                [LuauMember("save")]
+                public async void Save() => await Task.Yield();
+            }
+
+            [LuauModule("game")]
+            public static partial class GameModule
+            {
+                [LuauMember("tick")]
+                public static async void Tick() => await Task.Yield();
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task CancellationTokenWithADefaultValue_ShouldReportNoDiagnostics()
+    {
+        const string code = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player
+            {
+                [LuauMember("wait")]
+                public Task Wait(int milliseconds, CancellationToken cancellationToken = default) =>
+                    Task.Delay(milliseconds, cancellationToken);
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExports(code);
+    }
+
+    [Fact]
     public async Task ModuleFunctionByteSpanReturn_ShouldFail()
     {
         const string code = """

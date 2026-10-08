@@ -144,27 +144,25 @@ await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
 
 A `CancellationToken` parameter is not a Luau argument. It receives the token of the async host call.
 
-A callback built with `CreateFunctionBuilder(...)` awaits by returning `LuauReturn.Await(...)` with work that completes later:
+An `async` lambda that is converted to `Action` would be `async void`: the script could not wait for it. The generator rejects that where it can see the lambda or method; a delegate you hold in a variable is not checked.
+
+A callback built with `CreateFunctionBuilder(...)` asks for an awaiter before it starts its work:
 
 ```csharp
 using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
 {
     if (!args.TryReadNumber(1, out int milliseconds, out string? error))
         return LuauReturn.Error(error);
-    return LuauReturn.Await(DelayAsync(milliseconds, args.CancellationToken));
-
-    static async ValueTask<LuauReturn> DelayAsync(int milliseconds, CancellationToken cancellationToken)
-    {
-        await Task.Delay(milliseconds, cancellationToken);
-        return LuauReturn.Ok();
-    }
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+        return LuauReturn.Error(error);
+    return awaiter.Await(new ValueTask(Task.Delay(milliseconds, args.CancellationToken)));
 });
 lua.Globals.Set("delay", delay);
 
 await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
 ```
 
-Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Read all arguments before you return `LuauReturn.Await(...)`. See [Coroutines](coroutines.md).
+Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Under a sync call the callback fails without starting its work. Read all arguments before you await. See [Coroutines](coroutines.md).
 
 ## Error behavior
 

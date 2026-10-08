@@ -67,6 +67,12 @@ internal sealed class AsyncDriveTable
         return true;
     }
 
+    /// <summary> Whether an async drive runs <paramref name="coroutine"/>. </summary>
+    public static unsafe bool IsDriving(lua_State* coroutine) => TryGetSlot(coroutine, out _);
+
+    /// <summary> Whether the host cancelled the call of the drive in <paramref name="slot"/>. </summary>
+    public bool IsCancellationRequested(int slot) => _slots[slot].CancellationToken.IsCancellationRequested;
+
     /// <summary> Whether <paramref name="coroutine"/> is suspended in a managed callback its drive awaits. </summary>
     public unsafe bool IsAwaiting(lua_State* coroutine) =>
         TryGetSlot(coroutine, out int slot) && !_slots[slot].Pending.IsNone;

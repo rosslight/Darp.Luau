@@ -21,7 +21,9 @@ public sealed class ExecutionContextTests : IDisposable
                 return LuauReturn.Error(error);
             if (!args.TryReadNumber(2, out int value, out error))
                 return LuauReturn.Error(error);
-            return LuauReturn.Await(TouchAsync(state, callbackView.ToOwned(), value));
+            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+                return LuauReturn.Error(error);
+            return awaiter.Await(TouchAsync(state, callbackView.ToOwned(), value));
 
             static async ValueTask<LuauReturn> TouchAsync(LuauState state, LuauFunction callback, int value)
             {
@@ -59,7 +61,7 @@ public sealed class ExecutionContextTests : IDisposable
         {
             if (!args.TryReadNumber(1, out int value, out string? error))
                 return LuauReturn.Error(error);
-            return LuauReturn.Await(DelayedAsync(state, value));
+            return args.AwaitOrError(() => DelayedAsync(state, value));
 
             static async ValueTask<LuauReturn> DelayedAsync(LuauState state, int value)
             {
@@ -87,7 +89,9 @@ public sealed class ExecutionContextTests : IDisposable
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        using LuauFunction block = _state.CreateFunctionBuilder(_ => LuauReturn.Await(BlockAsync(entered, release)));
+        using LuauFunction block = _state.CreateFunctionBuilder(args =>
+            args.AwaitOrError(() => BlockAsync(entered, release))
+        );
         _state.Globals.Set("block", block);
         using LuauFunction describe = _state
             .Load("return function(name, count, table) return name .. count .. table.suffix end")
@@ -122,10 +126,10 @@ public sealed class ExecutionContextTests : IDisposable
         using var state = new LuauState(LuauLibraries.All, null, dispatcher);
         var callbackThreads = new ConcurrentBag<int>();
         var continuationThreads = new ConcurrentBag<int>();
-        using LuauFunction record = state.CreateFunctionBuilder(_ =>
+        using LuauFunction record = state.CreateFunctionBuilder(args =>
         {
             callbackThreads.Add(Environment.CurrentManagedThreadId);
-            return LuauReturn.Await(RecordAsync(continuationThreads));
+            return args.AwaitOrError(() => RecordAsync(continuationThreads));
         });
         state.Globals.Set("record", record);
 
@@ -161,12 +165,12 @@ public sealed class ExecutionContextTests : IDisposable
     {
         using LuauFunction echo = _state.CreateFunctionBuilder(args =>
             args.TryReadNumber(1, out int value, out string? error)
-                ? LuauReturn.Await(EchoAsync(value))
+                ? args.AwaitOrError(() => EchoAsync(value))
                 : LuauReturn.Error(error)
         );
         _state.Globals.Set("echo", echo);
         using LuauFunction inner = _state.Load("return function(x) return echo(x) + 1 end").Execute<LuauFunction>();
-        using LuauFunction outer = _state.CreateFunctionBuilder(_ => LuauReturn.Await(OuterAsync(inner)));
+        using LuauFunction outer = _state.CreateFunctionBuilder(args => args.AwaitOrError(() => OuterAsync(inner)));
         _state.Globals.Set("outer", outer);
         using LuauFunction add = _state.Load("return function(a, b) return a + b end").Execute<LuauFunction>();
         using LuauFunction syncInvoke = _state.CreateFunctionBuilder(_ => LuauReturn.Ok(add.Invoke<int>(20, 1)));
@@ -198,7 +202,7 @@ public sealed class ExecutionContextTests : IDisposable
     public async Task HostCalls_ShouldRestoreTheCallersContextAndNotLeakTheirOwn()
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using LuauFunction wait = _state.CreateFunctionBuilder(_ => LuauReturn.Await(WaitAsync(gate.Task)));
+        using LuauFunction wait = _state.CreateFunctionBuilder(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
         _state.Globals.Set("wait", wait);
         SynchronizationContext? before = SynchronizationContext.Current;
 

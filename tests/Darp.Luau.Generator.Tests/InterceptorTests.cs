@@ -528,6 +528,28 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task AsyncVoidCallbacks_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+            using System.Threading.Tasks;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Action>(async () => await Task.Yield());
+                    state.CreateFunction<Action<int>>(TickAsync);
+                }
+
+                private static async void TickAsync(int count) => await Task.Yield();
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
     public async Task NestedAwaitableReturn_ShouldFail()
     {
         const string code = """

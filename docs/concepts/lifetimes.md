@@ -59,9 +59,9 @@ If you use a borrowed view after the callback frame ends, the library throws `Ob
 
 ## Arguments across awaits
 
-A callback that returns `LuauReturn.Await(...)` has returned before the awaited work runs. Its `LuauArgs` and views have ended by then, even though the script is still waiting for the result.
+A callback that awaits has returned before the awaited work runs. Its `LuauArgs` and views have ended by then, even though the script is still waiting for the result.
 
-- Read every argument before you return `LuauReturn.Await(...)`.
+- Read every argument before you hand the work to the awaiter.
 - Pass managed copies, or owned references created with `ToOwned()`, to the awaited work.
 - Dispose those owned references in the awaited work.
 

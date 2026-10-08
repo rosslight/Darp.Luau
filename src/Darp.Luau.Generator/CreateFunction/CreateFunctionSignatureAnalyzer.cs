@@ -90,6 +90,20 @@ internal static class CreateFunctionSignatureAnalyzer
             return false;
         }
 
+        if (invokeMethod.ReturnsVoid && IsAsyncCallback(invocationOperation))
+        {
+            // An async void callback reports success at once and runs on unobserved; nothing could await its work.
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    GetReturnLocation(invocationOperation),
+                    "void",
+                    "the result of an async callback (return Task or ValueTask so the script can wait for the work)"
+                )
+            );
+            return false;
+        }
+
         var parameters = ImmutableArray.CreateBuilder<InteropType>();
         var returnTypes = ImmutableArray.CreateBuilder<InteropType>();
         ImmutableArray<LambdaReturnOverride> returnOverrides = LambdaReturnNullabilityResolver.GetReturnOverrides(
@@ -168,6 +182,21 @@ internal static class CreateFunctionSignatureAnalyzer
             awaitable
         );
         return true;
+    }
+
+    /// <summary> Whether the callback is an async lambda or an async method. A delegate held in a variable is not seen. </summary>
+    private static bool IsAsyncCallback(IInvocationOperation invocationOperation)
+    {
+        IOperation? callback = invocationOperation.Arguments.FirstOrDefault()?.Value;
+        while (callback is IConversionOperation conversion)
+            callback = conversion.Operand;
+
+        return callback
+            is IDelegateCreationOperation
+            {
+                Target: IAnonymousFunctionOperation { Symbol.IsAsync: true }
+                    or IMethodReferenceOperation { Method.IsAsync: true }
+            };
     }
 
     private static bool TryMapTypeToInteropType(
