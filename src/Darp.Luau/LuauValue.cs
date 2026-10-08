@@ -415,7 +415,6 @@ public readonly struct LuauValue : IDisposable
 
     /// <summary> Converts a number to <typeparamref name="T"/> when that is a numeric type that can hold it. </summary>
     private static bool TryGetNumber<T>(double number, [NotNullWhen(true)] out T? value)
-        where T : allows ref struct
     {
         if (typeof(T) == typeof(double))
             return TryGetNumber<double, T>(number, out value);
@@ -452,7 +451,6 @@ public readonly struct LuauValue : IDisposable
 
     private static bool TryGetNumber<TNumber, T>(double number, [NotNullWhen(true)] out T? value)
         where TNumber : struct, INumber<TNumber>
-        where T : allows ref struct
     {
         if (LuauNumber.TryConvert(number, out TNumber converted))
         {
