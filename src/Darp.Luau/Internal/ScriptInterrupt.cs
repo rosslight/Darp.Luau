@@ -59,6 +59,10 @@ internal static unsafe class ScriptInterrupt
 
     private static void Install(LuauState state, CancellationToken cancellationToken)
     {
+        // Host code that runs between two stretches of a script, such as the conversion of an awaited result, may
+        // dispose the state. Its VM is gone then.
+        if (state.IsDisposed)
+            return;
         // Luau is only made to ask for a token that can be cancelled: a script pays for every question.
         if (cancellationToken.CanBeCanceled)
             darp_luau_setinterrupt(state.L, state.Interrupt);
