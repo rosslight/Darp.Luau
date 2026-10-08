@@ -1101,6 +1101,41 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
+    public async Task LostCoroutine_ThatAnotherHostCallRunsByNow_ShouldNotGetTheResultOfTheFirstCall()
+    {
+        var first = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction slow = SetAsyncGlobal("slow", (_, _) => new ValueTask<LuauReturn>(first.Task));
+        using LuauFunction slower = SetAsyncGlobal("slower", (_, _) => new ValueTask<LuauReturn>(second.Task));
+        using LuauFunction body = _state
+            .Load(
+                """
+                pcall(slow)
+                coroutine.yield("parked")
+                received = slower()
+                """
+            )
+            .ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(body);
+        _state.Globals.Set("waiting", coroutine);
+
+        // The first call loses the coroutine to a script, and a second call picks it up where the script left it.
+        ValueTask firstCall = coroutine.ResumeAsync([], TestToken);
+        _state.Load("coroutine.resume(waiting)").Execute();
+        ValueTask secondCall = coroutine.ResumeAsync([], TestToken);
+        secondCall.IsCompleted.ShouldBeFalse();
+
+        first.SetResult(LuauReturn.Ok("from the first callback"));
+        await Should.ThrowAsync<LuaException>(() => firstCall.AsTask());
+        _state.Globals.ContainsKey("received").ShouldBeFalse();
+
+        second.SetResult(LuauReturn.Ok("from the second callback"));
+        await secondCall;
+        _state.Globals.TryGet("received", out string? received).ShouldBeTrue();
+        received.ShouldBe("from the second callback");
+    }
+
+    [Fact]
     public async Task ScriptClosingACoroutineThatAwaits_ShouldEndTheHostCall()
     {
         var work = new TaskCompletionSource<LuauReturn>(TaskCreationOptions.RunContinuationsAsynchronously);
