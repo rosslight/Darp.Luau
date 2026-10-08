@@ -285,10 +285,12 @@ internal readonly struct CoroutineDriver
             // The work stays pending while awaiting: the coroutine is suspended, not running.
             while (status == (int)lua_Status.LUA_YIELD && drives.GetPending(_slot) is { IsNone: false } pending)
             {
-                Exception? failure = null;
+                // Assigned after the await only, so that it does not become a field of the state machine.
+                Exception? failure;
                 try
                 {
                     await pending.Task;
+                    failure = null;
                 }
                 catch (OperationCanceledException) when (drives.IsCancellationRequested(_slot))
                 {
