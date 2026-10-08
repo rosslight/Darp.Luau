@@ -13,6 +13,7 @@ namespace Darp.Luau.Internal.Require;
 internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 {
     private const byte ChunkNamePrefix = (byte)'@';
+
     [SuppressMessage(
         "Usage",
         "CA2213:Disposable fields should be disposed",
