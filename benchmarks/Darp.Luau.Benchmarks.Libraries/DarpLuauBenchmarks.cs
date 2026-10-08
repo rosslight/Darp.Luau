@@ -22,22 +22,14 @@ public class DarpLuauBenchmarks : IDisposable
         _state.Load(Scenario.Script).Execute();
         _state.Load(Scenario.AsyncScript).Execute();
 
-        _managedAddCompleted = _state.CreateFunctionBuilder(args =>
-        {
-            if (!args.TryReadNumber(1, out double a, out string? error))
-                return LuauReturn.Error(error);
-            if (!args.TryReadNumber(2, out double b, out error))
-                return LuauReturn.Error(error);
-            return LuauReturn.Await(ValueTask.FromResult(LuauReturn.Ok(a + b)));
-        });
-        _managedAddYielding = _state.CreateFunctionBuilder(args =>
-        {
-            if (!args.TryReadNumber(1, out double a, out string? error))
-                return LuauReturn.Error(error);
-            if (!args.TryReadNumber(2, out double b, out error))
-                return LuauReturn.Error(error);
-            return LuauReturn.Await(AddYielding(a, b));
-        });
+        _managedAddCompleted = _state.CreateFunction((double a, double b) => ValueTask.FromResult(a + b));
+        _managedAddYielding = _state.CreateFunction(
+            async ValueTask<double> (double a, double b) =>
+            {
+                await Task.Yield();
+                return a + b;
+            }
+        );
 
         _add = _state.Globals.GetLuauFunction("add");
         _callManagedAdd = _state.Globals.GetLuauFunction("call_managed_add");
@@ -74,12 +66,6 @@ public class DarpLuauBenchmarks : IDisposable
     )]
     public ValueTask<double> CallManagedFunctionAsyncYielding() =>
         _callManagedAddAsync.InvokeAsync<double>(Scenario.ManagedCalls, _managedAddYielding);
-
-    private static async ValueTask<LuauReturn> AddYielding(double a, double b)
-    {
-        await Task.Yield();
-        return LuauReturn.Ok(a + b);
-    }
 
     [Benchmark(Description = Scenario.TableSetAndGet, OperationsPerInvoke = 1)]
     public double TableSetAndGet()
