@@ -24,7 +24,7 @@ public readonly unsafe ref partial struct LuauArgs
     /// </summary>
     /// <remarks>
     /// <see cref="CancellationToken.None"/> outside an async host call. Pass it to the work a callback awaits through
-    /// its <see cref="LuauAwaiter"/>.
+    /// its <see cref="LuauAwaiter"/>: cancelling it stops the script, but not the callback or its work.
     /// </remarks>
     public CancellationToken CancellationToken
     {

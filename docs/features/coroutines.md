@@ -37,7 +37,7 @@ The arguments of the first resume become the arguments of the function. The argu
 | --- | --- | --- |
 | `Suspended` | not started yet, yielded, or waiting for an awaiting callback | yes, unless it is waiting for a callback |
 | `Running` | a host call or another coroutine is executing it | no |
-| `Finished` | its function returned, its awaited work was canceled, or a script closed it | no |
+| `Finished` | its function returned, its host call was cancelled, or a script closed it | no |
 | `Error` | it stopped with an error | no |
 
 `Running` also covers what `coroutine.status(...)` calls `normal`: a coroutine that resumed another coroutine and waits for it.
@@ -175,18 +175,52 @@ The compiler enforces most of this: `LuauArgs` and views are `ref struct` types 
 
 ## Cancellation
 
-The `CancellationToken` passed to `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)` is available to callbacks as `args.CancellationToken`. Pass it on to the work you await. Cancellation is cooperative: the library does not stop waiting on its own.
+The `CancellationToken` passed to `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)` stops the script, also one that never calls the host:
 
-When the token of the host call is cancelled and the awaited work ends with `OperationCanceledException`:
+```csharp
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+try
+{
+    await lua.Load("while true do end").ExecuteAsync([], timeout.Token);
+}
+catch (OperationCanceledException)
+{
+    // The script was stopped. The state is still usable.
+}
+```
 
-- the coroutine is finished; `pcall(...)` in the script cannot catch the cancellation,
-- the async method throws that `OperationCanceledException`,
-- a coroutine driven by `ResumeAsync(...)` reports `Finished` afterwards, and resuming it throws `InvalidOperationException`,
+Cancel the token from any thread or timer. Luau checks it at its safepoints: every loop iteration, call and return. When the token is cancelled,
+
+- the script is stopped at its next safepoint. This is not an error: `pcall(...)` in the script cannot catch it, and no code of the script runs afterwards,
+- the async method throws `OperationCanceledException`,
+- the coroutine is finished. One driven by `ResumeAsync(...)` reports `Finished` afterwards, and resuming it throws `InvalidOperationException`,
 - the state remains usable.
 
-Work that ignores the token completes normally, and the script continues with its result.
+A script that is checked for cancellation runs slower, by a few nanoseconds per safepoint. A call without a token, or with `CancellationToken.None`, does not pay for it.
 
-Work that is cancelled for another reason, such as a timeout of its own, fails like any other work: the script receives a Luau error that `pcall(...)` can catch.
+### Callbacks and awaited work
+
+The token is also available to callbacks as `args.CancellationToken`. Cancelling it does not stop a callback that is running, and the library does not stop waiting for awaited work on its own. Pass the token on to the work you await.
+
+- Work that ends with `OperationCanceledException` after the token was cancelled finishes the coroutine, and the async method throws that exception.
+- Work that ignores the token is awaited to its end. The script receives its result and is stopped at its next safepoint.
+- Work that is cancelled for another reason, such as a timeout of its own, fails like any other work: the script receives a Luau error that `pcall(...)` can catch.
+
+### Where a script is not stopped
+
+Luau can only stop a script where it could also yield. The following run to their end first, and the script is stopped at the first safepoint after them:
+
+- a metamethod such as `__index` or `__lt`, a `table.sort` comparator, a `string.gsub` replacement function, and an `xpcall` handler,
+- a sync `Invoke(...)` or `Execute(...)` that a callback makes,
+- a single call into a Luau library function, such as a slow `string.find` pattern.
+
+An endless loop in one of these places is not stopped. Neither are `Execute(...)`, `Invoke(...)`, and `Resume(...)`, which take no token.
+
+Three more details:
+
+- A script module that is stopped while it loads fails its `require(...)` with a Luau error, and the script that required it is stopped at its next safepoint.
+- A coroutine that the script created and that was running when the script was stopped stays in status `normal`. It cannot be resumed.
+- An async host call that a callback starts without a token is stopped by the token of the host call around it.
 
 ## Threading
 

@@ -26,6 +26,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - `CreateFunction(...)` callbacks take at most 16 parameters and none by reference. A task they return must not be nullable.
 - Generated exports reject explicit interface implementations, partial methods without an implementation, and nullable task returns. An `init` accessor is not exported as a setter.
 - `ExecuteAsync(...)` and `InvokeAsync(...)` create a new coroutine for every call.
+- Only the token of an async host call stops a running script. `Execute(...)`, `Invoke(...)`, and `Resume(...)` take no token, and there is no timeout or instruction budget.
 - An exception that the host's `ILuauFileSystem` throws while Luau resolves a `require(...)` path is reported as a module that was not found. Only an exception from reading the module file carries its message into the Luau error.
 
 ## Known edges
@@ -42,6 +43,7 @@ These are deliberate. The library does not guard against them, so your code has 
 
 ### Async and threading
 
+- A cancelled token stops a script only where Luau can yield. An endless loop in a metamethod, a `table.sort` comparator, an `xpcall` handler, or a sync `Invoke(...)` made by a callback is not stopped. See [Where a script is not stopped](../features/coroutines.md#where-a-script-is-not-stopped).
 - Disposing the state does not complete an async host call whose awaited work never finishes. The call fails with `ObjectDisposedException` when the work completes, so cancel the work.
 - The result of one task belongs to one callback. A second callback that awaits the same `Task<LuauReturn>` fails.
 - Awaiting methods of one userdata instance can interleave: while one waits, a script can call another. Guard state that must not be seen half-changed.
