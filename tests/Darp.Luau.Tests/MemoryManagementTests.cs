@@ -84,6 +84,44 @@ public sealed class MemoryManagementTests
     }
 
     [Fact]
+    public void ManagedCallback_WhenLuauCollectsTheFunction_ShouldReleaseItsHandle()
+    {
+        using var state = new LuauState();
+        int baselineCallbacks = state.MemoryStatistics.ActiveManagedCallbacks;
+
+        using (LuauFunction kept = state.CreateFunctionBuilder(_ => LuauReturn.Ok(42)))
+        {
+            state.Globals.Set("kept", kept);
+        }
+        for (int i = 0; i < 1000; i++)
+        {
+            using LuauFunction dropped = state.CreateFunctionBuilder(_ => LuauReturn.Ok());
+        }
+
+        // The first collection finds the functions unreachable, the second one what only they kept alive.
+        state.CollectGarbage();
+        state.CollectGarbage();
+
+        state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(baselineCallbacks + 1);
+        state.Load("return kept()").Execute<int>().ShouldBe(42);
+    }
+
+    [Fact]
+    public void ManagedCallback_WhenTheStateIsDisposed_ShouldReleaseItsHandle()
+    {
+        var state = new LuauState();
+        using (LuauFunction kept = state.CreateFunctionBuilder(_ => LuauReturn.Ok()))
+        {
+            state.Globals.Set("kept", kept);
+        }
+        state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(1);
+
+        state.Dispose();
+
+        state.MemoryStatistics.ActiveManagedCallbacks.ShouldBe(0);
+    }
+
+    [Fact]
     public void LuauTable_ExplicitCastToLuauValue_ShouldTransferReferenceOwnership()
     {
         using var state = new LuauState();
