@@ -186,6 +186,40 @@ public sealed class UserdataRegistryTests
     }
 
     [Fact]
+    public void EveryArithmeticMetamethod_ShouldBeReachedByItsOperator()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("a", new Arithmetic());
+
+        string reached = state
+            .Load("return table.concat({ a - a, a / a, a % a, a ^ a, a // a }, ' ')")
+            .Execute<string>();
+
+        reached.ShouldBe("sub div mod pow idiv");
+    }
+
+    [Fact]
+    public void Register_ThatDeclaresAMetamethodTwice_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        ArgumentException exception = Should.Throw<ArgumentException>(() =>
+            state.GetOrCreateUserdata(new DuplicateMetamethod())
+        );
+
+        exception.Message.ShouldContain("already declares '__add'");
+    }
+
+    [Fact]
+    public void Register_WithANameLuauWouldCutOff_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        // Luau reads a name up to its first zero, so 'ab' would be registered instead.
+        Should.Throw<ArgumentException>(() => state.GetOrCreateUserdata(new NameWithAZero()));
+    }
+
+    [Fact]
     public void OperatorThatIsNotDeclared_ShouldRaiseTheErrorOfLuauWithTheTypeName()
     {
         using var state = new LuauState();
@@ -395,6 +429,36 @@ public sealed class UserdataRegistryTests
             : "?";
 
         public static implicit operator IntoLuau(Fallbacks value) => IntoLuau.FromUserdata(value);
+    }
+
+    /// <summary> Every arithmetic metamethod returns its own name. </summary>
+    private sealed class Arithmetic : ILuauUserdata<Arithmetic>
+    {
+        public static void Register(LuauUserdataRegistry<Arithmetic> registry)
+        {
+            registry.AddMetamethod(LuauMetamethod.Sub, static _ => LuauReturn.Ok("sub"));
+            registry.AddMetamethod(LuauMetamethod.Div, static _ => LuauReturn.Ok("div"));
+            registry.AddMetamethod(LuauMetamethod.Mod, static _ => LuauReturn.Ok("mod"));
+            registry.AddMetamethod(LuauMetamethod.Pow, static _ => LuauReturn.Ok("pow"));
+            registry.AddMetamethod(LuauMetamethod.IDiv, static _ => LuauReturn.Ok("idiv"));
+        }
+
+        public static implicit operator IntoLuau(Arithmetic value) => IntoLuau.FromUserdata(value);
+    }
+
+    private sealed class DuplicateMetamethod : ILuauUserdata<DuplicateMetamethod>
+    {
+        public static void Register(LuauUserdataRegistry<DuplicateMetamethod> registry)
+        {
+            registry.AddMetamethod(LuauMetamethod.Add, static _ => LuauReturn.Ok(1));
+            registry.AddMetamethod(LuauMetamethod.Add, static _ => LuauReturn.Ok(2));
+        }
+    }
+
+    private sealed class NameWithAZero : ILuauUserdata<NameWithAZero>
+    {
+        public static void Register(LuauUserdataRegistry<NameWithAZero> registry) =>
+            registry.AddGetter("ab\0cd", static (_, _) => LuauReturnSingle.Ok(1));
     }
 
     private sealed class DynamicMethods : ILuauUserdata<DynamicMethods>
