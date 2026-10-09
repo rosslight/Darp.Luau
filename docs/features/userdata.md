@@ -11,7 +11,7 @@ Typical examples include game entities, domain objects, service handles, and oth
 In Darp.Luau, userdata usually shows up in four forms:
 
 - `[LuauUserdata]` generates the normal script-facing behavior for your managed type.
-- `ILuauUserData<T>` is the manual hook surface used when generation is not enough.
+- `ILuauUserdata<T>` is implemented by hand when generation is not enough.
 - `LuauUserdata` is an owned userdata reference that you can keep and dispose.
 - `LuauUserdataView` is a borrowed callback-scoped userdata view.
 
@@ -21,6 +21,8 @@ That split matters:
 - use `LuauUserdata` when you want an owned Luau wrapper,
 - use `LuauUserdataView` only inside the current callback frame, or promote it with `ToOwned()` first.
 
+A type is described either with attributes or by hand, never with both.
+
 ## Generate userdata with `[LuauUserdata]`
 
 The recommended way to expose a managed type as userdata is to mark a partial class with `[LuauUserdata]` and mark the script-facing members with `[LuauMember]`.
@@ -28,7 +30,7 @@ The recommended way to expose a managed type as userdata is to mark a partial cl
 ```csharp
 using Darp.Luau;
 
-[LuauUserdata]
+[LuauUserdata("Player")]
 public sealed partial class Player
 {
     [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
@@ -46,7 +48,9 @@ public sealed partial class Player
 }
 ```
 
-The source generator emits the `ILuauUserData<Player>` implementation for `OnIndex`, `OnSetIndex`, and `OnMethodCall`.
+The source generator implements `ILuauUserdata<Player>` for the type.
+
+The name in `[LuauUserdata("Player")]` is optional. It is what `typeof(player)` returns in Luau, and Luau uses it in its own error messages. Without a name, `typeof(player)` is `userdata`.
 
 Expose instances with the normal managed-userdata APIs:
 
@@ -64,7 +68,17 @@ lua.Load(
 ).Execute();
 ```
 
-For method calls, Luau uses the userdata method-call syntax `player:add(1)`. The generated method receives only the declared managed parameters; `self` is handled by the userdata dispatch layer.
+### Methods are values
+
+A method is a function that takes the instance as its first argument. `player:add(1)` and `player.add(player, 1)` are the same call, and a script can keep the function:
+
+```lua
+local add = player.add
+add(player, 1)
+if player.save then player:save() end
+```
+
+The generated method receives only the declared managed parameters; the instance is handled for you. A call without an instance of the type, such as `player.add(1)`, is an error that names the method.
 
 ### Generated property access
 
@@ -76,7 +90,7 @@ For method calls, Luau uses the userdata method-call syntax `player:add(1)`. The
 
 Use `Access = LuauPropertyAccess.ReadOnly`, `WriteOnly`, or `ReadWrite` when the Luau contract should be stricter than the managed property shape.
 
-Generated read-only properties return an error when Luau tries to assign them. Generated write-only properties return an error when Luau tries to read them.
+Assigning a read-only member, reading a write-only member, and assigning a method are errors. Reading a name the type does not declare gives `nil`; assigning one is an error.
 
 ### Generated async methods
 
@@ -113,99 +127,118 @@ The generator reports diagnostics for unsupported shapes instead of emitting wea
 
 - exported userdata types must be partial, top-level, non-generic classes,
 - fields are not exported,
-- static userdata members are not supported,
 - member names are single-segment only; dotted paths are for generated modules,
 - optional, `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
-- generated and manual userdata hooks cannot be mixed on the same type.
+- a type with `[LuauUserdata]` cannot also implement `Register` by hand.
 
-Use manual `ILuauUserData<T>` only when you need custom dispatch, dynamic member names, custom validation, unsupported member shapes, or unusual error behavior.
+Implement `ILuauUserdata<T>` by hand only when you need member names that are only known at run time, custom validation, unsupported member shapes, or unusual error behavior.
 
-## Implement userdata manually with `ILuauUserData<T>`
+## Implement userdata by hand with `ILuauUserdata<T>`
 
-Implement the static members on `ILuauUserData<T>` when the generated userdata model cannot express what Luau can do with your object:
-
-| Hook | Luau syntax | Receives | Unknown member behavior |
-| --- | --- | --- | --- |
-| `OnIndex` | `player.name` | `self`, `LuauState`, member name | return `LuauReturnSingle.NotHandled` and Luau sees `nil` |
-| `OnSetIndex` | `player.score = 10` | `self`, `LuauArgsSingle`, member name | return `LuauOutcome.NotHandledError` and Luau gets an unknown-member error |
-| `OnMethodCall` | `player:add(1)` | `self`, `LuauArgs`, method name | return `LuauReturn.NotHandledError` and Luau gets an unknown-method error |
-
-These hooks are manual callback surfaces, closer to `CreateFunctionManual(...)` than to `CreateFunction(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly.
-
-For `player:add(1)`, `self` is already passed separately, so `functionArgs` contains only the actual method arguments.
+A type that implements `ILuauUserdata<T>` describes itself in a static `Register` method:
 
 ```csharp
-internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
+internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
 {
     public required string Name { get; init; }
     public int Score { get; private set; }
 
-    public static LuauReturnSingle OnIndex(PlayerUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
-        fieldName switch
-        {
-            "name" => LuauReturnSingle.Ok(self.Name),
-            "score" => LuauReturnSingle.Ok(self.Score),
-            _ => LuauReturnSingle.NotHandled,
-        };
-
-    public static LuauOutcome OnSetIndex(PlayerUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
+    public static void Register(LuauUserdataRegistry<PlayerUserdata> registry)
     {
-        switch (fieldName)
+        registry.TypeName = "Player";
+        registry.AddGetter("name", static (self, _) => LuauReturnSingle.Ok(self.Name));
+        registry.AddGetter("score", static (self, _) => LuauReturnSingle.Ok(self.Score));
+        registry.AddSetter("score", static (self, value) =>
         {
-            case "score":
-                if (!args.TryReadNumber(out int score, out string? error))
-                    return LuauOutcome.Error(error);
+            if (!value.TryReadNumber(out int score, out string? error))
+                return LuauOutcome.Error(error);
 
-                self.Score = score;
-                return LuauOutcome.Ok();
-            default:
-                return LuauOutcome.NotHandledError;
-        }
-    }
-
-    public static LuauReturn OnMethodCall(
-        PlayerUserdata self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    )
-    {
-        switch (methodName)
+            self.Score = score;
+            return LuauOutcome.Ok();
+        });
+        registry.AddMethod("add", static (self, args) =>
         {
-            case "add":
-                if (!functionArgs.TryValidateArgumentCount(1, out string? error))
-                    return LuauReturn.Error(error);
-                if (functionArgs.ArgumentCount != 1)
-                    return LuauReturn.Error("Expected exactly 1 argument.");
-                if (!functionArgs.TryReadNumber(1, out int amount, out error))
-                    return LuauReturn.Error(error);
+            if (args.ArgumentCount != 1)
+                return LuauReturn.Error("Expected exactly 1 argument.");
+            if (!args.TryReadNumber(1, out int amount, out string? error))
+                return LuauReturn.Error(error);
 
-                self.Score += amount;
-                return LuauReturn.Ok(self.Score);
-            default:
-                return LuauReturn.NotHandledError;
-        }
+            self.Score += amount;
+            return LuauReturn.Ok(self.Score);
+        });
     }
 
     public static implicit operator IntoLuau(PlayerUserdata value) => IntoLuau.FromUserdata(value);
 }
 ```
 
-### Async methods
+| Registry method | Luau syntax | The callback receives |
+| --- | --- | --- |
+| `AddGetter` | `player.name` | the instance and the `LuauState` |
+| `AddSetter` | `player.score = 10` | the instance and the assigned value as `LuauArgsSingle` |
+| `AddMethod` | `player:add(1)`, `player.add(player, 1)` | the instance and the arguments, without the instance |
+| `AddMetamethod` | operators, calls, unknown keys | the operands as Luau passes them |
 
-`OnMethodCall` can finish later through the awaiter of its `LuauArgs`, like a callback built with `CreateFunctionManual(...)`. The script waits at `player:save()` without blocking a thread:
+The callbacks are manual callback surfaces, like `CreateFunctionManual(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly. `LuauArgs.State` gives a callback the state it runs in.
+
+`Register` is called once per process, before the first instance reaches a state, and every state shares what it describes. It must therefore not capture a state. A name can have one getter and one setter, or be one method; declaring a name twice throws. An exception from `Register` is thrown again by every use of the type.
+
+A metamethod receives its operands as Luau passes them, so for a binary operator the instance can be either one:
 
 ```csharp
-case "save":
-    if (!functionArgs.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
-        return LuauReturn.Error(error);
-    return awaiter.Await(
-        new ValueTask(
-            File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), functionArgs.CancellationToken)
-        )
-    );
+registry.AddMetamethod(LuauMetamethod.Mul, static args =>
+{
+    // vec * 2
+    if (args.TryReadUserdata(1, out Vec2? left, out _) && args.TryReadNumber(2, out double factor, out _))
+        return LuauReturn.Ok(left.Scale(factor));
+    // 2 * vec
+    if (args.TryReadNumber(1, out factor, out _) && args.TryReadUserdata(2, out Vec2? right, out _))
+        return LuauReturn.Ok(right.Scale(factor));
+    return LuauReturn.Error("a vector can only be multiplied with a number");
+});
 ```
 
-The same rules apply: run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and read every argument before you return. `OnIndex` and `OnSetIndex` cannot await. See [Coroutines](coroutines.md#async-managed-callbacks).
+What follows from how Luau works:
+
+- For `a + b`, Luau uses the metamethod of `a`, and that of `b` only when `a` has none. It never tries the other one after an error.
+- `a == b` only calls `Eq` for two different instances of the same type. Two values of different types are never equal. `a < b` across types is an error.
+- An operator the type does not declare raises Luau's own error, such as `attempt to perform arithmetic (div) on Vec2 and number`.
+- `Index` and `NewIndex` are only reached for keys that are not declared members, also for keys that are not strings.
+- Only `Call` can await. Luau cannot suspend a script inside another metamethod.
+
+### Member names that are only known at run time
+
+`LuauMetamethod.Index` and `LuauMetamethod.NewIndex` receive every key that is not a declared member. Return a function from `Index` to serve a method name; like any method, it gets the instance as its first argument:
+
+```csharp
+registry.AddMetamethod(LuauMetamethod.Index, static args =>
+{
+    if (!args.TryReadUtf8String(2, out string? name, out string? error))
+        return LuauReturn.Error(error);
+
+    LuauFunction method = args.State.CreateFunctionManual(call => LuauReturn.Ok($"called {name}"));
+    return LuauReturn.Ok(method.DisposeAndToLuauValue());
+});
+```
+
+Create such a function once and keep it when scripts call it often.
+
+### Async methods
+
+A method can finish later through the awaiter of its `LuauArgs`, like a callback built with `CreateFunctionManual(...)`. The script waits at `player:save()` without blocking a thread:
+
+```csharp
+registry.AddMethod("save", static (self, args) =>
+{
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
+        return LuauReturn.Error(error);
+    return awaiter.Await(
+        new ValueTask(File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), args.CancellationToken))
+    );
+});
+```
+
+The same rules apply: run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and read every argument before you return. Getters, setters and metamethods other than `Call` cannot await. See [Coroutines](coroutines.md#async-managed-callbacks).
 
 ## Expose and retrieve userdata
 
@@ -249,17 +282,16 @@ The same split exists inside callbacks:
 
 ## Error behavior
 
-Userdata hooks participate in normal Luau error handling:
+Userdata callbacks participate in normal Luau error handling:
 
 - return `LuauReturn.Error(...)` or `LuauOutcome.Error(...)` for expected user-facing failures,
-- return `NotHandled` or `NotHandledError` for unknown members,
 - let exceptions bubble only for truly exceptional failures.
 
-Thrown exceptions become Luau errors too, including inside `pcall(...)`.
+Thrown exceptions become Luau errors too, including inside `pcall(...)`. The message names the member that threw.
 
 Methods can return zero, one, or many values through `LuauReturn.Ok(...)`.
 
-Scripts cannot get or replace the metatable of a userdata: `getmetatable(value)` returns the string `The metatable is locked`. All userdata of a state share one metatable, so a script that could change it would change every value.
+Scripts cannot get or replace the metatable of a userdata: `getmetatable(value)` returns the string `The metatable is locked`. Every value of a type shares one metatable, so a script that could change it would change them all.
 
 ## Identity and lifetime
 
@@ -268,11 +300,13 @@ Managed userdata keeps object identity:
 - pushing the same managed instance into the same `LuauState` again reuses the same Lua userdata identity while that userdata is still alive,
 - pushing two different managed instances creates two different Lua userdata values even if their contents match.
 
+A userdata type is exactly the class that implements `ILuauUserdata<T>`. A managed object keeps the type it was first pushed as for as long as its userdata is alive.
+
 Lifetime rules follow the normal owned-vs-borrowed model:
 
 - `LuauUserdata` is an owned reference; keep it in a `using` block.
 - `LuauUserdataView` is callback-scoped and temporary.
-- `LuauArgs`, `LuauArgsSingle`, and other `*View` values in userdata hooks are also callback-scoped.
+- `LuauArgs`, `LuauArgsSingle`, and other `*View` values in userdata callbacks are also callback-scoped.
 - call `ToOwned()` before storing or reusing a borrowed userdata value outside the current callback.
 
 See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownership model.
@@ -281,6 +315,6 @@ See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownershi
 
 - Expose a small, stable script-facing surface instead of mirroring your full managed type.
 - Prefer generated `[LuauUserdata]` declarations for regular property and method surfaces.
-- Use manual `ILuauUserData<T>` when you need behavior the generator cannot express.
-- Keep validation and error messages intentional inside the hooks.
+- Implement `ILuauUserdata<T>` by hand when you need behavior the generator cannot express.
+- Keep validation and error messages intentional inside the callbacks.
 - Prefer tables for plain data and userdata for identity or behavior.

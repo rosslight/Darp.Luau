@@ -8,7 +8,7 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Character")]
             public sealed partial class Character
             {
                 [LuauMember("name")]
@@ -72,7 +72,7 @@ public class GeneratedExportsTests
             {
             }
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed class Player
             {
             }
@@ -92,7 +92,7 @@ public class GeneratedExportsTests
             {
             }
 
-            [LuauUserdata]
+            [LuauUserdata("FileLocalUserdata")]
             file sealed partial class FileLocalUserdata
             {
             }
@@ -107,7 +107,7 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player<T>
             {
             }
@@ -124,7 +124,7 @@ public class GeneratedExportsTests
 
             public static class Container
             {
-                [LuauUserdata]
+                [LuauUserdata("Player")]
                 public sealed partial class Player
                 {
                 }
@@ -163,7 +163,7 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Character")]
             public sealed partial class Character
             {
                 [LuauMember("foo bar")]
@@ -233,7 +233,7 @@ public class GeneratedExportsTests
             using System.Threading.Tasks;
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player
             {
                 [LuauMember("token")]
@@ -254,7 +254,7 @@ public class GeneratedExportsTests
             using System.Threading.Tasks;
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player
             {
                 [LuauMember("save")]
@@ -285,7 +285,7 @@ public class GeneratedExportsTests
                 string Name { get; set; }
             }
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player : INamed
             {
                 [LuauMember("name")]
@@ -313,7 +313,7 @@ public class GeneratedExportsTests
             using System.Threading.Tasks;
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player
             {
                 [LuauMember("wait")]
@@ -363,15 +363,15 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task UserdataPropertyAndManualHookConflicts_ShouldFail()
+    public async Task UserdataAttributeAndManualRegister_ShouldFail()
     {
         const string code = """
             using System;
             using System.Collections.Generic;
             using Darp.Luau;
 
-            [LuauUserdata]
-            public sealed partial class Player : ILuauUserData<Player>
+            [LuauUserdata("Player")]
+            public sealed partial class Player : ILuauUserdata<Player>
             {
                 [LuauMember("stats")]
                 public Dictionary<string, int> Stats { get; } = new();
@@ -379,13 +379,51 @@ public class GeneratedExportsTests
                 [LuauMember("stats.total")]
                 public int Total => 1;
 
-                public static LuauReturnSingle OnIndex(Player self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(Player self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(Player self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<Player> registry) { }
+            }
+
+            // Without the interface in its base list, the method would be replaced by the generated one unnoticed.
+            [LuauUserdata("Enemy")]
+            public sealed partial class Enemy
+            {
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
             }
             """;
 
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MethodsNamedRegisterThatAreNotTheRegistration_ShouldReportNoDiagnostics()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Player")]
+            public sealed partial class Player
+            {
+                public static int Register(LuauUserdataRegistry<Player> registry) => 0;
+
+                public static void Register<T>(LuauUserdataRegistry<Player> registry) { }
+
+                public static void Register(ref LuauUserdataRegistry<Player> registry) { }
+
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
+
+            public class Enemy : ILuauUserdata<Enemy>
+            {
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
+
+            // The registration it inherits describes an enemy, not a boss.
+            [LuauUserdata("Boss")]
+            public sealed partial class Boss : Enemy
+            {
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExports(code);
     }
 
     [Fact]

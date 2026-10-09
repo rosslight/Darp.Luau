@@ -4,7 +4,7 @@ using System.Numerics;
 namespace Darp.Luau;
 
 /// <summary>
-/// Input view used by <see cref="ILuauUserData{T}.OnSetIndex"/> callbacks.
+/// The value a script assigns to a userdata member, as a <see cref="LuauSetter{T}"/> receives it.
 /// Represents exactly one assigned value.
 /// </summary>
 public readonly ref struct LuauArgsSingle
@@ -16,6 +16,9 @@ public readonly ref struct LuauArgsSingle
     /// </summary>
     /// <param name="args">Underlying argument view.</param>
     internal LuauArgsSingle(LuauArgs args) => _args = args;
+
+    /// <inheritdoc cref="LuauArgs.State"/>
+    public LuauState State => _args.State;
 
     /// <inheritdoc cref="LuauArgs.TryReadNumber(int, out double, out string)"/>
     public bool TryReadNumber(out double value, [NotNullWhen(false)] out string? error) =>
@@ -90,11 +93,11 @@ public readonly ref struct LuauArgsSingle
 
     /// <inheritdoc cref="LuauArgs.TryReadUserdata{T}(int, out T, out string)"/>
     public bool TryReadUserdata<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T> => _args.TryReadUserdata(1, out value, out error);
+        where T : class, ILuauUserdata<T> => _args.TryReadUserdata(1, out value, out error);
 
     /// <inheritdoc cref="LuauArgs.TryReadUserdataOrNil{T}(int, out T, out string)"/>
     public bool TryReadUserdataOrNil<T>(out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T> => _args.TryReadUserdataOrNil(1, out value, out error);
+        where T : class, ILuauUserdata<T> => _args.TryReadUserdataOrNil(1, out value, out error);
 
     /// <inheritdoc cref="LuauArgs.TryReadBuffer(int, out ReadOnlySpan{byte}, out string)"/>
     public bool TryReadBuffer(out ReadOnlySpan<byte> value, [NotNullWhen(false)] out string? error) =>

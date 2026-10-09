@@ -1557,59 +1557,23 @@ public sealed class FunctionTests : IDisposable
     }
 }
 
-internal sealed class ArgsUserdataA : ILuauUserData<ArgsUserdataA>
+internal sealed class ArgsUserdataA : ILuauUserdata<ArgsUserdataA>
 {
     public int Value { get; set; }
 
-    public static LuauReturnSingle OnIndex(ArgsUserdataA self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
-        LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(ArgsUserdataA self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
-        LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        ArgsUserdataA self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<ArgsUserdataA> registry) { }
 
     public static implicit operator IntoLuau(ArgsUserdataA value) => IntoLuau.FromUserdata(value);
 }
 
-internal sealed class ArgsUserdataB : ILuauUserData<ArgsUserdataB>
+internal sealed class ArgsUserdataB : ILuauUserdata<ArgsUserdataB>
 {
-    public static LuauReturnSingle OnIndex(ArgsUserdataB self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
-        LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(ArgsUserdataB self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
-        LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        ArgsUserdataB self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<ArgsUserdataB> registry) { }
 
     public static implicit operator IntoLuau(ArgsUserdataB value) => IntoLuau.FromUserdata(value);
 }
 
-internal sealed class GeneratedReturnUserdata : ILuauUserData<GeneratedReturnUserdata>
+internal sealed class GeneratedReturnUserdata : ILuauUserdata<GeneratedReturnUserdata>
 {
-    public static LuauReturnSingle OnIndex(
-        GeneratedReturnUserdata self,
-        in LuauState state,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(
-        GeneratedReturnUserdata self,
-        LuauArgsSingle args,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        GeneratedReturnUserdata self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<GeneratedReturnUserdata> registry) { }
 }

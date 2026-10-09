@@ -3,7 +3,7 @@ namespace Darp.Luau.Generator.Tests;
 public sealed class GeneratedUserdataExportsEmitterTests
 {
     [Fact]
-    public async Task Userdata_WithPropertiesAndMethods_ShouldGenerateHooks()
+    public async Task Userdata_WithPropertiesAndMethods_ShouldGenerateRegister()
     {
         const string code = """
             using Darp.Luau;
@@ -14,7 +14,7 @@ public sealed class GeneratedUserdataExportsEmitterTests
                 Vendor = 2,
             }
 
-            [LuauUserdata]
+            [LuauUserdata("Character")]
             public sealed partial class Character
             {
                 private string? _secret;
@@ -62,7 +62,7 @@ public sealed class GeneratedUserdataExportsEmitterTests
             using System.Threading.Tasks;
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player
             {
                 [LuauMember("save")]
@@ -86,7 +86,7 @@ public sealed class GeneratedUserdataExportsEmitterTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Player")]
             public sealed partial class Player
             {
                 [LuauMember("kind")]
@@ -111,7 +111,7 @@ public sealed class GeneratedUserdataExportsEmitterTests
 
             namespace @event
             {
-                [LuauUserdata]
+                [LuauUserdata("class")]
                 public sealed partial class @class
                 {
                     [LuauMember("level")]
@@ -124,12 +124,12 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
-    public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataHooks()
+    public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataRegister()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("HeroCard")]
             public sealed partial class HeroCard
             {
                 [LuauMember("name")]

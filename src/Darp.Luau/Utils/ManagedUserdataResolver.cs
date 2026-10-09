@@ -37,7 +37,7 @@ internal static unsafe class ManagedUserdataResolver
         [NotNullWhen(false)] out string? error,
         string valueLabel
     )
-        where T : class, ILuauUserData<T>
+        where T : class
     {
         value = null;
         if (!TryGetNative(L, stackIndex, out LuauUserdataNative* native, out error, valueLabel))

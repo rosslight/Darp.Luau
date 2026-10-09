@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Darp.Luau.Native" Version="0.10.0" />
+    <PackageReference Include="Darp.Luau.Native" Version="0.11.0" />
     <!-- Enforces BannedSymbols.txt: the calls that only Internal/LuauVm.cs may make. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
     <AdditionalFiles Include="BannedSymbols.txt" />

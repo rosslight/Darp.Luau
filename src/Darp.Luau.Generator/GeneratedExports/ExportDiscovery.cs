@@ -46,10 +46,7 @@ internal static class ExportDiscovery
             if (memberAttribute is null)
                 continue;
 
-            SourceOrigin origin = new(
-                member.Name,
-                SymbolExtensions.GetAttributeLocation(memberAttribute, member)
-            );
+            SourceOrigin origin = new(member.Name, SymbolExtensions.GetAttributeLocation(memberAttribute, member));
             switch (member)
             {
                 case IPropertySymbol property:

@@ -373,7 +373,7 @@ public readonly ref struct IntoLuau
     /// <typeparam name="T"> The type of the userdata </typeparam>
     /// <returns> A temporary representation of the value </returns>
     public static IntoLuau FromUserdata<T>(T userdata)
-        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(userdata));
+        where T : class, ILuauUserdata<T> => new(state => state.GetOrCreateUserdata(userdata));
 
     /// <summary> Converts to the userdata that <paramref name="factory"/> creates when the value is pushed. </summary>
     /// <param name="factory">

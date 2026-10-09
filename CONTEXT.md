@@ -24,7 +24,7 @@ _Avoid_: Bindings
 Defining a host API by annotating C# types and letting the library produce the glue. The first entry point.
 
 **Manual tier**:
-Defining a host API by handling arguments, returns and member dispatch yourself. First-party, for what an annotated C# type cannot express.
+Defining a host API by declaring its members in code and handling their arguments and returns yourself. First-party, for what an annotated C# type cannot express.
 _Avoid_: Fallback, escape hatch
 
 **Managed callback**:
@@ -33,6 +33,9 @@ _Avoid_: Builder
 
 **Managed userdata**:
 A C# object that scripts hold by identity and interact with through its members.
+
+**Userdata type**:
+A C# class whose instances are managed userdata, together with everything scripts can do with them.
 
 **Host module**:
 A module scripts load with `require` that is defined in C#.

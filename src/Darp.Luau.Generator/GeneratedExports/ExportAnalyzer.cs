@@ -17,18 +17,17 @@ internal static class ExportAnalyzer
         if (context is null)
             return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitSource: false);
 
-        DiscoveredExportType? discoveredType = ExportDiscovery.DiscoverType(
-            type,
-            expectedKind,
-            context,
-            diagnostics
-        );
+        DiscoveredExportType? discoveredType = ExportDiscovery.DiscoverType(type, expectedKind, context, diagnostics);
         if (discoveredType is null)
             return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitSource: false);
 
         bool hasFatalTypeErrors = ExportValidator.ValidateTypeShape(discoveredType, context, diagnostics);
         NormalizedExportType normalizedType = Normalize(discoveredType, context, diagnostics);
-        ValidatedExportType validatedType = ExportValidator.ValidateMembers(discoveredType, normalizedType, diagnostics);
+        ValidatedExportType validatedType = ExportValidator.ValidateMembers(
+            discoveredType,
+            normalizedType,
+            diagnostics
+        );
         GeneratedExportSurfaceIr model = ExportProjector.Project(validatedType);
         return new GeneratedExportsTypeAnalysis(
             model,
@@ -43,11 +42,8 @@ internal static class ExportAnalyzer
         List<Diagnostic> diagnostics
     )
     {
-        string? moduleName = null;
-        if (discoveredType.Kind == LuauExportedTypeKind.Module)
-        {
-            moduleName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
-        }
+        string? name = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
+        bool isModule = discoveredType.Kind == LuauExportedTypeKind.Module;
 
         var members = new List<NormalizedExportMember>();
         foreach (DiscoveredExportMember member in discoveredType.Members)
@@ -66,7 +62,8 @@ internal static class ExportAnalyzer
         return new NormalizedExportType(
             discoveredType.Symbol,
             discoveredType.Kind,
-            moduleName,
+            ModuleName: isModule ? name : null,
+            UserdataTypeName: isModule ? null : name,
             discoveredType.Origin,
             members.ToImmutableEquatableArray()
         );
@@ -129,9 +126,7 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        string? exportedName = AttributeReader.GetStringConstructorArgument(
-            discoveredProperty.Attribute
-        );
+        string? exportedName = AttributeReader.GetStringConstructorArgument(discoveredProperty.Attribute);
         if (exportedName is null)
         {
             diagnostics.Add(
@@ -172,11 +167,7 @@ internal static class ExportAnalyzer
         if (discoveredType.Kind == LuauExportedTypeKind.Module && propertyContract.Setter is not null)
         {
             diagnostics.Add(
-                Diagnostic.Create(
-                    DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor,
-                    location,
-                    property.Name
-                )
+                Diagnostic.Create(DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor, location, property.Name)
             );
             return null;
         }
@@ -251,9 +242,7 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        string? exportedName = AttributeReader.GetStringConstructorArgument(
-            discoveredMethod.Attribute
-        );
+        string? exportedName = AttributeReader.GetStringConstructorArgument(discoveredMethod.Attribute);
         if (exportedName is null)
         {
             diagnostics.Add(

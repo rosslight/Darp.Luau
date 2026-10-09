@@ -48,7 +48,7 @@ A typed call that fails to read one of its results, such as `Execute<LuauTable, 
 
 Types ending in `View`, plus `LuauArgs` and `LuauArgsSingle`, are callback-scoped.
 
-That rule applies equally to manual callback surfaces such as `CreateFunctionManual(...)`, userdata hooks, and generated adapters behind `CreateFunction(...)`.
+That rule applies equally to manual callback surfaces such as `CreateFunctionManual(...)`, userdata callbacks, and generated adapters behind `CreateFunction(...)`.
 
 - Use them immediately.
 - Do not store them in fields, collections, or across async boundaries.
@@ -122,7 +122,7 @@ If you later do `value.TryGet(out LuauTable tableCopy)`, you now have another ow
 ## Practical rules
 
 - Keep owned references in `using` blocks.
-- Treat `*View` types and callback args from `CreateFunctionManual(...)`, userdata hooks, and other callback surfaces as immediate-use values.
+- Treat `*View` types and callback args from `CreateFunctionManual(...)`, userdata callbacks, and other callback surfaces as immediate-use values.
 - Copy spans if you need managed ownership.
 - Promote with `ToOwned()` before caching or reusing a borrowed value outside the current callback.
 - Dispose `LuauValue` when it may contain a reference-backed value.

@@ -46,6 +46,7 @@ internal sealed record NormalizedExportType(
     INamedTypeSymbol Symbol,
     LuauExportedTypeKind Kind,
     string? ModuleName,
+    string? UserdataTypeName,
     SourceOrigin Origin,
     ImmutableEquatableArray<NormalizedExportMember> Members
 );
@@ -107,6 +108,7 @@ internal sealed record GeneratedExportSurfaceIr(
     string HintName,
     LuauExportedTypeKind Kind,
     string? ModuleName,
+    string? UserdataTypeName,
     ImmutableEquatableArray<GeneratedExportMemberIr> Members,
     GeneratedModuleExportNodeIr? ModuleRoot
 );

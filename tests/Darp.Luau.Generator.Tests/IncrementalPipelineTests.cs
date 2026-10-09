@@ -17,7 +17,7 @@ public sealed class IncrementalPipelineTests
         const string source = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("HeroCard")]
             public sealed partial class HeroCard
             {
                 [LuauMember("name")]
@@ -80,7 +80,7 @@ public sealed class IncrementalPipelineTests
         const string source = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("Character")]
             public sealed partial class Character
             {
                 [LuauMember("name")]

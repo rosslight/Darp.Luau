@@ -1,4 +1,4 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
@@ -22,11 +22,11 @@ file static partial class FileLocalModule
     {
       Location: /*
 
-[LuauUserdata]
- ^^^^^^^^^^^^
+[LuauUserdata("FileLocalUserdata")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 file sealed partial class FileLocalUserdata
 */
- : (7,1)-(7,13),
+ : (7,1)-(7,34),
       Message: Invalid generated export shape: file-local generated export types are not supported because generated partial sources are emitted into separate files,
       Severity: Error,
       Descriptor: {

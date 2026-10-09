@@ -180,11 +180,9 @@ public class InterceptorTests
             using System;
             using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            public sealed class MyUserdata : ILuauUserdata<MyUserdata>
             {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
             }
 
             public static class Hi
@@ -205,7 +203,7 @@ public class InterceptorTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata]
+            [LuauUserdata("HeroCard")]
             public sealed partial class HeroCard
             {
                 [LuauMember("name")]
@@ -251,11 +249,9 @@ public class InterceptorTests
                 using System;
                 using Darp.Luau;
 
-                public sealed class MyUserdata : ILuauUserData<MyUserdata>
+                public sealed class MyUserdata : ILuauUserdata<MyUserdata>
                 {
-                    public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                    public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                    public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                    public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
                 }
 
                 public static class Hi
@@ -278,11 +274,9 @@ public class InterceptorTests
             using System;
             using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            public sealed class MyUserdata : ILuauUserdata<MyUserdata>
             {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
             }
 
             public static class Hi
@@ -303,11 +297,9 @@ public class InterceptorTests
             using System;
             using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            public sealed class MyUserdata : ILuauUserdata<MyUserdata>
             {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
             }
 
             public delegate MyUserdata? NullableCallback();
@@ -330,11 +322,9 @@ public class InterceptorTests
             using System;
             using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            public sealed class MyUserdata : ILuauUserdata<MyUserdata>
             {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
             }
 
             public static class Hi
@@ -360,11 +350,9 @@ public class InterceptorTests
             using System;
             using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            public sealed class MyUserdata : ILuauUserdata<MyUserdata>
             {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<MyUserdata> registry) { }
             }
 
             public static class Hi
@@ -678,18 +666,14 @@ public class InterceptorTests
             {
             }
 
-            public sealed class OtherUserdata : ILuauUserData<OtherUserdata>
+            public sealed class OtherUserdata : ILuauUserdata<OtherUserdata>
             {
-                public static LuauReturnSingle OnIndex(OtherUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(OtherUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(OtherUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<OtherUserdata> registry) { }
             }
 
-            public sealed class WrongUserdata : ILuauUserData<OtherUserdata>
+            public sealed class WrongUserdata : ILuauUserdata<OtherUserdata>
             {
-                public static LuauReturnSingle OnIndex(OtherUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(OtherUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(OtherUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<OtherUserdata> registry) { }
             }
 
             public static class Hi

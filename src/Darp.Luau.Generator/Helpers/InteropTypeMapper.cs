@@ -13,7 +13,7 @@ internal static class InteropTypeMapper
         foreach (INamedTypeSymbol implementedInterface in namedType.AllInterfaces)
         {
             if (
-                implementedInterface is not { Name: "ILuauUserData", Arity: 1, TypeArguments.Length: 1 }
+                implementedInterface is not { Name: "ILuauUserdata", Arity: 1, TypeArguments.Length: 1 }
                 || implementedInterface.ContainingNamespace.ToDisplayString() != "Darp.Luau"
             )
             {
@@ -30,19 +30,16 @@ internal static class InteropTypeMapper
         return false;
     }
 
-    public static bool TryMapGeneratedUserdataType(
-        ITypeSymbol type,
-        LuauApiSymbols apiSymbols,
-        out InteropType mapping
-    )
+    public static bool TryMapGeneratedUserdataType(ITypeSymbol type, LuauApiSymbols apiSymbols, out InteropType mapping)
     {
         if (
-            type is not INamedTypeSymbol
-            {
-                TypeKind: TypeKind.Class,
-                ContainingType: null,
-                TypeParameters.Length: 0,
-            } namedType
+            type
+                is not INamedTypeSymbol
+                {
+                    TypeKind: TypeKind.Class,
+                    ContainingType: null,
+                    TypeParameters.Length: 0,
+                } namedType
             || apiSymbols.GetUserdataAttribute(namedType) is null
         )
         {
@@ -106,8 +103,7 @@ internal static class InteropTypeMapper
                 // The number is read as this type, so a value the enum cannot store is rejected.
                 EnumUnderlyingTypeName: (type as INamedTypeSymbol)?.EnumUnderlyingType?.ToDisplayString(
                     SymbolDisplayFormat.FullyQualifiedFormat
-                )
-                    ?? "int"
+                ) ?? "int"
             );
             return true;
         }

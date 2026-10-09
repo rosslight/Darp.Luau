@@ -1,13 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
 
-[LuauUserdata]
- ^^^^^^^^^^^^
+[LuauUserdata("Player")]
+ ^^^^^^^^^^^^^^^^^^^^^^
 public sealed partial class Player<T>
 */
- : (2,1)-(2,13),
+ : (2,1)-(2,23),
       Message: Invalid generated export shape: generic userdata types are not supported in v1,
       Severity: Error,
       Descriptor: {

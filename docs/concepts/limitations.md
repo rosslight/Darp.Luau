@@ -14,13 +14,13 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Typed chunk execution currently has explicit overloads for 1, 2, 3, or 4 values; use `ExecuteMulti()` for dynamic multi-return access.
 - Generator-backed `CreateFunction(...)` supports top-level tuple returns, but currently rejects nested tuples and only supports tuple arities that fit the current `LuauReturn.Ok(...)` overload set.
 - Source-generated `[LuauModule]` types must be partial, top-level, and non-generic. Instance module properties, fields, instance structs, and unsupported method shapes are not generated.
-- Source-generated `[LuauUserdata]` types must be partial, top-level, non-generic classes. Fields, static exported members, dotted userdata member names, manual hook mixing, and unsupported method shapes are not generated.
+- Source-generated `[LuauUserdata]` types must be partial, top-level, non-generic classes. Fields, static exported members, dotted userdata member names, a `Register` written by hand next to the attribute, and unsupported method shapes are not generated.
 - Generated exports currently emit runtime C# glue only. Luau type-file output is not a documented shipped feature yet.
 - File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
 - Luau has one number type, a `double`. Above 2^53 it cannot represent every whole number, so a script cannot produce every `long`: the literal `9223372036854775807` is 2^63 in Luau, which a `long` cannot hold. A whole number that Luau does represent is read exactly.
 - Managed interop is documented for strings, numbers, booleans, tables, functions, coroutines, userdata, and buffers. Vector values are not documented as a managed interop surface yet.
-- Async managed callbacks are available through `CreateFunctionManual(...)` and the `LuauAwaiter` of its `LuauArgs`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
+- Async managed callbacks are available through `CreateFunctionManual(...)` and the `LuauAwaiter` of its `LuauArgs`. Userdata methods and the `Call` metamethod can await in the same way; getters, setters and the other metamethods cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
 - An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and only where Luau can yield: not inside a metamethod, a `table.sort` comparator, or a sync `Invoke(...)` made from another callback. Anywhere else it fails with a Luau error before its work starts. Coroutines that scripts create and resume themselves get that error too; there is no scheduler for them.
 - A delegate that was created from an `async` lambda and is typed `Action` runs as `async void`. The generator rejects that where it can see the lambda, also inside a conditional expression; a delegate held in a variable is not checked.
 - `CreateFunction(...)` callbacks take at most 16 parameters and none by reference. A task they return must not be nullable.
@@ -59,6 +59,12 @@ These are deliberate. The library does not guard against them, so your code has 
 - Await every async host call and dispose the `LuauValue`s of `ExecuteMultiAsync(...)` and `InvokeMultiAsync(...)`. A result nobody reads keeps its references until the state is disposed.
 - Owned wrappers such as `LuauTable` are structs. A copy is the same reference: disposing one copy disposes them all.
 
+### Userdata
+
+- For a binary operator such as `a + b`, Luau uses the metamethod of the left operand, and that of the right one only when the left has none. It does not try the other one after an error.
+- A managed object keeps the userdata type it was first pushed as. A class derived from a userdata type is not a userdata type of its own.
+- A script can call a method on any instance of its type, for example `a.add(b, 1)`. Do not rely on the instance the method was read from.
+
 ### Modules and generated code
 
 - `require(...)` reads whatever path the `ILuauFileSystem` of the state resolves, including paths above the entry script. Restrict the file system if scripts must stay in one directory.
@@ -69,7 +75,7 @@ These are deliberate. The library does not guard against them, so your code has 
 - If you want file-based script loading, use `LoadFile(path)` for entry scripts.
 - If you want file-backed modules, call `EnableScriptModules()` and execute the entry script with `LoadFile(path)`, which assigns the required `@...` chunk name automatically.
 - If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionManual(...)`.
-- Start with source-generated modules and userdata for fixed host APIs. Use manual `RegisterModule(...)`, `CreateFunctionManual(...)`, or `ILuauUserData<T>` for shapes the generated model cannot express.
+- Start with source-generated modules and userdata for fixed host APIs. Use manual `RegisterModule(...)`, `CreateFunctionManual(...)`, or `ILuauUserdata<T>` for shapes the generated model cannot express.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.
 - If you need long-lived access to callback values, promote borrowed `*View` values to owned references before the callback returns.
 

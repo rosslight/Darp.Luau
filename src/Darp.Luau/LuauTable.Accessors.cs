@@ -183,7 +183,7 @@ public unsafe partial struct LuauTable
         [NotNullWhen(true)] out T? value,
         [NotNullWhen(false)] out string? error
     )
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
 #if DEBUG
         using var guard = new StackGuard(_state!.L, expectedDelta: 0);
@@ -198,7 +198,7 @@ public unsafe partial struct LuauTable
     }
 
     private bool TryGetUserdataOrNil<T>(in IntoLuau key, out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
 #if DEBUG
         using var guard = new StackGuard(_state!.L, expectedDelta: 0);

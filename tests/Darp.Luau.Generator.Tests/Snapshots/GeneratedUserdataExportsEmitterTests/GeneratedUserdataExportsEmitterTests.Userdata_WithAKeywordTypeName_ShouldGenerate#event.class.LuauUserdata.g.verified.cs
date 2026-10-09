@@ -4,36 +4,20 @@
 
 namespace @event
 {
-    public sealed partial class @class : global::Darp.Luau.ILuauUserData<global::@event.@class>
+    public sealed partial class @class : global::Darp.Luau.ILuauUserdata<global::@event.@class>
     {
         [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Darp.Luau.Generator", "GeneratorVersion")]
-        public static global::Darp.Luau.LuauReturnSingle OnIndex(global::@event.@class self, in global::Darp.Luau.LuauState state, in global::System.ReadOnlySpan<char> fieldName)
+        static void global::Darp.Luau.ILuauUserdata<global::@event.@class>.Register(global::Darp.Luau.LuauUserdataRegistry<global::@event.@class> registry)
         {
-            return fieldName switch
+            registry.TypeName = "class";
+            registry.AddGetter("level", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Level));
+            registry.AddSetter("level", static (self, args) =>
             {
-                "level" => global::Darp.Luau.LuauReturnSingle.Ok(self.Level),
-                _ => global::Darp.Luau.LuauReturnSingle.NotHandled,
-            };
+                if (!args.TryReadNumber(out int value, out string? error))
+                    return global::Darp.Luau.LuauOutcome.Error(error);
+                self.Level = value;
+                return global::Darp.Luau.LuauOutcome.Ok();
+            });
         }
-        
-        [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Darp.Luau.Generator", "GeneratorVersion")]
-        public static global::Darp.Luau.LuauOutcome OnSetIndex(global::@event.@class self, global::Darp.Luau.LuauArgsSingle args, in global::System.ReadOnlySpan<char> fieldName)
-        {
-            switch (fieldName)
-            {
-                case "level":
-                {
-                    if (!args.TryReadNumber(out int value, out string? error))
-                        return global::Darp.Luau.LuauOutcome.Error(error);
-                    self.Level = value;
-                    return global::Darp.Luau.LuauOutcome.Ok();
-                }
-                default:
-                    return global::Darp.Luau.LuauOutcome.NotHandledError;
-            }
-        }
-        
-        [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Darp.Luau.Generator", "GeneratorVersion")]
-        public static global::Darp.Luau.LuauReturn OnMethodCall(global::@event.@class self, global::Darp.Luau.LuauArgs args, in global::System.ReadOnlySpan<char> methodName) => global::Darp.Luau.LuauReturn.NotHandledError;
     }
 }

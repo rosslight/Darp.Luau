@@ -10,7 +10,6 @@ internal struct LuauUserdataNative
     public const int Tag = 1;
 
     public GCHandle UserdataHandle { get; internal set; }
-    public GCHandle RegistryValueHandle { get; internal set; }
 }
 
 /// <summary>
@@ -52,7 +51,7 @@ public readonly struct LuauUserdata : ILuauReference
     /// otherwise <c>false</c>.
     /// </returns>
     public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
         value = null;
         error = null;

@@ -130,7 +130,7 @@ Use `Get*` for required values, `TryGet*` for optional or external data, and `*O
 ## Work with userdata
 
 ```csharp
-[LuauUserdata]
+[LuauUserdata("Player")]
 public sealed partial class Player
 {
     [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
@@ -152,9 +152,9 @@ using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
 _ = playerRef.TryGetManaged(out Player? resolvedPlayer, out string? error);
 ```
 
-Prefer `[LuauUserdata]` for regular script-facing properties and methods. Use a manual `ILuauUserData<T>` implementation only when you need custom dispatch or behavior the generator cannot express. See [Userdata](docs/features/userdata.md) for the full hook model.
+Prefer `[LuauUserdata]` for regular script-facing properties and methods. Implement `ILuauUserdata<T>` by hand only when you need behavior the generator cannot express, such as member names that are only known at run time. See [Userdata](docs/features/userdata.md) for metamethods and registration by hand.
 
-`CreateFunction(...)` also supports managed userdata parameters and returns for generated `[LuauUserdata]` types and manual `ILuauUserData<TSelf>` implementations.
+`CreateFunction(...)` also supports managed userdata parameters and returns for generated `[LuauUserdata]` types and manual `ILuauUserdata<TSelf>` implementations.
 
 ## Register host modules
 
@@ -226,13 +226,12 @@ Darp.Luau is pre-1.0 and breaking changes are still expected. The aim before 1.0
 
 Planned before 1.0:
 
-- A basic set of userdata metamethods
 - An opt-in sandbox with read-only libraries and globals
 - Structured errors with script location, traceback, and the original managed exception
 - Luau type definitions generated for the host API
 - More than four arguments and return values, including variadics
 - Script modules from sources other than disk
-- Consistent naming, such as `LuauException` and `ILuauUserdata<T>`
+- Consistent naming, such as `LuauException`
 
 Later:
 

@@ -31,7 +31,7 @@ public readonly ref struct LuauUserdataView : ILuauView<LuauUserdata>
     /// <typeparamref name="T"/>; otherwise <c>false</c>.
     /// </returns>
     public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T> => LuauUserdataAccessCore.TryGetManaged(_reference, out value, out error);
+        where T : class, ILuauUserdata<T> => LuauUserdataAccessCore.TryGetManaged(_reference, out value, out error);
 
     /// <inheritdoc/>
     public LuauUserdata ToOwned()

@@ -7,6 +7,9 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class UserdataEmitter
 {
+    private const string LuauReturnSingle = "global::Darp.Luau.LuauReturnSingle";
+    private const string LuauOutcome = "global::Darp.Luau.LuauOutcome";
+
     public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
     {
         if (model.Kind != LuauExportedTypeKind.Userdata)
@@ -27,168 +30,86 @@ internal static class UserdataEmitter
         ExportEmitterHelper.WriteFileHeader(writer);
         bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, model.NamespaceName);
 
+        string userdataInterface = $"global::Darp.Luau.ILuauUserdata<{model.ManagedTypeName}>";
+        writer.WriteLine(ExportEmitterHelper.WithBaseList(model.TypeDeclaration, userdataInterface));
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
+        // Implemented explicitly: the type keeps the name 'Register' for its own members.
         writer.WriteLine(
-            ExportEmitterHelper.WithBaseList(
-                model.TypeDeclaration,
-                $"global::Darp.Luau.ILuauUserData<{model.ManagedTypeName}>"
-            )
+            $"static void {userdataInterface}.Register(global::Darp.Luau.LuauUserdataRegistry<{model.ManagedTypeName}> registry)"
         );
         writer.WriteLine("{");
         writer.Indent++;
-        WriteOnIndex(writer, model);
-        writer.WriteLine();
-        WriteOnSetIndex(writer, model);
-        writer.WriteLine();
-        WriteOnMethodCall(writer, model);
+        WriteRegistrations(writer, model);
+        writer.Indent--;
+        writer.WriteLine("}");
         writer.Indent--;
         writer.WriteLine("}");
 
         ExportEmitterHelper.WriteNamespaceEnd(writer, hasNamespace);
     }
 
-    private static void WriteOnIndex(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteRegistrations(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
     {
-        GeneratedExportPropertyIr[] properties = model.Members.OfType<GeneratedExportPropertyIr>().ToArray();
-        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
-        if (properties.Length == 0)
-        {
+        if (model.UserdataTypeName is not null)
             writer.WriteLine(
-                "public static global::Darp.Luau.LuauReturnSingle OnIndex("
-                    + $"{model.ManagedTypeName} self, in global::Darp.Luau.LuauState state, in global::System.ReadOnlySpan<char> fieldName) "
-                    + "=> global::Darp.Luau.LuauReturnSingle.NotHandled;"
+                $"registry.TypeName = {SymbolDisplay.FormatLiteral(model.UserdataTypeName, quote: true)};"
             );
-            return;
-        }
 
-        writer.WriteLine(
-            "public static global::Darp.Luau.LuauReturnSingle OnIndex("
-                + $"{model.ManagedTypeName} self, in global::Darp.Luau.LuauState state, in global::System.ReadOnlySpan<char> fieldName)"
-        );
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine("return fieldName switch");
-        writer.WriteLine("{");
-        writer.Indent++;
         foreach (
-            GeneratedExportPropertyIr property in properties.OrderBy(static x => x.LuauName, StringComparer.Ordinal)
+            GeneratedExportMemberIr member in model.Members.OrderBy(static x => x.LuauName, StringComparer.Ordinal)
         )
         {
-            string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
-            if (property.Getter is null)
+            switch (member)
             {
-                writer.WriteLine(
-                    $"{keyLiteral} => global::Darp.Luau.LuauReturnSingle.Error({SymbolDisplay.FormatLiteral($"userdata member '{property.LuauName}' is write-only", quote: true)}),"
-                );
-                continue;
+                case GeneratedExportPropertyIr property:
+                    WriteProperty(writer, property);
+                    break;
+                case GeneratedExportMethodIr method:
+                    WriteMethod(writer, method);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported generated userdata member '{member.GetType().Name}'."
+                    );
             }
-
-            writer.WriteLine(
-                $"{keyLiteral} => global::Darp.Luau.LuauReturnSingle.Ok({LuauMarshalEmitter.FormatIntoLuauExpression($"self.{property.ManagedName}", property.Getter.Type)}),"
-            );
         }
-
-        writer.WriteLine("_ => global::Darp.Luau.LuauReturnSingle.NotHandled,");
-        writer.Indent--;
-        writer.WriteLine("};");
-        writer.Indent--;
-        writer.WriteLine("}");
     }
 
-    private static void WriteOnSetIndex(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteProperty(IndentedTextWriter writer, GeneratedExportPropertyIr property)
     {
-        GeneratedExportPropertyIr[] properties = model.Members.OfType<GeneratedExportPropertyIr>().ToArray();
-        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
-        if (properties.Length == 0)
+        string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
+        if (property.Getter is not null)
         {
-            writer.WriteLine(
-                "public static global::Darp.Luau.LuauOutcome OnSetIndex("
-                    + $"{model.ManagedTypeName} self, global::Darp.Luau.LuauArgsSingle args, in global::System.ReadOnlySpan<char> fieldName) "
-                    + "=> global::Darp.Luau.LuauOutcome.NotHandledError;"
+            string value = LuauMarshalEmitter.FormatIntoLuauExpression(
+                $"self.{property.ManagedName}",
+                property.Getter.Type
             );
+            writer.WriteLine($"registry.AddGetter({keyLiteral}, static (self, _) => {LuauReturnSingle}.Ok({value}));");
+        }
+
+        if (property.Setter is null)
             return;
-        }
 
-        writer.WriteLine(
-            "public static global::Darp.Luau.LuauOutcome OnSetIndex("
-                + $"{model.ManagedTypeName} self, global::Darp.Luau.LuauArgsSingle args, in global::System.ReadOnlySpan<char> fieldName)"
-        );
+        writer.WriteLine($"registry.AddSetter({keyLiteral}, static (self, args) =>");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("switch (fieldName)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        foreach (
-            GeneratedExportPropertyIr property in properties.OrderBy(static x => x.LuauName, StringComparer.Ordinal)
-        )
-        {
-            string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
-            writer.WriteLine($"case {keyLiteral}:");
-            writer.WriteLine("{");
-            writer.Indent++;
-            if (property.Setter is null)
-            {
-                writer.WriteLine(
-                    $"return global::Darp.Luau.LuauOutcome.Error({SymbolDisplay.FormatLiteral($"userdata member '{property.LuauName}' is read-only", quote: true)});"
-                );
-            }
-            else
-            {
-                writer.WriteMultiLine(LuauMarshalEmitter.GenerateSingleArgumentRead("value", property.Setter.Type));
-                writer.WriteLine($"self.{property.ManagedName} = value;");
-                writer.WriteLine("return global::Darp.Luau.LuauOutcome.Ok();");
-            }
-
-            writer.Indent--;
-            writer.WriteLine("}");
-        }
-
-        writer.WriteLine("default:");
-        writer.WriteLine("    return global::Darp.Luau.LuauOutcome.NotHandledError;");
+        writer.WriteMultiLine(LuauMarshalEmitter.GenerateSingleArgumentRead("value", property.Setter.Type));
+        writer.WriteLine($"self.{property.ManagedName} = value;");
+        writer.WriteLine($"return {LuauOutcome}.Ok();");
         writer.Indent--;
-        writer.WriteLine("}");
-        writer.Indent--;
-        writer.WriteLine("}");
+        writer.WriteLine("});");
     }
 
-    private static void WriteOnMethodCall(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteMethod(IndentedTextWriter writer, GeneratedExportMethodIr method)
     {
-        GeneratedExportMethodIr[] methods = model.Members.OfType<GeneratedExportMethodIr>().ToArray();
-        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
-        if (methods.Length == 0)
-        {
-            writer.WriteLine(
-                "public static global::Darp.Luau.LuauReturn OnMethodCall("
-                    + $"{model.ManagedTypeName} self, global::Darp.Luau.LuauArgs args, in global::System.ReadOnlySpan<char> methodName) "
-                    + "=> global::Darp.Luau.LuauReturn.NotHandledError;"
-            );
-            return;
-        }
-
-        writer.WriteLine(
-            "public static global::Darp.Luau.LuauReturn OnMethodCall("
-                + $"{model.ManagedTypeName} self, global::Darp.Luau.LuauArgs args, in global::System.ReadOnlySpan<char> methodName)"
-        );
+        string keyLiteral = SymbolDisplay.FormatLiteral(method.LuauName, quote: true);
+        writer.WriteLine($"registry.AddMethod({keyLiteral}, static (self, args) =>");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("switch (methodName)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        foreach (GeneratedExportMethodIr method in methods.OrderBy(static x => x.LuauName, StringComparer.Ordinal))
-        {
-            string keyLiteral = SymbolDisplay.FormatLiteral(method.LuauName, quote: true);
-            writer.WriteLine($"case {keyLiteral}:");
-            writer.WriteLine("{");
-            writer.Indent++;
-            CallbackBodyEmitter.Write(writer, method.Signature, $"self.{method.ManagedName}");
-            writer.Indent--;
-            writer.WriteLine("}");
-        }
-
-        writer.WriteLine("default:");
-        writer.WriteLine("    return global::Darp.Luau.LuauReturn.NotHandledError;");
+        CallbackBodyEmitter.Write(writer, method.Signature, $"self.{method.ManagedName}");
         writer.Indent--;
-        writer.WriteLine("}");
-        writer.Indent--;
-        writer.WriteLine("}");
+        writer.WriteLine("});");
     }
 }

@@ -101,24 +101,14 @@ public sealed class GeneratedModuleExportsEmitterTests
             using System;
             using Darp.Luau;
 
-            public sealed class HeroCard : ILuauUserData<HeroCard>
+            public sealed class HeroCard : ILuauUserdata<HeroCard>
             {
                 public HeroCard(string name) => Name = name;
 
                 public string Name { get; }
 
-                public static LuauReturnSingle OnIndex(HeroCard self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
-                    fieldName switch
-                    {
-                        "name" => LuauReturnSingle.Ok(self.Name),
-                        _ => LuauReturnSingle.NotHandled,
-                    };
-
-                public static LuauOutcome OnSetIndex(HeroCard self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
-                    LuauOutcome.NotHandledError;
-
-                public static LuauReturn OnMethodCall(HeroCard self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) =>
-                    LuauReturn.NotHandledError;
+                public static void Register(LuauUserdataRegistry<HeroCard> registry) =>
+                    registry.AddGetter("name", static (self, _) => LuauReturnSingle.Ok(self.Name));
             }
 
             [LuauModule("guild")]

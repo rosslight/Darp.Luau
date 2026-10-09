@@ -90,7 +90,7 @@ For the script, `fetch(url)` is a normal call that returns the body. While the w
 - Ask for the awaiter before you start the work. `TryGetAwaiter(...)` refuses where the callback cannot suspend the script, so work that nobody could await is never started. See [Where a callback can await](#where-a-callback-can-await).
 - `awaiter.Await(pending, complete)` converts the value of the work when it completes. `awaiter.Await(pending)` takes a `ValueTask` and returns no values, or a `ValueTask<LuauReturn>` when the work builds the result itself.
 - If the work has already completed successfully, its result is returned directly and the script does not suspend.
-- A userdata method awaits in the same way, with the `LuauArgs` of `OnMethodCall`. Property reads and writes cannot await.
+- A userdata method and the `Call` metamethod await in the same way, with their `LuauArgs`. Getters, setters and the other metamethods cannot await.
 - `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods do all of this for you when they return `Task` or `ValueTask`. See [Async callbacks](functions.md#async-callbacks) and [Generated async methods](userdata.md#generated-async-methods).
 
 ## Run scripts that await

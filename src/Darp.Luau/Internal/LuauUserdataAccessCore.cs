@@ -12,7 +12,7 @@ internal static unsafe class LuauUserdataAccessCore
         [NotNullWhen(false)] out string? error
     )
         where T : IReferenceSource, allows ref struct
-        where TUserData : class, ILuauUserData<TUserData>
+        where TUserData : class, ILuauUserdata<TUserData>
     {
         value = null;
         LuauState state = source.Validate();

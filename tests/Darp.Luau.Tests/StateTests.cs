@@ -215,9 +215,9 @@ public sealed class StateTests : IDisposable
         using var state = new LuauState();
         state.Globals.Set("disposer", IntoLuau.FromUserdata(new DisposingUserdata(state)));
 
-        Should.Throw<LuaException>(() => state.Load("return disposer.anything").Execute());
-        Should.Throw<LuaException>(() => state.Load("disposer.anything = 1").Execute());
-        Should.Throw<LuaException>(() => state.Load("disposer:anything()").Execute());
+        Should.Throw<LuaException>(() => state.Load("return disposer.value").Execute());
+        Should.Throw<LuaException>(() => state.Load("disposer.value = 1").Execute());
+        Should.Throw<LuaException>(() => state.Load("disposer:run()").Execute());
 
         state.IsDisposed.ShouldBeFalse();
     }
@@ -249,38 +249,36 @@ public sealed class StateTests : IDisposable
         roundTripped.ShouldBe(text);
     }
 
-    private sealed class DisposingUserdata(LuauState state) : ILuauUserData<DisposingUserdata>
+    private sealed class DisposingUserdata(LuauState state) : ILuauUserdata<DisposingUserdata>
     {
         private readonly LuauState _state = state;
 
-        public static LuauReturnSingle OnIndex(
-            DisposingUserdata self,
-            in LuauState state,
-            in ReadOnlySpan<char> fieldName
-        )
+        public static void Register(LuauUserdataRegistry<DisposingUserdata> registry)
         {
-            self._state.Dispose();
-            return LuauReturnSingle.NotHandled;
-        }
-
-        public static LuauOutcome OnSetIndex(
-            DisposingUserdata self,
-            LuauArgsSingle args,
-            in ReadOnlySpan<char> fieldName
-        )
-        {
-            self._state.Dispose();
-            return LuauOutcome.NotHandledError;
-        }
-
-        public static LuauReturn OnMethodCall(
-            DisposingUserdata self,
-            LuauArgs functionArgs,
-            in ReadOnlySpan<char> methodName
-        )
-        {
-            self._state.Dispose();
-            return LuauReturn.NotHandledError;
+            registry.AddGetter(
+                "value",
+                static (self, _) =>
+                {
+                    self._state.Dispose();
+                    return LuauReturnSingle.Ok(1);
+                }
+            );
+            registry.AddSetter(
+                "value",
+                static (self, _) =>
+                {
+                    self._state.Dispose();
+                    return LuauOutcome.Ok();
+                }
+            );
+            registry.AddMethod(
+                "run",
+                static (self, _) =>
+                {
+                    self._state.Dispose();
+                    return LuauReturn.Ok();
+                }
+            );
         }
     }
 

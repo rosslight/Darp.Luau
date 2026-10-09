@@ -1,7 +1,7 @@
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Darp.Luau.Generator.GeneratedExports;
 
@@ -19,6 +19,7 @@ internal static class ExportProjector
             GetHintName(validatedType.Type.Symbol, validatedType.Type.Kind),
             validatedType.Type.Kind,
             validatedType.Type.ModuleName,
+            validatedType.Type.UserdataTypeName,
             validatedType.Type.Members.Select(ProjectMember).ToImmutableEquatableArray(),
             validatedType.ModuleRoot is null ? null : ProjectNode(validatedType.ModuleRoot)
         );
@@ -66,14 +67,15 @@ internal static class ExportProjector
 
     private static string GetTypeDeclaration(INamedTypeSymbol type)
     {
-        TypeDeclarationSyntax syntax = type.DeclaringSyntaxReferences
-            .Select(static x => x.GetSyntax())
+        TypeDeclarationSyntax syntax = type
+            .DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
             .OfType<TypeDeclarationSyntax>()
             .First();
 
         string modifiers = string.Join(
             " ",
-            syntax.Modifiers.Where(static x =>
+            syntax
+                .Modifiers.Where(static x =>
                     x.IsKind(SyntaxKind.PublicKeyword)
                     || x.IsKind(SyntaxKind.InternalKeyword)
                     || x.IsKind(SyntaxKind.PrivateKeyword)
@@ -92,7 +94,9 @@ internal static class ExportProjector
             StructDeclarationSyntax structDeclaration => $"{modifiers} struct {structDeclaration.Identifier.Text}",
             RecordDeclarationSyntax recordDeclaration =>
                 $"{modifiers} record {recordDeclaration.ClassOrStructKeyword.Text} {recordDeclaration.Identifier.Text}",
-            _ => throw new InvalidOperationException($"Unsupported generated export type declaration '{syntax.Kind()}'."),
+            _ => throw new InvalidOperationException(
+                $"Unsupported generated export type declaration '{syntax.Kind()}'."
+            ),
         };
     }
 

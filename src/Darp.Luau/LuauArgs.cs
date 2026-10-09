@@ -18,6 +18,16 @@ public readonly unsafe ref partial struct LuauArgs
     /// <summary> Gets the number of arguments supplied by the Lua caller. </summary>
     public int ArgumentCount { get; }
 
+    /// <summary> Gets the state that runs the callback, for example to create a table the callback returns. </summary>
+    public LuauState State
+    {
+        get
+        {
+            _state.ThrowIfDisposed();
+            return _state;
+        }
+    }
+
     /// <summary>
     /// Gets the cancellation token of the async host call that runs this callback, such as
     /// <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
@@ -535,7 +545,7 @@ public readonly unsafe ref partial struct LuauArgs
         [NotNullWhen(true)] out T? value,
         [NotNullWhen(false)] out string? error
     )
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
         value = null;
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
@@ -565,7 +575,7 @@ public readonly unsafe ref partial struct LuauArgs
     /// <typeparamref name="T"/> created by this library; otherwise <c>false</c>.
     /// </returns>
     public bool TryReadUserdataOrNil<T>(int parameterIndex, out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
         value = null;
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))

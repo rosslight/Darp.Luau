@@ -16,7 +16,8 @@ internal static class SymbolExtensions
 
     public static bool IsFileLocal(this INamedTypeSymbol type)
     {
-        return type.DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
+        return type
+            .DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
             .OfType<TypeDeclarationSyntax>()
             .Any(static x => x.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.FileKeyword)));
     }
@@ -26,40 +27,61 @@ internal static class SymbolExtensions
         return type.GetManualUserdataHookMembers(apiSymbols).Any();
     }
 
-    public static IEnumerable<ISymbol> GetManualUserdataHookMembers(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
+    /// <summary> Gets the <c>Register</c> methods a type wrote itself. </summary>
+    public static IEnumerable<ISymbol> GetManualUserdataHookMembers(
+        this INamedTypeSymbol type,
+        LuauApiSymbols apiSymbols
+    )
     {
-        if (
-            !type.AllInterfaces.Any(@interface =>
-                SymbolEqualityComparer.Default.Equals(
-                    @interface.OriginalDefinition,
-                    apiSymbols.LuauUserdataInterfaceSymbol
-                )
-            )
-        )
-            yield break;
-
+        var registrations = new List<ISymbol>();
         foreach (INamedTypeSymbol @interface in type.AllInterfaces)
         {
+            // The interface of a base class describes the base class, not this type.
             if (
                 !SymbolEqualityComparer.Default.Equals(
                     @interface.OriginalDefinition,
                     apiSymbols.LuauUserdataInterfaceSymbol
-                )
+                ) || !SymbolEqualityComparer.Default.Equals(@interface.TypeArguments[0], type)
             )
                 continue;
 
             foreach (ISymbol interfaceMember in @interface.GetMembers())
             {
                 ISymbol? implementation = type.FindImplementationForInterfaceMember(interfaceMember);
-                if (
-                    implementation is IMethodSymbol { Name: "OnIndex" or "OnSetIndex" or "OnMethodCall" }
-                    && implementation.HasNonGeneratedDeclaration()
-                )
-                {
-                    yield return implementation;
-                }
+                if (implementation is IMethodSymbol && implementation.HasNonGeneratedDeclaration())
+                    registrations.Add(implementation);
             }
         }
+
+        // A type that declares the method without listing the interface means the same. The generated explicit
+        // implementation would take its place without a word. Another method that is only named 'Register' is none
+        // of the generator's business.
+        foreach (IMethodSymbol method in type.GetMembers("Register").OfType<IMethodSymbol>())
+        {
+            if (
+                method
+                    is {
+                        IsStatic: true,
+                        ReturnsVoid: true,
+                        Arity: 0,
+                        Parameters: [
+                            {
+                                RefKind: RefKind.None,
+                                Type: INamedTypeSymbol { Name: "LuauUserdataRegistry", Arity: 1 } registry,
+                            },
+                        ],
+                    }
+                && registry.ContainingNamespace.ToDisplayString() == "Darp.Luau"
+                && SymbolEqualityComparer.Default.Equals(registry.TypeArguments[0], type)
+                && method.HasNonGeneratedDeclaration()
+                && !registrations.Contains(method, SymbolEqualityComparer.Default)
+            )
+            {
+                registrations.Add(method);
+            }
+        }
+
+        return registrations;
     }
 
     public static bool HasNonGeneratedDeclaration(this ISymbol symbol)

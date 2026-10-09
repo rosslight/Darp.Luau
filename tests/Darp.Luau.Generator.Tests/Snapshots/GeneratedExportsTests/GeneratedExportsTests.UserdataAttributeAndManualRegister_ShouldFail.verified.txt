@@ -1,0 +1,104 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+using System;
+^^^^^^^^^^^^^
+using System.Collections.Generic;
+*/
+ : (0,0)-(0,13),
+      Message: Unnecessary using directive.,
+      Severity: Hidden,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: CS8019,
+        Title: Unnecessary using directive,
+        HelpLink: https://msdn.microsoft.com/query/roslyn.query?appId=roslyn&k=k(CS8019),
+        MessageFormat: Unnecessary using directive.,
+        Category: Compiler,
+        DefaultSeverity: Hidden,
+        IsEnabledByDefault: true,
+        CustomTags: [
+          Compiler,
+          Telemetry
+        ]
+      }
+    },
+    {
+      Location: /*
+{
+    [LuauMember("stats")]
+     ^^^^^^^^^^^^^^^^^^^
+    public Dictionary<string, int> Stats { get; } = new();
+*/
+ : (7,5)-(7,24),
+      Message: Member type 'global::System.Collections.Generic.Dictionary<string, int>' is not supported for generated userdata property 'Stats',
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1004,
+        Title: Unsupported generated property type,
+        MessageFormat: Member type '{0}' is not supported for generated {1} '{2}',
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("stats.total")]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^
+    public int Total => 1;
+*/
+ : (10,5)-(10,30),
+      Message: Invalid generated export shape: userdata member 'Total' must use a single-segment Luau name,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    public static void Register(LuauUserdataRegistry<Player> registry) { }
+                       ^^^^^^^^
+}
+*/
+ : (13,23)-(13,31),
+      Message: Userdata type 'Player' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata registration cannot mix,
+        MessageFormat: Userdata type '{0}' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+                       ^^^^^^^^
+}
+*/
+ : (20,23)-(20,31),
+      Message: Userdata type 'Enemy' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata registration cannot mix,
+        MessageFormat: Userdata type '{0}' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
