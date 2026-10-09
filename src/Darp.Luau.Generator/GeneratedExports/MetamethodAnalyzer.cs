@@ -34,8 +34,6 @@ internal static class MetamethodAnalyzer
         {
             Candidate[] overloads = group.ToArray();
             ReportOverloadsLuauCannotTellApart(overloads, diagnostics);
-            foreach (Candidate overload in overloads)
-                ReportOverloadOfAnotherTypesOperator(discoveredType.Symbol, overload, context, diagnostics);
 
             metamethods.Add(
                 new GeneratedMetamethodIr(
@@ -134,12 +132,12 @@ internal static class MetamethodAnalyzer
             return null;
         }
 
-        if (!TryGetCall(method, ownTypeName, out MetamethodCallKind callKind, out string? callTarget))
+        if (!TryGetCall(metamethod, method, ownTypeName, out MetamethodCallKind callKind, out string? callTarget))
         {
             Report(
                 diagnostics,
                 location,
-                $"operator '{method.Name}' cannot be called from generated code; declare the metamethod on a method that calls it"
+                $"operator '{method.Name}' is not the C# operator for metamethod '{metamethod}'; declare the metamethod on a method that calls it"
             );
             return null;
         }
@@ -217,6 +215,7 @@ internal static class MetamethodAnalyzer
     }
 
     private static bool TryGetCall(
+        string metamethod,
         IMethodSymbol method,
         string ownTypeName,
         out MetamethodCallKind callKind,
@@ -232,26 +231,18 @@ internal static class MetamethodAnalyzer
         }
 
         callKind = method.Parameters.Length == 1 ? MetamethodCallKind.UnaryOperator : MetamethodCallKind.BinaryOperator;
-        string? token = (method.Name, method.Parameters.Length) switch
+        // Only the operator that means the same in C#. Any other one would read as one thing and do another.
+        string? token = (metamethod, method.Name) switch
         {
-            ("op_Addition", 2) => "+",
-            ("op_Subtraction", 2) => "-",
-            ("op_Multiply", 2) => "*",
-            ("op_Division", 2) => "/",
-            ("op_Modulus", 2) => "%",
-            ("op_ExclusiveOr", 2) => "^",
-            ("op_BitwiseAnd", 2) => "&",
-            ("op_BitwiseOr", 2) => "|",
-            ("op_Equality", 2) => "==",
-            ("op_Inequality", 2) => "!=",
-            ("op_LessThan", 2) => "<",
-            ("op_LessThanOrEqual", 2) => "<=",
-            ("op_GreaterThan", 2) => ">",
-            ("op_GreaterThanOrEqual", 2) => ">=",
-            ("op_UnaryNegation", 1) => "-",
-            ("op_UnaryPlus", 1) => "+",
-            ("op_LogicalNot", 1) => "!",
-            ("op_OnesComplement", 1) => "~",
+            ("Add", "op_Addition") => "+",
+            ("Sub", "op_Subtraction") => "-",
+            ("Mul", "op_Multiply") => "*",
+            ("Div", "op_Division") => "/",
+            ("Mod", "op_Modulus") => "%",
+            ("Unm", "op_UnaryNegation") => "-",
+            ("Eq", "op_Equality") => "==",
+            ("Lt", "op_LessThan") => "<",
+            ("Le", "op_LessThanOrEqual") => "<=",
             _ => null,
         };
         callTarget = token ?? string.Empty;
@@ -338,50 +329,6 @@ internal static class MetamethodAnalyzer
                 return true;
         }
         return false;
-    }
-
-    /// <summary>
-    /// Luau picks the metamethod of the left operand and never tries another one, so an overload for a left operand
-    /// of a type that has the operator itself is never called. One that also takes nil on the left is: nil has no
-    /// metamethod, so Luau asks the right operand.
-    /// </summary>
-    private static void ReportOverloadOfAnotherTypesOperator(
-        INamedTypeSymbol ownType,
-        Candidate candidate,
-        LuauApiSymbols context,
-        List<Diagnostic> diagnostics
-    )
-    {
-        if (
-            candidate.Metamethod is not ("Add" or "Sub" or "Mul" or "Div" or "Mod" or "Pow" or "IDiv" or "Concat")
-            || candidate.Overload.Signature.Parameters[0].IsNullable
-            || candidate.OperandTypes[0] is not INamedTypeSymbol leftType
-            || SymbolEqualityComparer.Default.Equals(leftType, ownType)
-            || context.GetUserdataAttribute(leftType) is null
-        )
-        {
-            return;
-        }
-
-        bool leftTypeHasTheOperator = leftType
-            .GetMembers()
-            .OfType<IMethodSymbol>()
-            .Select(context.GetMetamethodAttribute)
-            .Any(attribute =>
-                attribute is not null && LuauApiSymbols.GetMetamethodName(attribute) == candidate.Metamethod
-            );
-        if (!leftTypeHasTheOperator)
-            return;
-
-        diagnostics.Add(
-            Diagnostic.Create(
-                DiagnosticDescriptors.UnreachableMetamethodOverloadDescriptor,
-                candidate.Location,
-                candidate.Metamethod,
-                candidate.Method.Name,
-                leftType.Name
-            )
-        );
     }
 
     private enum LuauOperandType

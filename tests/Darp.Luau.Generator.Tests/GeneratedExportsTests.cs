@@ -589,6 +589,7 @@ public class GeneratedExportsTests
     public async Task MetamethodsGeneratedCodeCannotCall_ShouldFail()
     {
         const string code = """
+            #pragma warning disable CS0660, CS0661 // Equals and GetHashCode are of no interest here
             using Darp.Luau;
 
             public interface IDescribed
@@ -608,9 +609,20 @@ public class GeneratedExportsTests
                 [LuauMetamethod(LuauMetamethod.Len)]
                 partial void Count();
 
-                // Has the shape of the metamethod, but C# only calls it by changing a variable.
+                // An operator only declares the metamethod it stands for.
                 [LuauMetamethod(LuauMetamethod.Unm)]
                 public static Money operator ++(Money money) => money;
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public static Money operator ^(Money a, Money b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public static Money operator +(Money a, Money b) => a;
+
+                public static bool operator ==(Money a, Money b) => true;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public static bool operator !=(Money a, Money b) => false;
 
                 [LuauMetamethod(LuauMetamethod.Add)]
                 public Money Add(System.Uri source) => this;
@@ -668,43 +680,6 @@ public class GeneratedExportsTests
 
                 [LuauMetamethod(LuauMetamethod.Call)]
                 public void Run(double amount, double times) { }
-            }
-            """;
-
-        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
-    }
-
-    [Fact]
-    public async Task MetamethodForALeftOperandThatHasTheOperatorItself_ShouldWarn()
-    {
-        const string code = """
-            #nullable enable
-            using Darp.Luau;
-
-            [LuauUserdata("Vec")]
-            public sealed partial class Vec
-            {
-                [LuauMetamethod(LuauMetamethod.Mul)]
-                public Vec Scale(double factor) => this;
-
-                [LuauMetamethod(LuauMetamethod.Sub)]
-                public Vec Minus(Vec other) => this;
-
-                // Reached: a Mat has no Add of its own.
-                [LuauMetamethod(LuauMetamethod.Add)]
-                public static Vec Shift(Mat mat, Vec vec) => vec;
-            }
-
-            [LuauUserdata("Mat")]
-            public sealed partial class Mat
-            {
-                // Never called: Luau asks the Vec on the left, which has a Mul but none for a Mat.
-                [LuauMetamethod(LuauMetamethod.Mul)]
-                public static Vec Transform(Vec vec, Mat mat) => vec;
-
-                // Reached with nil on the left: nil has no Sub, so Luau asks the Mat on the right.
-                [LuauMetamethod(LuauMetamethod.Sub)]
-                public static Mat Without(Vec? vec, Mat mat) => mat;
             }
             """;
 

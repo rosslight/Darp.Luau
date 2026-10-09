@@ -148,15 +148,6 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true
     );
 
-    public static readonly DiagnosticDescriptor UnreachableMetamethodOverloadDescriptor = new(
-        id: "DLUAU1014",
-        title: "Metamethod overload is never called",
-        messageFormat: "Metamethod '{0}' on '{1}' is never called: Luau uses the metamethod of the left operand, and '{2}' declares '{0}' itself",
-        category: "Darp.Luau.Generator",
-        defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true
-    );
-
     public static readonly DiagnosticDescriptor LuauExportPathSegmentRequiresBracketAccessDescriptor = new(
         id: "DLUAU1013",
         title: "Luau export path segment requires bracket access",

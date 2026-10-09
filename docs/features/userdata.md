@@ -143,7 +143,7 @@ public sealed partial class Vec2(double x, double y)
 }
 ```
 
-The method can have any name and accessibility. The generator only checks that its operands and its result fit the metamethod:
+The method can have any name and accessibility. The generator only checks that its operands and its result fit the metamethod. An operator can only declare the metamethod it stands for: `+`, `-`, `*`, `/`, `%`, unary `-`, `==`, `<` and `<=`. For every other metamethod, such as `Pow`, mark a method:
 
 | Metamethod | Luau | Operands | Result |
 | --- | --- | --- | --- |
@@ -163,7 +163,7 @@ Several methods can declare the same metamethod when Luau can tell their operand
 
 What follows from how Luau works:
 
-- For `a + b`, Luau uses the metamethod of `a`, and that of `b` only when `a` has none. It never tries the other one after an error. An overload on type `B` for a left operand of type `A` is therefore only reached when `A` does not declare the operator; the generator warns when it does.
+- For `a + b`, Luau uses the metamethod of `a`, and that of `b` only when `a` has none. It never tries the other one after an error. An overload on type `B` for a left operand of type `A` is therefore only reached when `A` does not declare the operator.
 - `a == b` only calls `Eq` for two different instances of the same type. Two values of different types are never equal. `a < b` across types is an error.
 - An operator the type does not declare raises Luau's own error, such as `attempt to perform arithmetic (div) on Vec2 and number`. An operator with operands that no overload takes raises the same kind of error.
 - `Index` and `NewIndex` are only reached for keys that are not declared members, also for keys that are not strings. An `Index` whose overloads do not take the key gives `nil`.

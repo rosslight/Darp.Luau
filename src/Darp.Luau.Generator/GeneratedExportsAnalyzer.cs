@@ -25,7 +25,6 @@ public sealed class GeneratedExportsAnalyzer : DiagnosticAnalyzer
             DiagnosticDescriptors.GeneratedUserdataManualInteropConflictDescriptor,
             DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
             DiagnosticDescriptors.LuauExportPathSegmentRequiresBracketAccessDescriptor,
-            DiagnosticDescriptors.UnreachableMetamethodOverloadDescriptor,
         ];
 
     /// <inheritdoc />

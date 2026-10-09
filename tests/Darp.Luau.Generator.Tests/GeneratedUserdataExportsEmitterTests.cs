@@ -187,73 +187,41 @@ public sealed class GeneratedUserdataExportsEmitterTests
         const string code = """
             using Darp.Luau;
 
-            [LuauUserdata("Bits")]
-            public sealed partial class Bits
+            [LuauUserdata("Amount")]
+            public sealed partial class Amount
             {
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static Amount operator +(Amount a, Amount b) => a;
+
                 [LuauMetamethod(LuauMetamethod.Sub)]
-                public static Bits operator -(Bits a, Bits b) => a;
+                public static Amount operator -(Amount a, Amount b) => a;
 
                 [LuauMetamethod(LuauMetamethod.Mul)]
-                public static Bits operator *(Bits a, Bits b) => a;
+                public static Amount operator *(Amount a, double factor) => a;
 
                 [LuauMetamethod(LuauMetamethod.Div)]
-                public static Bits operator /(Bits a, Bits b) => a;
+                public static Amount operator /(Amount a, double divisor) => a;
 
                 [LuauMetamethod(LuauMetamethod.Mod)]
-                public static Bits operator %(Bits a, Bits b) => a;
-
-                [LuauMetamethod(LuauMetamethod.Pow)]
-                public static Bits operator ^(Bits a, Bits b) => a;
-
-                [LuauMetamethod(LuauMetamethod.Concat)]
-                public static Bits operator &(Bits a, Bits b) => a;
-
-                [LuauMetamethod(LuauMetamethod.IDiv)]
-                public static Bits operator |(Bits a, Bits b) => a;
-
-                [LuauMetamethod(LuauMetamethod.Eq)]
-                public static bool operator ==(Bits a, Bits b) => true;
-
-                public static bool operator !=(Bits a, Bits b) => false;
-
-                [LuauMetamethod(LuauMetamethod.Lt)]
-                public static bool operator <(Bits a, Bits b) => true;
-
-                public static bool operator >(Bits a, Bits b) => false;
-
-                [LuauMetamethod(LuauMetamethod.Le)]
-                public static bool operator <=(Bits a, Bits b) => true;
-
-                public static bool operator >=(Bits a, Bits b) => false;
+                public static Amount operator %(Amount a, double divisor) => a;
 
                 [LuauMetamethod(LuauMetamethod.Unm)]
-                public static Bits operator ~(Bits a) => a;
-
-                [LuauMetamethod(LuauMetamethod.Len)]
-                public static int operator +(Bits a) => 0;
-
-                [LuauMetamethod(LuauMetamethod.ToString)]
-                public static string operator !(Bits a) => "";
-            }
-
-            // The attribute names the metamethod; the operator is only what the generated code calls.
-            [LuauUserdata("Reversed")]
-            public sealed partial class Reversed
-            {
-                public static bool operator ==(Reversed a, Reversed b) => true;
+                public static Amount operator -(Amount a) => a;
 
                 [LuauMetamethod(LuauMetamethod.Eq)]
-                public static bool operator !=(Reversed a, Reversed b) => false;
+                public static bool operator ==(Amount a, Amount b) => true;
 
-                public static bool operator <(Reversed a, Reversed b) => true;
+                public static bool operator !=(Amount a, Amount b) => false;
 
                 [LuauMetamethod(LuauMetamethod.Lt)]
-                public static bool operator >(Reversed a, Reversed b) => false;
+                public static bool operator <(Amount a, Amount b) => true;
 
-                public static bool operator <=(Reversed a, Reversed b) => true;
+                public static bool operator >(Amount a, Amount b) => false;
 
                 [LuauMetamethod(LuauMetamethod.Le)]
-                public static bool operator >=(Reversed a, Reversed b) => false;
+                public static bool operator <=(Amount a, Amount b) => true;
+
+                public static bool operator >=(Amount a, Amount b) => false;
             }
             """;
 
