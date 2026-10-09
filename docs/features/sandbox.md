@@ -73,6 +73,8 @@ What the host put into the globals keeps working as before:
 
 A function that was loaded before `EnableSandbox()` keeps working and keeps looking everything up. Enable the sandbox before loading scripts.
 
+Whatever ran before could also keep something the sandbox takes away. `getfenv` and `setfenv` are removed from the globals, not revoked: a reference a script stored in a table beforehand still works. Treat everything that runs before `EnableSandbox()` as part of the host's setup.
+
 ## What the host can no longer do
 
 The globals are read-only for the host as well:
