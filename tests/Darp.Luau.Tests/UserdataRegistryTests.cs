@@ -314,6 +314,44 @@ public sealed class UserdataRegistryTests
     }
 
     [Fact]
+    public void StaticValue_ThatFails_ShouldFailTheTypeTableAndBeCreatedAgainOnTheNextUse()
+    {
+        using var state = new LuauState();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            state.GetTypeTable<FailingOnceStaticSide>()
+        );
+        exception.Message.ShouldContain("'value'");
+        exception.Message.ShouldContain("not ready yet");
+
+        using LuauTable table = state.GetTypeTable<FailingOnceStaticSide>();
+        table.TryGet("value", out int value).ShouldBeTrue();
+        value.ShouldBe(2);
+    }
+
+    [Fact]
+    public void StaticValue_ThatAsksForTheTypeTableItIsPartOf_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            state.GetTypeTable<SelfReferencingStaticSide>()
+        );
+
+        exception.Message.ShouldContain("cannot use the static side it is part of");
+    }
+
+    [Fact]
+    public void Register_ThatDeclaresAStaticNameTwice_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        ArgumentException exception = Should.Throw<ArgumentException>(() => state.GetTypeTable<DuplicateStaticName>());
+
+        exception.Message.ShouldContain("already declares 'create'");
+    }
+
+    [Fact]
     public void StaticSideAndInstance_ShouldNotSeeEachOthersMembers()
     {
         using var state = new LuauState();
@@ -644,6 +682,43 @@ public sealed class UserdataRegistryTests
                     return LuauReturnSingle.Ok(1);
                 }
             );
+    }
+
+    private sealed class FailingOnceStaticSide : ILuauUserdata<FailingOnceStaticSide>
+    {
+        private static int s_attempts;
+
+        public static void Register(LuauUserdataRegistry<FailingOnceStaticSide> registry) =>
+            registry.AddValue(
+                "value",
+                static _ =>
+                {
+                    int attempt = Interlocked.Increment(ref s_attempts);
+                    return attempt == 1 ? LuauReturnSingle.Error("not ready yet") : LuauReturnSingle.Ok(attempt);
+                }
+            );
+    }
+
+    private sealed class SelfReferencingStaticSide : ILuauUserdata<SelfReferencingStaticSide>
+    {
+        public static void Register(LuauUserdataRegistry<SelfReferencingStaticSide> registry) =>
+            registry.AddValue(
+                "self",
+                static state =>
+                {
+                    using LuauTable table = state.GetTypeTable<SelfReferencingStaticSide>();
+                    return LuauReturnSingle.Ok(table);
+                }
+            );
+    }
+
+    private sealed class DuplicateStaticName : ILuauUserdata<DuplicateStaticName>
+    {
+        public static void Register(LuauUserdataRegistry<DuplicateStaticName> registry)
+        {
+            registry.AddFunction("create", static _ => LuauReturn.Ok());
+            registry.AddValue("create", static _ => LuauReturnSingle.Ok(1));
+        }
     }
 
     private sealed class Duplicate : ILuauUserdata<Duplicate>
