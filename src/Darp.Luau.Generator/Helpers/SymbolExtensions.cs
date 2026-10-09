@@ -53,14 +53,22 @@ internal static class SymbolExtensions
         }
 
         // A type that declares the method without listing the interface means the same. The generated explicit
-        // implementation would take its place without a word.
+        // implementation would take its place without a word. Another method that is only named 'Register' is none
+        // of the generator's business.
         foreach (IMethodSymbol method in type.GetMembers("Register").OfType<IMethodSymbol>())
         {
             if (
                 method
                     is {
                         IsStatic: true,
-                        Parameters: [{ Type: INamedTypeSymbol { Name: "LuauUserdataRegistry", Arity: 1 } registry }],
+                        ReturnsVoid: true,
+                        Arity: 0,
+                        Parameters: [
+                            {
+                                RefKind: RefKind.None,
+                                Type: INamedTypeSymbol { Name: "LuauUserdataRegistry", Arity: 1 } registry,
+                            },
+                        ],
                     }
                 && registry.ContainingNamespace.ToDisplayString() == "Darp.Luau"
                 && SymbolEqualityComparer.Default.Equals(registry.TypeArguments[0], type)

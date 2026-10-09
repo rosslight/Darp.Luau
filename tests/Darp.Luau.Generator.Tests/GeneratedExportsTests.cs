@@ -394,6 +394,33 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task MethodsNamedRegisterThatAreNotTheRegistration_ShouldReportNoDiagnostics()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Player")]
+            public sealed partial class Player
+            {
+                public static int Register(LuauUserdataRegistry<Player> registry) => 0;
+
+                public static void Register<T>(LuauUserdataRegistry<Player> registry) { }
+
+                public static void Register(ref LuauUserdataRegistry<Player> registry) { }
+
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
+
+            public sealed class Enemy : ILuauUserdata<Enemy>
+            {
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExports(code);
+    }
+
+    [Fact]
     public async Task GenericModuleType_ShouldFail()
     {
         const string code = """
