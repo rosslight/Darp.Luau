@@ -21,6 +21,7 @@ internal static class ExportProjector
             validatedType.Type.ModuleName,
             validatedType.Type.UserdataTypeName,
             validatedType.Type.Members.Select(ProjectMember).ToImmutableEquatableArray(),
+            validatedType.Type.Metamethods,
             validatedType.ModuleRoot is null ? null : ProjectNode(validatedType.ModuleRoot)
         );
     }
@@ -53,7 +54,7 @@ internal static class ExportProjector
     }
 
     /// <summary> Writes a member name the way source code refers to it: <c>@return</c> for a member named <c>return</c>. </summary>
-    private static string EscapeIdentifier(string name) =>
+    public static string EscapeIdentifier(string name) =>
         SyntaxFacts.GetKeywordKind(name) is SyntaxKind.None ? name : $"@{name}";
 
     private static GeneratedModuleExportNodeIr ProjectNode(ValidatedModuleExportNode node)

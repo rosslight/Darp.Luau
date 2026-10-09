@@ -1,0 +1,61 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    // An int and a double are both a number in Luau.
+    [LuauMetamethod(LuauMetamethod.Mul)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public Money Scale(double factor) => this;
+*/
+ : (9,5)-(9,39),
+      Message: Invalid generated export shape: metamethod 'Mul' on 'Scale' takes operands that Luau cannot tell apart from those of 'Scale': overloads must differ in the number of operands or in the Luau type of one of them,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    // Both take nil.
+    [LuauMetamethod(LuauMetamethod.Div)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public Money Split(double? parts) => this;
+*/
+ : (16,5)-(16,39),
+      Message: Invalid generated export shape: metamethod 'Div' on 'Split' takes operands that Luau cannot tell apart from those of 'Split': overloads must differ in the number of operands or in the Luau type of one of them,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    // A LuauValue takes every value, but a call with two arguments is told apart by their number.
+    [LuauMetamethod(LuauMetamethod.Call)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Run(LuauValue amount) { }
+*/
+ : (23,5)-(23,40),
+      Message: Invalid generated export shape: metamethod 'Call' on 'Run' takes operands that Luau cannot tell apart from those of 'Run': overloads must differ in the number of operands or in the Luau type of one of them,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

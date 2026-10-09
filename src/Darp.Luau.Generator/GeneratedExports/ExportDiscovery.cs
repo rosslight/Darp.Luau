@@ -37,10 +37,22 @@ internal static class ExportDiscovery
             return null;
 
         var members = new List<DiscoveredExportMember>();
+        var metamethods = new List<DiscoveredExportMetamethod>();
         foreach (ISymbol member in type.GetMembers())
         {
             if (member.IsImplicitlyDeclared)
                 continue;
+
+            if (member is IMethodSymbol metamethod && context.GetMetamethodAttribute(metamethod) is { } attributeData)
+            {
+                metamethods.Add(
+                    new DiscoveredExportMetamethod(
+                        metamethod,
+                        attributeData,
+                        new SourceOrigin(member.Name, SymbolExtensions.GetAttributeLocation(attributeData, member))
+                    )
+                );
+            }
 
             AttributeData? memberAttribute = context.GetMemberAttribute(member);
             if (memberAttribute is null)
@@ -66,7 +78,8 @@ internal static class ExportDiscovery
                 type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 SymbolExtensions.GetAttributeLocation(attribute, type)
             ),
-            members.ToImmutableEquatableArray()
+            members.ToImmutableEquatableArray(),
+            metamethods.ToImmutableEquatableArray()
         );
     }
 }

@@ -124,6 +124,64 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithMetamethods_ShouldChooseTheOverloadByTheOperandsBeforeReadingThem()
+    {
+        const string code = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata("Vec2")]
+            public sealed partial class Vec2(double x, double y)
+            {
+                public double X { get; } = x;
+                public double Y { get; } = y;
+
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static Vec2 operator +(Vec2 a, Vec2 b) => new(a.X + b.X, a.Y + b.Y);
+
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Vec2 operator -(Vec2 a) => new(-a.X, -a.Y);
+
+                // An instance method: the instance is the left operand.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                private Vec2 Scale(double factor) => new(X * factor, Y * factor);
+
+                // A static method names both operands, so the instance can be the right one.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                private static Vec2 Scale(double factor, Vec2 vec) => vec.Scale(factor);
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                private bool SameAs(Vec2 other) => X == other.X && Y == other.Y;
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                private int Count() => 2;
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                private string Describe() => $"({X}, {Y})";
+
+                [LuauMetamethod(LuauMetamethod.Index)]
+                private double? Component(int index) => index switch { 1 => X, 2 => Y, _ => null };
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                private void Reject(string name, LuauValue value) => throw new System.InvalidOperationException(name);
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                private double Dot(Vec2 other) => X * other.X + Y * other.Y;
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                private async Task<double> ScaledSumAsync(double factor, string? unit, CancellationToken cancellationToken)
+                {
+                    await Task.Delay(1, cancellationToken);
+                    return (X + Y) * factor;
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataRegister()
     {
         const string code = """

@@ -139,6 +139,9 @@ public sealed partial class Player
     [LuauMember("save")]
     public Task SaveAsync(CancellationToken cancellationToken) =>
         File.WriteAllTextAsync("player.txt", Name, cancellationToken);
+
+    [LuauMetamethod(LuauMetamethod.ToString)]
+    private string Describe() => $"Player {Name}";
 }
 
 var player = new Player { Name = "Ada" };
@@ -152,7 +155,7 @@ using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
 _ = playerRef.TryGetManaged(out Player? resolvedPlayer, out string? error);
 ```
 
-Prefer `[LuauUserdata]` for regular script-facing properties and methods. Implement `ILuauUserdata<T>` by hand only when you need behavior the generator cannot express, such as member names that are only known at run time. See [Userdata](docs/features/userdata.md) for metamethods and registration by hand.
+Prefer `[LuauUserdata]` for regular script-facing properties, methods and operators. Implement `ILuauUserdata<T>` by hand only when you need behavior the generator cannot express, such as member names that are only known at run time. See [Userdata](docs/features/userdata.md) for metamethods and registration by hand.
 
 `CreateFunction(...)` also supports managed userdata parameters and returns for generated `[LuauUserdata]` types and manual `ILuauUserdata<TSelf>` implementations.
 

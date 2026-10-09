@@ -1,0 +1,24 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    // Never called: Luau asks the Vec on the left, which has a Mul but none for a Mat.
+    [LuauMetamethod(LuauMetamethod.Mul)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static Vec Transform(Vec vec, Mat mat) => vec;
+*/
+ : (17,5)-(17,39),
+      Message: Metamethod 'Mul' on 'Transform' is never called: Luau uses the metamethod of the left operand, and 'Vec' declares 'Mul' itself,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DLUAU1014,
+        Title: Metamethod overload is never called,
+        MessageFormat: Metamethod '{0}' on '{1}' is never called: Luau uses the metamethod of the left operand, and '{2}' declares '{0}' itself,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -475,6 +475,127 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task MetamethodsWithTheWrongShape_ShouldFail()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                // No operand is the type itself.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static double Sum(double a, double b) => a + b;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public int SameAs(Money other) => 0;
+
+                // Luau cannot wait inside an operator.
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public Task<Money> SubtractAsync(Money other) => Task.FromResult(other);
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public string? Describe() => null;
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                public string Length() => "";
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public bool Store(string key, double value) => true;
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public static void Run(double amount) { }
+            }
+
+            [LuauModule("bank")]
+            public static partial class BankModule
+            {
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public static void Open() { }
+            }
+
+            // Registered by hand: the generator never looks at the attribute.
+            public sealed class Account : ILuauUserdata<Account>
+            {
+                public static void Register(LuauUserdataRegistry<Account> registry) { }
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public string Describe() => "account";
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodOverloadsThatLuauCannotTellApart_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(int factor) => this;
+
+                // An int and a double are both a number in Luau.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(double factor) => this;
+
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public Money Split(string? parts) => this;
+
+                // Both take nil.
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public Money Split(double? parts) => this;
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(double amount) { }
+
+                // A LuauValue takes every value, but a call with two arguments is told apart by their number.
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(LuauValue amount) { }
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(double amount, double times) { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodForALeftOperandThatHasTheOperatorItself_ShouldWarn()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Vec")]
+            public sealed partial class Vec
+            {
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Vec Scale(double factor) => this;
+
+                // Reached: a Mat has no Add of its own.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static Vec Shift(Mat mat, Vec vec) => vec;
+            }
+
+            [LuauUserdata("Mat")]
+            public sealed partial class Mat
+            {
+                // Never called: Luau asks the Vec on the left, which has a Mul but none for a Mat.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public static Vec Transform(Vec vec, Mat mat) => vec;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task GeneratedMemberNameConflicts_ShouldFail()
     {
         const string code = """

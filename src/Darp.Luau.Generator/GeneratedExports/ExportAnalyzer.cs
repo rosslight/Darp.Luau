@@ -65,7 +65,8 @@ internal static class ExportAnalyzer
             ModuleName: isModule ? name : null,
             UserdataTypeName: isModule ? null : name,
             discoveredType.Origin,
-            members.ToImmutableEquatableArray()
+            members.ToImmutableEquatableArray(),
+            MetamethodAnalyzer.Analyze(discoveredType, context, diagnostics)
         );
     }
 
@@ -406,7 +407,7 @@ internal static class ExportAnalyzer
         return true;
     }
 
-    private static bool TryMapMethodSignature(
+    internal static bool TryMapMethodSignature(
         IMethodSymbol method,
         LuauExportedTypeKind exportedTypeKind,
         LuauApiSymbols context,

@@ -113,6 +113,62 @@ A `CancellationToken` parameter is not a Luau argument. It receives the token of
 
 Run the script with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`. Where the script cannot be suspended, the method is not called and the script receives a Luau error. `async void` methods are rejected. See [Coroutines](coroutines.md#async-managed-callbacks) for errors, cancellation, and threading.
 
+### Metamethods
+
+Mark a method or an operator with `[LuauMetamethod]` to let scripts use an operator on the type, call it, or index it with keys that are not members:
+
+```csharp
+[LuauUserdata("Vec2")]
+public sealed partial class Vec2(double x, double y)
+{
+    [LuauMember("x")]
+    public double X { get; } = x;
+
+    [LuauMember("y")]
+    public double Y { get; } = y;
+
+    [LuauMetamethod(LuauMetamethod.Add)]
+    public static Vec2 operator +(Vec2 a, Vec2 b) => new(a.X + b.X, a.Y + b.Y);
+
+    // An instance method: the instance is the left operand, as in vec * 2.
+    [LuauMetamethod(LuauMetamethod.Mul)]
+    private Vec2 Scale(double factor) => new(X * factor, Y * factor);
+
+    // A static method names both operands, so the instance can be the right one: 2 * vec.
+    [LuauMetamethod(LuauMetamethod.Mul)]
+    private static Vec2 Scale(double factor, Vec2 vec) => vec.Scale(factor);
+
+    [LuauMetamethod(LuauMetamethod.ToString)]
+    private string Describe() => $"({X}, {Y})";
+}
+```
+
+The method can have any name and accessibility. The generator only checks that its operands and its result fit the metamethod:
+
+| Metamethod | Luau | Operands | Result |
+| --- | --- | --- | --- |
+| `Add`, `Sub`, `Mul`, `Div`, `Mod`, `Pow`, `IDiv` | `a + b`, `a - b`, `a * b`, `a / b`, `a % b`, `a ^ b`, `a // b` | two, at least one of them the type | one value |
+| `Concat` | `a .. b` | two, at least one of them the type | one value |
+| `Unm` | `-a` | the instance | one value |
+| `Eq`, `Lt`, `Le` | `a == b`, `a < b`, `a <= b` | two values of the type | `bool` |
+| `Len` | `#a` | the instance | a number |
+| `ToString` | `tostring(a)` | the instance | a `string` that is never null |
+| `Index` | `a[key]` for a key that is not a member | the instance and the key | one value |
+| `NewIndex` | `a[key] = value` for a key that is not a member | the instance, the key and the value | nothing |
+| `Call` | `a(...)` | the instance and the arguments | as a `[LuauMember]` method |
+
+An instance method takes the instance as its first operand. A static method lists every operand.
+
+Several methods can declare the same metamethod when Luau can tell their operands apart by type, or for `Call` by their number. An `int` and a `double` are both a number in Luau, so two overloads that only differ in that are rejected. The overload is chosen before an operand is read.
+
+What follows from how Luau works:
+
+- For `a + b`, Luau uses the metamethod of `a`, and that of `b` only when `a` has none. It never tries the other one after an error. An overload on type `B` for a left operand of type `A` is therefore only reached when `A` does not declare the operator; the generator warns when it does.
+- `a == b` only calls `Eq` for two different instances of the same type. Two values of different types are never equal. `a < b` across types is an error.
+- An operator the type does not declare raises Luau's own error, such as `attempt to perform arithmetic (div) on Vec2 and number`. An operator with operands that no overload takes raises the same kind of error.
+- `Index` and `NewIndex` are only reached for keys that are not declared members, also for keys that are not strings. An `Index` whose overloads do not take the key gives `nil`.
+- Only `Call` can return a task. Luau cannot suspend a script inside another metamethod.
+
 ### Generated userdata rules
 
 Generated userdata supports:
@@ -120,6 +176,7 @@ Generated userdata supports:
 - instance properties with supported stored value types,
 - instance methods with fixed supported signatures,
 - methods that return `Task` or `ValueTask`, and `CancellationToken` parameters,
+- metamethods on methods and operators,
 - generated or manual managed userdata as supported property, parameter, and return types,
 - generated userdata types as `CreateFunction(...)` parameters and returns.
 
@@ -188,23 +245,19 @@ A metamethod receives its operands as Luau passes them, so for a binary operator
 ```csharp
 registry.AddMetamethod(LuauMetamethod.Mul, static args =>
 {
-    // vec * 2
-    if (args.TryReadUserdata(1, out Vec2? left, out _) && args.TryReadNumber(2, out double factor, out _))
-        return LuauReturn.Ok(left.Scale(factor));
-    // 2 * vec
-    if (args.TryReadNumber(1, out factor, out _) && args.TryReadUserdata(2, out Vec2? right, out _))
-        return LuauReturn.Ok(right.Scale(factor));
-    return LuauReturn.Error("a vector can only be multiplied with a number");
+    if (args.IsUserdata<Vec2>(1) && args.GetValueType(2) is LuauValueType.Number)
+    {
+        // vec * 2
+    }
+    if (args.GetValueType(1) is LuauValueType.Number && args.IsUserdata<Vec2>(2))
+    {
+        // 2 * vec
+    }
+    return LuauReturn.Error($"attempt to perform arithmetic (mul) on {args.GetTypeName(1)} and {args.GetTypeName(2)}");
 });
 ```
 
-What follows from how Luau works:
-
-- For `a + b`, Luau uses the metamethod of `a`, and that of `b` only when `a` has none. It never tries the other one after an error.
-- `a == b` only calls `Eq` for two different instances of the same type. Two values of different types are never equal. `a < b` across types is an error.
-- An operator the type does not declare raises Luau's own error, such as `attempt to perform arithmetic (div) on Vec2 and number`.
-- `Index` and `NewIndex` are only reached for keys that are not declared members, also for keys that are not strings.
-- Only `Call` can await. Luau cannot suspend a script inside another metamethod.
+`GetValueType`, `IsUserdata<T>` and `GetTypeName` look at an argument without reading it.
 
 ### Member names that are only known at run time
 

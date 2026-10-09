@@ -15,7 +15,21 @@ internal static class CallbackBodyEmitter
     /// A <c>LuauValue</c> holds a reference of its own. One that is passed as an argument belongs to the call and is
     /// released when the call is over. One that is returned is handed over to Luau and released after it was copied.
     /// </remarks>
-    public static void Write(IndentedTextWriter writer, InteropSignature signature, string callTarget)
+    public static void Write(IndentedTextWriter writer, InteropSignature signature, string callTarget) =>
+        Write(writer, signature, arguments => $"{callTarget}({string.Join(", ", arguments)})");
+
+    /// <summary>
+    /// Writes the body of a callback like <see cref="Write(IndentedTextWriter, InteropSignature, string)"/>, for a
+    /// call that is not a plain method call.
+    /// </summary>
+    /// <param name="writer">Receives the body.</param>
+    /// <param name="signature">The parameters that are read and the results that are returned.</param>
+    /// <param name="formatCall">Writes the call for the arguments that were read, in the order of the parameters.</param>
+    public static void Write(
+        IndentedTextWriter writer,
+        InteropSignature signature,
+        Func<IReadOnlyList<string>, string> formatCall
+    )
     {
         int luauArgumentCount = signature.Parameters.Count(static x => x.Type is not LuauInteropKind.CancellationToken);
         writer.WriteLine($"if (!args.TryValidateArgumentCount({luauArgumentCount}, out string? error))");
@@ -24,7 +38,7 @@ internal static class CallbackBodyEmitter
         List<string> ownedArguments = GetOwnedArguments(signature);
         if (ownedArguments.Count == 0)
         {
-            WriteReadsAndCall(writer, signature, callTarget, ownedArguments);
+            WriteReadsAndCall(writer, signature, formatCall, ownedArguments);
             return;
         }
 
@@ -36,7 +50,7 @@ internal static class CallbackBodyEmitter
         writer.WriteLine("try");
         writer.WriteLine("{");
         writer.Indent++;
-        WriteReadsAndCall(writer, signature, callTarget, ownedArguments);
+        WriteReadsAndCall(writer, signature, formatCall, ownedArguments);
         writer.Indent--;
         writer.WriteLine("}");
         writer.WriteLine("finally");
@@ -66,7 +80,7 @@ internal static class CallbackBodyEmitter
     private static void WriteReadsAndCall(
         IndentedTextWriter writer,
         InteropSignature signature,
-        string callTarget,
+        Func<IReadOnlyList<string>, string> formatCall,
         List<string> ownedArguments
     )
     {
@@ -95,7 +109,7 @@ internal static class CallbackBodyEmitter
             arguments.Add($"a{luauIndex}");
         }
 
-        string callExpression = $"{callTarget}({string.Join(", ", arguments)})";
+        string callExpression = formatCall(arguments);
         if (signature.Awaitable is AwaitableReturnKind.None)
         {
             if (signature.ReturnTypes.Length == 0)

@@ -119,6 +119,72 @@ public readonly unsafe ref partial struct LuauArgs
         return false;
     }
 
+    /// <summary> Gets the type of the parameter at <paramref name="parameterIndex"/> without reading it. </summary>
+    /// <param name="parameterIndex">1-based parameter index.</param>
+    /// <returns>The type of the value; <see cref="LuauValueType.Nil"/> for an index past the last argument.</returns>
+    /// <remarks> Use it to decide how to read an argument that can have more than one type. </remarks>
+    public LuauValueType GetValueType(int parameterIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(parameterIndex, 1);
+        _state.ThrowIfDisposed();
+        if (parameterIndex > ArgumentCount)
+            return LuauValueType.Nil;
+
+        return (lua_Type)lua_type(_luaState, _firstParameterStackIndex + parameterIndex - 1) switch
+        {
+            lua_Type.LUA_TNIL => LuauValueType.Nil,
+            lua_Type.LUA_TBOOLEAN => LuauValueType.Boolean,
+            lua_Type.LUA_TNUMBER => LuauValueType.Number,
+            lua_Type.LUA_TSTRING => LuauValueType.String,
+            lua_Type.LUA_TTABLE => LuauValueType.Table,
+            lua_Type.LUA_TFUNCTION => LuauValueType.Function,
+            lua_Type.LUA_TTHREAD => LuauValueType.Thread,
+            lua_Type.LUA_TUSERDATA => LuauValueType.Userdata,
+            lua_Type.LUA_TVECTOR => LuauValueType.Vector,
+            lua_Type.LUA_TBUFFER => LuauValueType.Buffer,
+            lua_Type type => throw new NotSupportedException($"The lua type {type} is not supported!"),
+        };
+    }
+
+    /// <summary>
+    /// Gets whether the parameter at <paramref name="parameterIndex"/> is managed userdata of type
+    /// <typeparamref name="T"/>, without reading it.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index.</param>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns><c>true</c> when <see cref="TryReadUserdata{T}"/> would succeed; otherwise <c>false</c>.</returns>
+    public bool IsUserdata<T>(int parameterIndex)
+        where T : class
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(parameterIndex, 1);
+        _state.ThrowIfDisposed();
+        if (parameterIndex > ArgumentCount)
+            return false;
+
+        int stackIndex = _firstParameterStackIndex + parameterIndex - 1;
+        var native = (LuauUserdataNative*)lua_touserdatatagged(_luaState, stackIndex, LuauUserdataNative.Tag);
+        return native is not null && native->UserdataHandle is { IsAllocated: true, Target: T };
+    }
+
+    /// <summary>
+    /// Gets the name of the type of the parameter at <paramref name="parameterIndex"/> as scripts see it, for
+    /// error messages: what <c>typeof</c> returns in Luau.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index.</param>
+    /// <returns>The type name; <c>nil</c> for an index past the last argument.</returns>
+    public string GetTypeName(int parameterIndex)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(parameterIndex, 1);
+        _state.ThrowIfDisposed();
+        if (parameterIndex > ArgumentCount)
+            return "nil";
+
+        byte* name = luaL_typename(_luaState, _firstParameterStackIndex + parameterIndex - 1);
+        return System.Text.Encoding.UTF8.GetString(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpanFromNullTerminated(name)
+        );
+    }
+
     /// <summary>
     /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a Lua number.
     /// </summary>

@@ -31,8 +31,11 @@ internal sealed record DiscoveredExportType(
     LuauExportedTypeKind Kind,
     AttributeData Attribute,
     SourceOrigin Origin,
-    ImmutableEquatableArray<DiscoveredExportMember> Members
+    ImmutableEquatableArray<DiscoveredExportMember> Members,
+    ImmutableEquatableArray<DiscoveredExportMetamethod> Metamethods
 );
+
+internal sealed record DiscoveredExportMetamethod(IMethodSymbol Symbol, AttributeData Attribute, SourceOrigin Origin);
 
 internal abstract record DiscoveredExportMember(string ManagedName, AttributeData Attribute, SourceOrigin Origin);
 
@@ -48,7 +51,8 @@ internal sealed record NormalizedExportType(
     string? ModuleName,
     string? UserdataTypeName,
     SourceOrigin Origin,
-    ImmutableEquatableArray<NormalizedExportMember> Members
+    ImmutableEquatableArray<NormalizedExportMember> Members,
+    ImmutableEquatableArray<GeneratedMetamethodIr> Metamethods
 );
 
 internal abstract record NormalizedExportMember(
@@ -110,6 +114,7 @@ internal sealed record GeneratedExportSurfaceIr(
     string? ModuleName,
     string? UserdataTypeName,
     ImmutableEquatableArray<GeneratedExportMemberIr> Members,
+    ImmutableEquatableArray<GeneratedMetamethodIr> Metamethods,
     GeneratedModuleExportNodeIr? ModuleRoot
 );
 
@@ -137,6 +142,30 @@ internal sealed record GeneratedExportMethodIr(
 ) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
 
 internal sealed record GeneratedExportAccessorIr(InteropType Type);
+
+internal enum MetamethodCallKind
+{
+    StaticMethod,
+    InstanceMethod,
+    BinaryOperator,
+    UnaryOperator,
+}
+
+/// <param name="Name">The name of the <c>LuauMetamethod</c> value.</param>
+/// <param name="Overloads">The methods that implement it. Luau can tell their operands apart by type.</param>
+internal sealed record GeneratedMetamethodIr(
+    string Name,
+    ImmutableEquatableArray<GeneratedMetamethodOverloadIr> Overloads
+);
+
+/// <param name="CallKind">How generated code calls the method.</param>
+/// <param name="CallTarget">The qualified name of a static method, the name of an instance method, or an operator.</param>
+/// <param name="Signature">The operands as Luau passes them, the instance first for an instance method.</param>
+internal sealed record GeneratedMetamethodOverloadIr(
+    MetamethodCallKind CallKind,
+    string CallTarget,
+    InteropSignature Signature
+);
 
 internal sealed record GeneratedModuleExportNodeIr(
     string Name,
