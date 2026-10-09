@@ -57,6 +57,9 @@ internal static unsafe class ScriptInterrupt
         return new Scope(state, enclosingToken);
     }
 
+    /// <summary> The scope of a sync host call: it takes no token and leaves the one in charge as it is. </summary>
+    public static Scope KeepToken => default;
+
     private static void Install(LuauState state, CancellationToken cancellationToken)
     {
         // Host code that runs between two stretches of a script, such as the conversion of an awaited result, may
@@ -120,9 +123,13 @@ internal static unsafe class ScriptInterrupt
             "CA2213:Disposable fields should be disposed",
             Justification = "The scope references LuauState but does not own it."
         )]
-        private readonly LuauState _state = state;
+        private readonly LuauState? _state = state;
         private readonly CancellationToken _enclosingToken = enclosingToken;
 
-        public void Dispose() => Install(_state, _enclosingToken);
+        public void Dispose()
+        {
+            if (_state is not null)
+                Install(_state, _enclosingToken);
+        }
     }
 }

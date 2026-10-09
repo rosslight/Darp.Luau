@@ -144,6 +144,10 @@ internal readonly struct CoroutineDriver
     {
         try
         {
+            // An argument can run host code, which may call a script. That is part of an async call too.
+            using ScriptInterrupt.Scope _ = allowsAwait
+                ? ScriptInterrupt.Enter(state, cancellationToken)
+                : ScriptInterrupt.KeepToken;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -175,6 +179,10 @@ internal readonly struct CoroutineDriver
     {
         try
         {
+            // An argument can run host code, which may call a script. That is part of an async call too.
+            using ScriptInterrupt.Scope _ = allowsAwait
+                ? ScriptInterrupt.Enter(state, cancellationToken)
+                : ScriptInterrupt.KeepToken;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -367,9 +375,8 @@ internal readonly struct CoroutineDriver
     private unsafe int Resume(int argumentCount)
     {
         // A sync resume takes no token. Like every sync host call, it runs under the token that is in charge.
-        if (_slot == NoSlot)
-            return LuauVm.Resume(_state, _coroutine, null, argumentCount);
-        using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, StoppingToken);
+        using ScriptInterrupt.Scope _ =
+            _slot == NoSlot ? ScriptInterrupt.KeepToken : ScriptInterrupt.Enter(_state, StoppingToken);
         return LuauVm.Resume(_state, _coroutine, null, argumentCount);
     }
 

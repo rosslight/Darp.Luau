@@ -1,3 +1,4 @@
+using Darp.Luau.Tests.Fixtures;
 using Darp.Luau.Tests.Require;
 using Shouldly;
 
@@ -289,6 +290,50 @@ public sealed class ScriptCancellationTests : IDisposable
         gate.SetResult(1);
 
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+    }
+
+    /// <summary> An argument can run host code while it is passed. For an async call that is part of the call. </summary>
+    [Fact]
+    public void SyncInvokeFromAnArgumentOfAnAsyncCall_ShouldBeStopped()
+    {
+        using LuauFunction endless = _state.Load("while true do end").ToFunction();
+        _cts.Cancel();
+
+        Should.Throw<OperationCanceledException>(() =>
+        {
+            IntoLuau argument = IntoLuau.FromUserdata(state =>
+            {
+                endless.Invoke();
+                return state.GetOrCreateUserdata(new ValueUserdata());
+            });
+            // Completed when it returns: nothing in the script awaits.
+            _state.Load("return ...").ExecuteAsync([argument], _cts.Token).GetAwaiter().GetResult();
+        });
+    }
+
+    [Fact]
+    public async Task ArgumentOfAnAsyncCallWithoutAToken_InsideACancelledCall_ShouldNotBeStopped()
+    {
+        using LuauFunction count = _state.Load("local n = 0 for i = 1, 100 do n += 1 end return n").ToFunction();
+        using LuauFunction identity = _state.Load("return ...").ToFunction();
+        int counted = 0;
+        using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
+        {
+            _cts.Cancel();
+            IntoLuau argument = IntoLuau.FromUserdata(state =>
+            {
+                counted = count.Invoke<int>();
+                return state.GetOrCreateUserdata(new ValueUserdata());
+            });
+            // Completed when it returns: nothing in the script awaits.
+            identity.InvokeAsync([argument], CancellationToken.None).GetAwaiter().GetResult();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("run_nested", runNested);
+
+        await ShouldBeCancelledAsync("run_nested() while true do end");
+
+        counted.ShouldBe(100);
     }
 
     /// <summary> Every host call is stopped by its own token only: the callback has to pass the token on. </summary>
