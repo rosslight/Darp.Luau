@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.0.0](https://github.com/rosslight/Darp.Luau/compare/v0.3.0...v1.0.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* give userdata types a static side and require their name ([#61](https://github.com/rosslight/Darp.Luau/issues/61))
+* describe a userdata type once and make its methods values ([#59](https://github.com/rosslight/Darp.Luau/issues/59))
+* rename CreateFunctionBuilder to CreateFunctionManual ([#58](https://github.com/rosslight/Darp.Luau/issues/58))
+
+### Features
+
+* coroutines as host values, async managed callbacks and async invocation ([#32](https://github.com/rosslight/Darp.Luau/issues/32)) ([b08cb6b](https://github.com/rosslight/Darp.Luau/commit/b08cb6b55d7976b869b24bae3f35e51883841c6d))
+* declare userdata metamethods with [LuauMetamethod] ([#60](https://github.com/rosslight/Darp.Luau/issues/60)) ([3c6c8dd](https://github.com/rosslight/Darp.Luau/commit/3c6c8dde9350344f342867d8797c529f15464bb0))
+* describe a userdata type once and make its methods values ([#59](https://github.com/rosslight/Darp.Luau/issues/59)) ([728b48a](https://github.com/rosslight/Darp.Luau/commit/728b48a2336786761bb1cc572ff6d8a7850e5af5))
+* give userdata types a static side and require their name ([#61](https://github.com/rosslight/Darp.Luau/issues/61)) ([8758919](https://github.com/rosslight/Darp.Luau/commit/87589191325b2e0b99634b49444d6068ba5045b1))
+* let CreateFunction delegates return tasks ([#46](https://github.com/rosslight/Darp.Luau/issues/46)) ([a05d196](https://github.com/rosslight/Darp.Luau/commit/a05d196e0801f2e15aa4e190036a117a1745bf68))
+* let generated module functions and userdata methods return tasks ([#44](https://github.com/rosslight/Darp.Luau/issues/44)) ([0c1093d](https://github.com/rosslight/Darp.Luau/commit/0c1093d93da3fe5564c24cfe44359da23ed41b09))
+* let userdata methods await ([#43](https://github.com/rosslight/Darp.Luau/issues/43)) ([6bf627c](https://github.com/rosslight/Darp.Luau/commit/6bf627c0431a4c4d3c522bc9afe93e73d02112b5))
+* only read a Luau number as a type that can hold it ([#55](https://github.com/rosslight/Darp.Luau/issues/55)) ([9507d92](https://github.com/rosslight/Darp.Luau/commit/9507d92c7c4a2f2bc52af7e773fc79afbddd9514))
+* rename CreateFunctionBuilder to CreateFunctionManual ([#58](https://github.com/rosslight/Darp.Luau/issues/58)) ([5e8ac44](https://github.com/rosslight/Darp.Luau/commit/5e8ac44c4c60ba4b761f1b5dec6f2f578ed885ba))
+* stop a running script through its cancellation token ([#57](https://github.com/rosslight/Darp.Luau/issues/57)) ([7bdca00](https://github.com/rosslight/Darp.Luau/commit/7bdca00083cdff0d0ef4f800532cdd7038767edd))
+
+
+### Bug Fixes
+
+* harden callbacks, table access and disposal against scripts ([#50](https://github.com/rosslight/Darp.Luau/issues/50)) ([6335986](https://github.com/rosslight/Darp.Luau/commit/63359861675e5b91f6c0beb89ae0f9e65f674975))
+* never start async callback work that cannot be awaited ([#49](https://github.com/rosslight/Darp.Luau/issues/49)) ([4325e0b](https://github.com/rosslight/Darp.Luau/commit/4325e0ba26b438e89c46425fb97e187c302807e0))
+* release managed callback handles when Luau collects the function ([#56](https://github.com/rosslight/Darp.Luau/issues/56)) ([97eea1e](https://github.com/rosslight/Darp.Luau/commit/97eea1e509238a174b6883218b2b517946f99555))
+* report export and callback shapes the generator cannot handle ([#53](https://github.com/rosslight/Darp.Luau/issues/53)) ([69fb9a1](https://github.com/rosslight/Darp.Luau/commit/69fb9a14312d3a9ecd70d0aac935e25d2fd5eb85))
+* serialize releases and allow publishing existing tags ([#38](https://github.com/rosslight/Darp.Luau/issues/38)) ([5e0e910](https://github.com/rosslight/Darp.Luau/commit/5e0e910fb29ff5f86e89c3b4edea44eb56455456))
+
+
+### Performance Improvements
+
+* avoid allocations in async invocation and coroutine resumes ([#42](https://github.com/rosslight/Darp.Luau/issues/42)) ([2b1a768](https://github.com/rosslight/Darp.Luau/commit/2b1a7686038c78883565bae5974a4a3d0fef60a7))
+* await generated async callbacks without a second state machine ([#48](https://github.com/rosslight/Darp.Luau/issues/48)) ([7f9c7c3](https://github.com/rosslight/Darp.Luau/commit/7f9c7c36dc78e205bed36d18ab22ff367d600c0c))
+
 ## [0.3.0](https://github.com/rosslight/Darp.Luau/compare/v0.2.0...v0.3.0) (2026-10-06)
 
 
