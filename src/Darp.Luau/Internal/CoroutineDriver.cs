@@ -22,9 +22,10 @@ namespace Darp.Luau.Internal;
 /// token. A sync drive is not registered: its callbacks cannot suspend the coroutine.
 /// </para>
 /// <para>
-/// Cancellation is cooperative: the driver awaits the work as is, and the token only reaches it through the
-/// callback. Work that ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes
-/// the coroutine.
+/// A cancelled token stops the script at its next safepoint (<see cref="ScriptInterrupt"/>) and finishes the
+/// coroutine. An error that ends the script after the token was cancelled finishes it as cancelled too. Awaited
+/// work is not stopped: the driver awaits it as is, and the token only reaches it through the callback. Work that
+/// ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes the coroutine.
 /// </para>
 /// <para>
 /// Only the driver continues a coroutine that waits in a managed callback. Luau fails any other resume of it and
@@ -143,6 +144,10 @@ internal readonly struct CoroutineDriver
     {
         try
         {
+            // An argument can run host code, which may call a script. That is part of an async call too.
+            using ScriptInterrupt.Scope _ = allowsAwait
+                ? ScriptInterrupt.Enter(state, cancellationToken)
+                : ScriptInterrupt.KeepToken;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -174,6 +179,10 @@ internal readonly struct CoroutineDriver
     {
         try
         {
+            // An argument can run host code, which may call a script. That is part of an async call too.
+            using ScriptInterrupt.Scope _ = allowsAwait
+                ? ScriptInterrupt.Enter(state, cancellationToken)
+                : ScriptInterrupt.KeepToken;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -311,6 +320,8 @@ internal readonly struct CoroutineDriver
                     failure = exception;
                 }
 
+                // The conversion of the result is part of this call too: it may run a script with a sync host call.
+                using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, StoppingToken);
                 LuauReturn result = failure is null
                     ? GetResult(pending)
                     : LuauReturn.Error(LuauStateMarshal.FormatCallbackException(failure));
@@ -361,7 +372,17 @@ internal readonly struct CoroutineDriver
         return args.Length;
     }
 
-    private unsafe int Resume(int argumentCount) => LuauVm.Resume(_state, _coroutine, null, argumentCount);
+    private unsafe int Resume(int argumentCount)
+    {
+        // A sync resume takes no token. Like every sync host call, it runs under the token that is in charge.
+        using ScriptInterrupt.Scope _ =
+            _slot == NoSlot ? ScriptInterrupt.KeepToken : ScriptInterrupt.Enter(_state, StoppingToken);
+        return LuauVm.Resume(_state, _coroutine, null, argumentCount);
+    }
+
+    /// <summary> The token whose cancellation stops the script of this drive. </summary>
+    private CancellationToken StoppingToken =>
+        _slot == NoSlot ? _state.InterruptToken : _state.AsyncDrives.GetCancellationToken(_slot);
 
     private void ThrowIfStateDisposed()
     {
@@ -466,14 +487,30 @@ internal readonly struct CoroutineDriver
             case lua_Status.LUA_YIELD:
                 // The call is over. A script that kept the coroutine must not be able to continue it later.
                 Finish();
-                throw new LuaException("Lua invocation lua_resume failed: attempt to yield from outside a coroutine");
+                throw CancelledOr(
+                    new LuaException("Lua invocation lua_resume failed: attempt to yield from outside a coroutine")
+                );
             case lua_Status.LUA_BREAK:
-                throw new LuaException("Lua invocation lua_resume failed: coroutine was interrupted");
+                // Only a cancelled token breaks a coroutine. Nothing of the script may run again.
+                Finish();
+                throw ScriptInterrupt.Cancelled(failure: null, StoppingToken);
             default:
-                LuaException.ThrowIfNotOk(_coroutine, status, "lua_resume");
+                try
+                {
+                    LuaException.ThrowIfNotOk(_coroutine, status, "lua_resume");
+                }
+                catch (LuaException exception) when (StoppingToken.IsCancellationRequested)
+                {
+                    Finish();
+                    throw CancelledOr(exception);
+                }
                 throw new UnreachableException();
         }
     }
+
+    /// <summary> A call that fails after its token was cancelled ends as cancelled. </summary>
+    private Exception CancelledOr(LuaException failure) =>
+        StoppingToken.IsCancellationRequested ? ScriptInterrupt.Cancelled(failure, StoppingToken) : failure;
 
     private unsafe void End()
     {

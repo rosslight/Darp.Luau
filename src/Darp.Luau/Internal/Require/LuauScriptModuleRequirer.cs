@@ -333,6 +333,11 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
             {
                 errorMessage = $"module '{strPath}' can not yield";
             }
+            else if (nStatus == (int)lua_Status.LUA_BREAK)
+            {
+                // The module is abandoned. The script that required it is stopped at its next safepoint.
+                errorMessage = $"module '{strPath}' was interrupted";
+            }
             else if (lua_isstring(ML, -1) == 0)
             {
                 errorMessage = $"unknown error while running module '{strPath}'";

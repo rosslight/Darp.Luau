@@ -492,18 +492,21 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task Cancellation_IsCooperative_WorkIgnoringTheTokenStillDeliversItsResult()
+    public async Task Cancellation_ShouldWaitForWorkIgnoringTheTokenAndThenStopTheScript()
     {
         using var cts = new CancellationTokenSource();
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction addLater = SetAsyncGlobal("add_later", (value, _) => AddLater(gate.Task, value));
 
-        ValueTask<int> pending = _state.Load("return add_later(40)").ExecuteAsync<int>([], cts.Token);
+        ValueTask pending = _state.Load("sum = add_later(40) later = tostring(sum)").ExecuteAsync([], cts.Token);
         await cts.CancelAsync();
         pending.IsCompleted.ShouldBeFalse();
         gate.SetResult(2);
 
-        (await pending).ShouldBe(42);
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+        // The work was awaited and delivered. The script ended at its next safepoint, the call of tostring.
+        _state.Globals.GetNumber("sum").ShouldBe(42);
+        _state.Globals.ContainsKey("later").ShouldBeFalse();
     }
 
     [Fact]
@@ -548,13 +551,13 @@ public sealed class AsyncFunctionTests : IDisposable
         );
         _state.Globals.Set("convert", convert);
 
-        ValueTask<string> pending = _state
-            .Load("local ok, err = pcall(convert) return tostring(err)")
-            .ExecuteAsync<string>([], cts.Token);
+        ValueTask pending = _state.Load("local ok, err = pcall(convert) caught = err").ExecuteAsync([], cts.Token);
         await cts.CancelAsync();
         gate.SetResult(1);
 
-        (await pending).ShouldContain("conversion gave up");
+        // The cancelled token stops the script afterwards, but the conversion failed as an error it could catch.
+        await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
+        _state.Globals.GetUtf8String("caught").ShouldContain("conversion gave up");
     }
 
     [Fact]

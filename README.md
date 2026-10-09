@@ -218,6 +218,7 @@ Latest run on a GitHub-hosted runner; the chart names the versions that were mea
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe. Continuations of async callbacks run one at a time on the thread pool, or on a host dispatcher passed to the constructor. Use the synchronous API only when no async call is outstanding or from inside a callback.
 - Async managed callbacks need an async host call (`ExecuteAsync`, `InvokeAsync`, `ResumeAsync`).
+- Cancelling the token of an async host call (`ExecuteAsync`, `InvokeAsync`, `ResumeAsync`) stops the script. The synchronous calls take no token.
 
 ## Roadmap
 
@@ -226,7 +227,6 @@ Darp.Luau is pre-1.0 and breaking changes are still expected. The aim before 1.0
 Planned before 1.0:
 
 - A basic set of userdata metamethods
-- Interrupting a running script
 - An opt-in sandbox with read-only libraries and globals
 - Structured errors with script location, traceback, and the original managed exception
 - Luau type definitions generated for the host API

@@ -133,9 +133,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeAsync(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask ResumeAsync(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         LuauFunctionInvokeCore.WithoutResult(
             ResumeCoreAsync(args, LuauFunctionInvokeCore.IgnoreResults, cancellationToken)
@@ -160,9 +163,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeAsync{TR}(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask<TR> ResumeAsync<TR>(scoped RefEnumerable<IntoLuau> args, CancellationToken cancellationToken) =>
         ResumeCoreAsync(args, LuauFunctionInvokeCore.ResultSelector<TR>, cancellationToken);
 
@@ -186,9 +192,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeAsync{TR1, TR2}(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask<(TR1, TR2)> ResumeAsync<TR1, TR2>(
         scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
@@ -215,9 +224,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeAsync{TR1, TR2, TR3}(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask<(TR1, TR2, TR3)> ResumeAsync<TR1, TR2, TR3>(
         scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
@@ -245,9 +257,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeAsync{TR1, TR2, TR3, TR4}(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ResumeAsync<TR1, TR2, TR3, TR4>(
         scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
@@ -270,9 +285,12 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <inheritdoc cref="ResumeMultiAsync(RefEnumerable{IntoLuau})"/>
     /// <param name="args">The values passed to the coroutine: its arguments when it starts, otherwise the results of <c>coroutine.yield</c>.</param>
     /// <param name="cancellationToken">
-    /// Available to managed callbacks as <see cref="LuauArgs.CancellationToken"/>. Cancellation is cooperative.
+    /// Stops the script at its next safepoint when cancelled. Available to managed callbacks as
+    /// <see cref="LuauArgs.CancellationToken"/>.
     /// </param>
-    /// <exception cref="OperationCanceledException">Thrown when the work of an awaiting managed callback is canceled.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when the script was stopped because <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     public ValueTask<LuauValue[]> ResumeMultiAsync(
         scoped RefEnumerable<IntoLuau> args,
         CancellationToken cancellationToken
