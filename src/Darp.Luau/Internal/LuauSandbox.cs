@@ -13,10 +13,10 @@ namespace Darp.Luau.Internal;
 /// </remarks>
 internal sealed unsafe class LuauSandbox : IDisposable
 {
-    /// <summary> Globals whose members are looked up every time. Null-terminated, or null when there are none. </summary>
+    /// <summary> Globals whose members are looked up every time. Null-terminated. </summary>
     public byte** MutableGlobals { get; private set; }
 
-    /// <summary> Built-in functions that are called like any other function. Null-terminated, or null. </summary>
+    /// <summary> Built-in functions that are called like any other function. Null-terminated. </summary>
     public byte** DisabledBuiltins { get; private set; }
 
     /// <summary>
@@ -203,9 +203,6 @@ internal sealed unsafe class LuauSandbox : IDisposable
     private static byte** Allocate(IReadOnlyCollection<string> source)
     {
         string[] names = [.. source];
-        if (names.Length == 0)
-            return null;
-
         int textLength = 0;
         foreach (string name in names)
             textLength += Encoding.UTF8.GetByteCount(name) + 1;
