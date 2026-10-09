@@ -66,10 +66,10 @@ string result = coroutine.Resume<string>();
 
 ## Async managed callbacks
 
-A managed callback built with `CreateFunctionBuilder(...)` finishes later by asking for an awaiter and handing it the work:
+A managed callback built with `CreateFunctionManual(...)` finishes later by asking for an awaiter and handing it the work:
 
 ```csharp
-using LuauFunction fetch = lua.CreateFunctionBuilder(args =>
+using LuauFunction fetch = lua.CreateFunctionManual(args =>
 {
     if (!args.TryReadUtf8String(1, out ReadOnlySpan<byte> utf8Url, out string? error))
         return LuauReturn.Error(error);
@@ -145,7 +145,7 @@ In both cases the async host call fails with `LuaException`, and the result of t
 - promote Luau references you need afterwards with `ToOwned()`, after the awaiter was granted, and dispose them in the work.
 
 ```csharp
-using LuauFunction later = lua.CreateFunctionBuilder(args =>
+using LuauFunction later = lua.CreateFunctionManual(args =>
 {
     if (!args.TryReadLuauFunction(1, out LuauFunctionView callback, out string? error))
         return LuauReturn.Error(error);

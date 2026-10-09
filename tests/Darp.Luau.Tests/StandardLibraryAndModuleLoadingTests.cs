@@ -1,6 +1,6 @@
-using Shouldly;
 using Darp.Luau.Internal.Require;
 using Darp.Luau.Tests.Require;
+using Shouldly;
 
 namespace Darp.Luau.Tests;
 
@@ -36,10 +36,10 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     }
 
     [Fact]
-    public void CreateFunctionBuilder_ShouldWorkUnderNone()
+    public void CreateFunctionManual_ShouldWorkUnderNone()
     {
         LuauState state = CreateState(LuauLibraries.None);
-        using LuauFunction add = state.CreateFunctionBuilder(static args =>
+        using LuauFunction add = state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadNumber(1, out int a, out string? error))
                 return LuauReturn.Error(error);
@@ -55,10 +55,10 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     }
 
     [Fact]
-    public void CreateFunctionBuilder_Error_ShouldThrowUnderNone()
+    public void CreateFunctionManual_Error_ShouldThrowUnderNone()
     {
         LuauState state = CreateState(LuauLibraries.None);
-        using LuauFunction fail = state.CreateFunctionBuilder(static _ => LuauReturn.Error("boom from callback"));
+        using LuauFunction fail = state.CreateFunctionManual(static _ => LuauReturn.Error("boom from callback"));
         state.Globals.Set("fail", fail);
 
         LuaException exception = Should.Throw<LuaException>(() => state.Load("return fail()").Execute());
@@ -111,7 +111,7 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
             "game",
             static (lua, in module) =>
             {
-                using LuauFunction add = lua.CreateFunctionBuilder(static args =>
+                using LuauFunction add = lua.CreateFunctionManual(static args =>
                 {
                     if (!args.TryReadNumber(1, out int a, out string? error))
                         return LuauReturn.Error(error);
@@ -139,7 +139,7 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
             {
                 module.Set("answer", 42);
 
-                using LuauFunction add = state.CreateFunctionBuilder(static args =>
+                using LuauFunction add = state.CreateFunctionManual(static args =>
                 {
                     if (!args.TryReadNumber(1, out int a, out string? error))
                         return LuauReturn.Error(error);

@@ -72,7 +72,7 @@ lua.Globals.Set("shout", shout);
 For manual callbacks, read exactly the shape you want:
 
 ```csharp
-using LuauFunction measure = lua.CreateFunctionBuilder(static args =>
+using LuauFunction measure = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadUtf8String(1, out ReadOnlySpan<byte> text, out string? error))
         return LuauReturn.Error(error);

@@ -100,7 +100,7 @@ Important distinctions:
 
 ## Read callback arguments with `LuauArgs`
 
-`CreateFunctionBuilder(...)` and userdata hooks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
+`CreateFunctionManual(...)` and userdata hooks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
 
 These APIs mirror the same broad conversion families, but with callback-focused shapes:
 
@@ -128,7 +128,7 @@ It is a good fit for fixed signatures built from common primitives, supported nu
 
 For userdata specifically, `CreateFunction(...)` supports two different shapes: `LuauUserdataView` for a borrowed raw userdata view, and self-typed managed userdata for generated `[LuauUserdata]` types or manual `ILuauUserData<TSelf>` implementations.
 
-It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionBuilder(...)` and manual `LuauArgs` handling.
+It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionManual(...)` and manual `LuauArgs` handling.
 
 ## Use `LuauValue` for dynamic code
 

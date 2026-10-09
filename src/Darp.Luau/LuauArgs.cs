@@ -7,7 +7,7 @@ using static Darp.Luau.Native.LuauNative;
 namespace Darp.Luau;
 
 /// <summary>
-/// Input view used by <see cref="LuauState.CreateFunctionBuilder(LuauState.LuauFunctionBuilder)"/> callbacks.
+/// The arguments of a call from Luau into a managed callback, such as a <see cref="LuauCallback"/>.
 /// </summary>
 public readonly unsafe ref partial struct LuauArgs
 {

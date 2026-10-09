@@ -274,7 +274,7 @@ public sealed unsafe class LuauState : IDisposable
     private static void CallbackContextDestructor(void* ctx)
     {
         var handle = GCHandle.FromIntPtr((IntPtr)ctx);
-        if (handle.Target is FunctionBuilderCallbackContext context)
+        if (handle.Target is ManagedCallbackContext context)
             context.State._activeManagedCallbacks--;
         handle.Free();
     }
@@ -351,36 +351,27 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     /// <summary>
-    /// Manual callback delegate used by <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/>.
+    /// Creates a Luau function from a callback that reads its arguments and returns its results itself.
     /// </summary>
-    /// <remarks>
-    /// Use this low-level shape when you need direct access to <see cref="LuauArgs"/>,
-    /// custom validation or error handling, or a callback shape that the generator-backed path does not support.
-    /// </remarks>
-    public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
-
-    /// <summary>
-    /// Creates a Luau function from a manual callback builder.
-    /// </summary>
-    /// <param name="onCalled">Callback that reads its inputs from <see cref="LuauArgs"/> and returns a <see cref="LuauReturn"/>.</param>
+    /// <param name="callback">Callback that reads its inputs from <see cref="LuauArgs"/> and returns a <see cref="LuauReturn"/>.</param>
     /// <returns>The created <see cref="LuauFunction"/>.</returns>
     /// <remarks>
     /// Prefer <see cref="CreateFunction{T}(T)"/> for normal typed delegates.
     /// Use this method when you need manual argument parsing, custom error handling, or a callback shape that the generator-backed path does not support.
     /// </remarks>
-    public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
+    public LuauFunction CreateFunctionManual(LuauCallback callback)
     {
         this.ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(onCalled);
+        ArgumentNullException.ThrowIfNull(callback);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        var context = new FunctionBuilderCallbackContext(this, onCalled);
+        var context = new ManagedCallbackContext(this, callback);
         var handle = GCHandle.Alloc(context);
         fixed (byte* pDebugName = "managed function\0"u8)
         {
             PushNativeCallback(
-                &FunctionBuilderCallback,
+                &ManagedCallback,
                 (void*)GCHandle.ToIntPtr(handle),
                 pDebugName,
                 &CallbackContextDestructor
@@ -392,14 +383,14 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int FunctionBuilderCallback(lua_State* luaState, void* ctx)
+    private static int ManagedCallback(lua_State* luaState, void* ctx)
     {
         ArgumentNullException.ThrowIfNull(luaState);
         int topBeforeCallback = lua_gettop(luaState);
         try
         {
             var handle = GCHandle.FromIntPtr((IntPtr)ctx);
-            if (handle.Target is not FunctionBuilderCallbackContext context)
+            if (handle.Target is not ManagedCallbackContext context)
                 return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
 
             return context.Invoke(luaState);
@@ -411,10 +402,10 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
-    private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
+    private sealed class ManagedCallbackContext(LuauState state, LuauCallback callback)
     {
         private readonly LuauState _state = state;
-        private readonly LuauFunctionBuilder _onCalled = onCalled;
+        private readonly LuauCallback _callback = callback;
 
         public LuauState State => _state;
 
@@ -432,7 +423,7 @@ public sealed unsafe class LuauState : IDisposable
             var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
-                LuauReturn result = _onCalled(args);
+                LuauReturn result = _callback(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
                 int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
@@ -470,7 +461,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <remarks>
     /// This method must be invoked directly so the generator can intercept the call site and emit a marshalling adapter.
     /// The runtime stub always throws if interception does not happen.
-    /// Use <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/> when you need manual argument handling,
+    /// Use <see cref="CreateFunctionManual(LuauCallback)"/> when you need manual argument handling,
     /// custom error handling, or a delegate shape that is not supported by the generator.
     /// </remarks>
 #pragma warning disable CA1822 // Mark members as static

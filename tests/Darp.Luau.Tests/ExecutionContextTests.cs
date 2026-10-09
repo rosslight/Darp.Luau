@@ -15,7 +15,7 @@ public sealed class ExecutionContextTests : IDisposable
     public async Task Continuations_UsingTheStateRightAfterTaskYield_ShouldNotOverlapOtherTurns()
     {
         LuauState state = _state;
-        using LuauFunction touch = _state.CreateFunctionBuilder(args =>
+        using LuauFunction touch = _state.CreateFunctionManual(args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView callbackView, out string? error))
                 return LuauReturn.Error(error);
@@ -57,7 +57,7 @@ public sealed class ExecutionContextTests : IDisposable
     public async Task ConcurrentInvocations_WithRandomDelays_ShouldAllReturnTheirResults()
     {
         LuauState state = _state;
-        using LuauFunction delayed = _state.CreateFunctionBuilder(args =>
+        using LuauFunction delayed = _state.CreateFunctionManual(args =>
         {
             if (!args.TryReadNumber(1, out int value, out string? error))
                 return LuauReturn.Error(error);
@@ -89,7 +89,7 @@ public sealed class ExecutionContextTests : IDisposable
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        using LuauFunction block = _state.CreateFunctionBuilder(args =>
+        using LuauFunction block = _state.CreateFunctionManual(args =>
             args.AwaitOrError(() => BlockAsync(entered, release))
         );
         _state.Globals.Set("block", block);
@@ -126,7 +126,7 @@ public sealed class ExecutionContextTests : IDisposable
         using var state = new LuauState(LuauLibraries.All, null, dispatcher);
         var callbackThreads = new ConcurrentBag<int>();
         var continuationThreads = new ConcurrentBag<int>();
-        using LuauFunction record = state.CreateFunctionBuilder(args =>
+        using LuauFunction record = state.CreateFunctionManual(args =>
         {
             callbackThreads.Add(Environment.CurrentManagedThreadId);
             return args.AwaitOrError(() => RecordAsync(continuationThreads));
@@ -163,17 +163,17 @@ public sealed class ExecutionContextTests : IDisposable
     [Fact]
     public async Task NestedCalls_FromCallbacksAndTheirContinuations_ShouldWork()
     {
-        using LuauFunction echo = _state.CreateFunctionBuilder(args =>
+        using LuauFunction echo = _state.CreateFunctionManual(args =>
             args.TryReadNumber(1, out int value, out string? error)
                 ? args.AwaitOrError(() => EchoAsync(value))
                 : LuauReturn.Error(error)
         );
         _state.Globals.Set("echo", echo);
         using LuauFunction inner = _state.Load("return function(x) return echo(x) + 1 end").Execute<LuauFunction>();
-        using LuauFunction outer = _state.CreateFunctionBuilder(args => args.AwaitOrError(() => OuterAsync(inner)));
+        using LuauFunction outer = _state.CreateFunctionManual(args => args.AwaitOrError(() => OuterAsync(inner)));
         _state.Globals.Set("outer", outer);
         using LuauFunction add = _state.Load("return function(a, b) return a + b end").Execute<LuauFunction>();
-        using LuauFunction syncInvoke = _state.CreateFunctionBuilder(_ => LuauReturn.Ok(add.Invoke<int>(20, 1)));
+        using LuauFunction syncInvoke = _state.CreateFunctionManual(_ => LuauReturn.Ok(add.Invoke<int>(20, 1)));
         _state.Globals.Set("sync_invoke", syncInvoke);
 
         (int nested, int sync) = await _state
@@ -202,7 +202,7 @@ public sealed class ExecutionContextTests : IDisposable
     public async Task HostCalls_ShouldRestoreTheCallersContextAndNotLeakTheirOwn()
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using LuauFunction wait = _state.CreateFunctionBuilder(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
+        using LuauFunction wait = _state.CreateFunctionManual(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
         _state.Globals.Set("wait", wait);
         SynchronizationContext? before = SynchronizationContext.Current;
 

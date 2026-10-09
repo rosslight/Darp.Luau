@@ -11,7 +11,7 @@ public static partial class DemoModule
     public static void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)
     {
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
-        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -22,7 +22,7 @@ public static partial class DemoModule
         module.Set("a", __var0);
         
         using global::Darp.Luau.LuauTable __var2 = state.CreateTable();
-        using global::Darp.Luau.LuauFunction __var3 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var3 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -32,7 +32,7 @@ public static partial class DemoModule
         __var2.Set("c", __var3);
         module.Set("a_b", __var2);
         
-        using global::Darp.Luau.LuauFunction __var4 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var4 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -41,7 +41,7 @@ public static partial class DemoModule
         });
         module.Set("foo-bar", __var4);
         using global::Darp.Luau.LuauTable __var5 = state.CreateTable();
-        using global::Darp.Luau.LuauFunction __var6 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var6 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);

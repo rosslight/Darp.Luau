@@ -20,7 +20,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
 - Luau has one number type, a `double`. Above 2^53 it cannot represent every whole number, so a script cannot produce every `long`: the literal `9223372036854775807` is 2^63 in Luau, which a `long` cannot hold. A whole number that Luau does represent is read exactly.
 - Managed interop is documented for strings, numbers, booleans, tables, functions, coroutines, userdata, and buffers. Vector values are not documented as a managed interop surface yet.
-- Async managed callbacks are available through `CreateFunctionBuilder(...)` and the `LuauAwaiter` of its `LuauArgs`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
+- Async managed callbacks are available through `CreateFunctionManual(...)` and the `LuauAwaiter` of its `LuauArgs`. Manual userdata methods can await through `OnMethodCall`; property reads and writes cannot. `CreateFunction(...)` delegates, generated `[LuauModule]` functions, and generated `[LuauUserdata]` methods can return `Task` or `ValueTask`.
 - An awaiting callback only suspends coroutines that the host drives with `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`, and only where Luau can yield: not inside a metamethod, a `table.sort` comparator, or a sync `Invoke(...)` made from another callback. Anywhere else it fails with a Luau error before its work starts. Coroutines that scripts create and resume themselves get that error too; there is no scheduler for them.
 - A delegate that was created from an `async` lambda and is typed `Action` runs as `async void`. The generator rejects that where it can see the lambda, also inside a conditional expression; a delegate held in a variable is not checked.
 - `CreateFunction(...)` callbacks take at most 16 parameters and none by reference. A task they return must not be nullable.
@@ -68,8 +68,8 @@ These are deliberate. The library does not guard against them, so your code has 
 
 - If you want file-based script loading, use `LoadFile(path)` for entry scripts.
 - If you want file-backed modules, call `EnableScriptModules()` and execute the entry script with `LoadFile(path)`, which assigns the required `@...` chunk name automatically.
-- If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionBuilder(...)`.
-- Start with source-generated modules and userdata for fixed host APIs. Use manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` for shapes the generated model cannot express.
+- If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionManual(...)`.
+- Start with source-generated modules and userdata for fixed host APIs. Use manual `RegisterModule(...)`, `CreateFunctionManual(...)`, or `ILuauUserData<T>` for shapes the generated model cannot express.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.
 - If you need long-lived access to callback values, promote borrowed `*View` values to owned references before the callback returns.
 

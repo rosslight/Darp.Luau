@@ -40,7 +40,7 @@ Generated callbacks are the exception, because the generated code stands between
 | return value | the generated code, after Luau received it |
 | value you read yourself, for example with `TryGet(out LuauValue copy)` | you |
 
-This covers `CreateFunction(...)` delegates, `[LuauModule]` functions, and `[LuauUserdata]` methods. With `CreateFunctionBuilder(...)` you read and return values yourself: a `LuauValue` from `args.TryReadLuauValue(...)` is yours to dispose, and `LuauReturn.Ok(value)` takes a reference of its own.
+This covers `CreateFunction(...)` delegates, `[LuauModule]` functions, and `[LuauUserdata]` methods. With `CreateFunctionManual(...)` you read and return values yourself: a `LuauValue` from `args.TryReadLuauValue(...)` is yours to dispose, and `LuauReturn.Ok(value)` takes a reference of its own.
 
 A typed call that fails to read one of its results, such as `Execute<LuauTable, int>()` when the second result is not a number, releases the results it had already read before it throws.
 
@@ -48,14 +48,14 @@ A typed call that fails to read one of its results, such as `Execute<LuauTable, 
 
 Types ending in `View`, plus `LuauArgs` and `LuauArgsSingle`, are callback-scoped.
 
-That rule applies equally to manual callback surfaces such as `CreateFunctionBuilder(...)`, userdata hooks, and generated adapters behind `CreateFunction(...)`.
+That rule applies equally to manual callback surfaces such as `CreateFunctionManual(...)`, userdata hooks, and generated adapters behind `CreateFunction(...)`.
 
 - Use them immediately.
 - Do not store them in fields, collections, or across async boundaries.
 - If you need to keep one, promote it with `ToOwned()` before the callback returns.
 
 ```csharp
-using LuauFunction capture = lua.CreateFunctionBuilder(static args =>
+using LuauFunction capture = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
         return LuauReturn.Error(error);
@@ -65,7 +65,7 @@ using LuauFunction capture = lua.CreateFunctionBuilder(static args =>
 });
 ```
 
-This example uses `CreateFunctionBuilder(...)` because it exposes `LuauArgs` directly, but the same ownership rule applies whenever a callback receives borrowed views.
+This example uses `CreateFunctionManual(...)` because it exposes `LuauArgs` directly, but the same ownership rule applies whenever a callback receives borrowed views.
 
 If you use a borrowed view after the callback frame ends, the library throws `ObjectDisposedException`.
 
@@ -122,7 +122,7 @@ If you later do `value.TryGet(out LuauTable tableCopy)`, you now have another ow
 ## Practical rules
 
 - Keep owned references in `using` blocks.
-- Treat `*View` types and callback args from `CreateFunctionBuilder(...)`, userdata hooks, and other callback surfaces as immediate-use values.
+- Treat `*View` types and callback args from `CreateFunctionManual(...)`, userdata hooks, and other callback surfaces as immediate-use values.
 - Copy spans if you need managed ownership.
 - Promote with `ToOwned()` before caching or reusing a borrowed value outside the current callback.
 - Dispose `LuauValue` when it may contain a reference-backed value.

@@ -79,25 +79,25 @@ The same rules apply to generated `[LuauModule]` functions and `[LuauUserdata]` 
 
 Managed userdata support here is the typed managed path, not the raw userdata wrapper path. Use `LuauUserdataView` when you want a borrowed userdata view directly; use `[LuauUserdata]` or `ILuauUserData<TSelf>` when you want `CreateFunction(...)` to marshal to and from your managed type.
 
-The supported signature set is narrower than the library's overall type-conversion surface. Generator-backed callbacks currently reject nested tuple returns and are limited to top-level tuple returns that fit the current `LuauReturn.Ok(...)` arity. If a delegate shape is not supported there, use `CreateFunctionBuilder(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.
+The supported signature set is narrower than the library's overall type-conversion surface. Generator-backed callbacks currently reject nested tuple returns and are limited to top-level tuple returns that fit the current `LuauReturn.Ok(...)` arity. If a delegate shape is not supported there, use `CreateFunctionManual(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.
 
 ## Choose between callback APIs
 
-| Capability | `CreateFunction(...)` | `CreateFunctionBuilder(...)` |
+| Capability | `CreateFunction(...)` | `CreateFunctionManual(...)` |
 | --- | --- | --- |
 | Input shape | typed delegate | `LuauArgs` |
 | Output shape | `void`, one managed return value, or a supported top-level tuple return | `LuauReturn.Ok(...)` / `LuauReturn.Error(...)` |
 | Requirements | direct call, generator-backed | plain runtime API |
 | Best for | simple fixed signatures, including supported tuple returns | manual validation, custom errors, unsupported signatures |
 
-Prefer `CreateFunction(...)` unless you specifically need the extra control from `CreateFunctionBuilder(...)`.
+Prefer `CreateFunction(...)` unless you specifically need the extra control from `CreateFunctionManual(...)`.
 
-## Use `CreateFunctionBuilder(...)` for manual callbacks
+## Use `CreateFunctionManual(...)` for manual callbacks
 
-Use `CreateFunctionBuilder(...)` when you want to parse callback arguments yourself, shape the user-facing error contract explicitly, or expose a callback shape the generator does not support:
+Use `CreateFunctionManual(...)` when you want to parse callback arguments yourself, shape the user-facing error contract explicitly, or expose a callback shape the generator does not support:
 
 ```csharp
-using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
+using LuauFunction pair = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryValidateArgumentCount(2, out string? error))
         return LuauReturn.Error(error);
@@ -121,7 +121,7 @@ lua.Globals.Set("pair", pair);
 Use them immediately, or promote them to owned references before the callback returns:
 
 ```csharp
-using LuauFunction invokeCallback = lua.CreateFunctionBuilder(static args =>
+using LuauFunction invokeCallback = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadLuauFunction(1, out LuauFunctionView callback, out string? error))
         return LuauReturn.Error(error);
@@ -152,10 +152,10 @@ A `CancellationToken` parameter is not a Luau argument. It receives the token of
 
 An `async` lambda that is converted to `Action` would be `async void`: the script could not wait for it. The generator rejects that where it can see the lambda or method; a delegate you hold in a variable is not checked.
 
-A callback built with `CreateFunctionBuilder(...)` asks for an awaiter before it starts its work:
+A callback built with `CreateFunctionManual(...)` asks for an awaiter before it starts its work:
 
 ```csharp
-using LuauFunction delay = lua.CreateFunctionBuilder(static args =>
+using LuauFunction delay = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadNumber(1, out int milliseconds, out string? error))
         return LuauReturn.Error(error);
@@ -184,4 +184,4 @@ Callback failures become normal Luau errors:
 - Keep callback signatures narrow and explicit.
 - Make nullable behavior intentional.
 - Prefer plain managed values for stable contracts.
-- Use `CreateFunctionBuilder(...)` when you need fine-grained validation instead of hiding it behind a wide delegate signature.
+- Use `CreateFunctionManual(...)` when you need fine-grained validation instead of hiding it behind a wide delegate signature.
