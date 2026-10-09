@@ -221,6 +221,7 @@ Only async host calls take a token, and each is stopped by its own token only.
 
 - An async host call that a callback makes is not stopped by the token of the call that runs the callback. Pass `args.CancellationToken` to it.
 - `Invoke(...)`, `Execute(...)`, and `Resume(...)` take no token. Made by a callback, they are part of the async host call that runs the callback: its token stops them, and they throw `OperationCanceledException`.
+- That holds while the callback itself runs, and while the result of its awaited work is converted. It does not hold inside the awaited work: a sync host call that the work makes after an `await` is not stopped. Make an async host call with the token there.
 - Made by your own code, outside an async host call, they are not stopped. Use the async methods where a script must be stoppable.
 
 ### What is not stopped
