@@ -1,0 +1,118 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+{
+    [LuauMetamethod(LuauMetamethod.ToString)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    string IDescribed.Describe() => "";
+*/
+ : (10,5)-(10,44),
+      Message: Invalid generated export shape: method 'IDescribed.Describe' is an explicit interface implementation, which generated code cannot access,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.ToString)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static implicit operator string(Money money) => "";
+*/
+ : (13,5)-(13,44),
+      Message: Invalid generated export shape: 'op_Implicit' is neither an ordinary method nor an operator,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Len)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    partial void Count();
+*/
+ : (16,5)-(16,39),
+      Message: Invalid generated export shape: partial method 'Count' has no implementation,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    // Has the shape of the metamethod, but C# only calls it by changing a variable.
+    [LuauMetamethod(LuauMetamethod.Unm)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static Money operator ++(Money money) => money;
+*/
+ : (20,5)-(20,39),
+      Message: Invalid generated export shape: operator 'op_Increment' cannot be called from generated code; declare the metamethod on a method that calls it,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Add)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public Money Add(System.Uri source) => this;
+*/
+ : (23,5)-(23,39),
+      Message: Generated userdata method 'Add' uses an unsupported parameter or return shape: parameter 'source' has unsupported type 'global::System.Uri',
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod((LuauMetamethod)999)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public Money Unknown() => this;
+*/
+ : (26,5)-(26,40),
+      Message: Invalid generated export shape: method 'Unknown' names a metamethod that does not exist,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

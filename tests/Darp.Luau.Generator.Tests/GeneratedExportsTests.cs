@@ -529,14 +529,122 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task MetamethodOverloadsThatLuauCannotTellApart_ShouldFail()
+    public async Task MetamethodsWithTheWrongOperands_ShouldFail()
     {
         const string code = """
+            using System.Threading;
             using Darp.Luau;
 
             [LuauUserdata("Money")]
             public sealed partial class Money
             {
+                // Luau only calls it for two values of the type.
+                [LuauMetamethod(LuauMetamethod.Lt)]
+                public bool LessThan(double amount) => false;
+
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Money Negate(double amount) => new();
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                public int Length(int unit) => 0;
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public static string Describe(double amount) => "";
+
+                [LuauMetamethod(LuauMetamethod.Index)]
+                public double Read() => 0;
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public void Store(string key) { }
+
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public void Deposit(Money other) { }
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public void Invert() { }
+
+                [LuauMetamethod(LuauMetamethod.Concat)]
+                public void Append(string text) { }
+
+                // Nothing can cancel an operator: the script does not wait in it.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(double factor, CancellationToken cancellationToken) => this;
+            }
+
+            [LuauUserdata("Wallet")]
+            public sealed partial class Wallet
+            {
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public void Empty() { }
+
+                [LuauMetamethod(LuauMetamethod.Index)]
+                public void Read(string key) { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodsGeneratedCodeCannotCall_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public interface IDescribed
+            {
+                string Describe();
+            }
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money : IDescribed
+            {
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                string IDescribed.Describe() => "";
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public static implicit operator string(Money money) => "";
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                partial void Count();
+
+                // Has the shape of the metamethod, but C# only calls it by changing a variable.
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Money operator ++(Money money) => money;
+
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(System.Uri source) => this;
+
+                [LuauMetamethod((LuauMetamethod)999)]
+                public Money Unknown() => this;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodOverloadsThatLuauCannotTellApart_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Coin")]
+            public partial class Coin { }
+
+            [LuauUserdata("GoldCoin")]
+            public sealed partial class GoldCoin : Coin { }
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(Coin coin) => this;
+
+                // A gold coin is read as a coin as well.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(GoldCoin coin) => this;
+
                 [LuauMetamethod(LuauMetamethod.Mul)]
                 public Money Scale(int factor) => this;
 

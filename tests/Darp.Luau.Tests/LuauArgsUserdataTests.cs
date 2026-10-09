@@ -113,6 +113,52 @@ public sealed class LuauArgsUserdataTests : IDisposable
         result.ShouldBe("value");
     }
 
+    [Fact]
+    public void Args_GetValueTypeAndGetTypeName_ShouldTellTheTypeOfEveryArgumentAndNilPastTheLast()
+    {
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
+        {
+            var types = new List<string>();
+            for (int index = 1; index <= args.ArgumentCount + 1; index++)
+                types.Add($"{args.GetValueType(index)}={args.GetTypeName(index)}");
+            return LuauReturn.Ok(string.Join(' ', types));
+        });
+        using LuauBuffer bytes = _state.CreateBuffer([1]);
+        _state.Globals.Set("input", new ValueUserdata());
+        _state.Globals.Set("bytes", bytes);
+        _state.Globals.Set("f", func);
+
+        string types = _state
+            .Load("return f(nil, true, 1, 'a', {}, f, coroutine.create(f), input, vector.create(1, 2, 3), bytes)")
+            .Execute<string>();
+
+        types.ShouldBe(
+            "Nil=nil Boolean=boolean Number=number String=string Table=table Function=function Thread=thread "
+                + "Userdata=userdata Vector=vector Buffer=buffer Nil=nil"
+        );
+    }
+
+    [Fact]
+    public void Args_IsUserdata_ShouldOnlyAcceptTheManagedTypeOfTheArgument()
+    {
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
+            LuauReturn.Ok(
+                string.Join(
+                    ' ',
+                    args.IsUserdata<ValueUserdata>(1),
+                    args.IsUserdata<OtherValueUserdata>(1),
+                    args.IsUserdata<ValueUserdata>(2),
+                    args.IsUserdata<ValueUserdata>(3)
+                )
+            )
+        );
+        _state.Globals.Set("input", new ValueUserdata());
+        _state.Globals.Set("f", func);
+
+        // A value of the type, the same value read as another type, a number, and no argument at all.
+        _state.Load("return f(input, 12)").Execute<string>().ShouldBe("True False False False");
+    }
+
     public void Dispose()
     {
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);

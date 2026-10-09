@@ -182,6 +182,143 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithMetamethodsOnOperators_ShouldCallEachOperatorByItsToken()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Bits")]
+            public sealed partial class Bits
+            {
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public static Bits operator -(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public static Bits operator *(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public static Bits operator /(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Mod)]
+                public static Bits operator %(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public static Bits operator ^(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Concat)]
+                public static Bits operator &(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.IDiv)]
+                public static Bits operator |(Bits a, Bits b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public static bool operator ==(Bits a, Bits b) => true;
+
+                public static bool operator !=(Bits a, Bits b) => false;
+
+                [LuauMetamethod(LuauMetamethod.Lt)]
+                public static bool operator <(Bits a, Bits b) => true;
+
+                public static bool operator >(Bits a, Bits b) => false;
+
+                [LuauMetamethod(LuauMetamethod.Le)]
+                public static bool operator <=(Bits a, Bits b) => true;
+
+                public static bool operator >=(Bits a, Bits b) => false;
+
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Bits operator ~(Bits a) => a;
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                public static int operator +(Bits a) => 0;
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public static string operator !(Bits a) => "";
+            }
+
+            // The attribute names the metamethod; the operator is only what the generated code calls.
+            [LuauUserdata("Reversed")]
+            public sealed partial class Reversed
+            {
+                public static bool operator ==(Reversed a, Reversed b) => true;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public static bool operator !=(Reversed a, Reversed b) => false;
+
+                public static bool operator <(Reversed a, Reversed b) => true;
+
+                [LuauMetamethod(LuauMetamethod.Lt)]
+                public static bool operator >(Reversed a, Reversed b) => false;
+
+                public static bool operator <=(Reversed a, Reversed b) => true;
+
+                [LuauMetamethod(LuauMetamethod.Le)]
+                public static bool operator >=(Reversed a, Reversed b) => false;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
+    public async Task Userdata_WithMetamethodOverloads_ShouldTestTheLuauTypeOfEveryOperand()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Coin")]
+            public sealed partial class Coin { }
+
+            [LuauUserdata("Bag")]
+            public sealed partial class Bag
+            {
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Bag Add(Bag other) => this;
+
+                // Told apart from a bag by the managed type of the userdata.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Bag Add(Coin coin) => this;
+
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public Bag Without(bool everything) => this;
+
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public Bag Without(LuauTableView items) => this;
+
+                [LuauMetamethod(LuauMetamethod.Mod)]
+                public Bag Keep(LuauFunctionView predicate) => this;
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public Bag Fill(LuauBufferView bytes) => this;
+
+                [LuauMetamethod(LuauMetamethod.IDiv)]
+                public Bag Split(double? parts) => this;
+
+                [LuauMetamethod(LuauMetamethod.Concat)]
+                public string Join(string text) => text;
+
+                [LuauMetamethod(LuauMetamethod.Concat)]
+                public static string Join(string text, Bag bag) => text;
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public void Put(string name, double amount) { }
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public void Put(int slot, double amount) { }
+
+                // Any userdata, and any value: the first tests that it is one, the second only the instance.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Bag Merge(LuauUserdataView other) => this;
+
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public Bag Share(LuauValue with) => this;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataRegister()
     {
         const string code = """

@@ -117,6 +117,84 @@ public sealed class GeneratedUserdataTests
         sum.ShouldBe(3);
         scaledSum.ShouldBe(30);
     }
+
+    [Fact]
+    public void Overloads_ShouldBeChosenByTheLuauTypeOfTheArgument()
+    {
+        using LuauState state = CreateStateWithPoint();
+        using LuauUserdata probe = state.GetOrCreateUserdata(new Probe());
+        using LuauBuffer bytes = state.CreateBuffer([1, 2, 3]);
+        state.Globals.Set("probe", probe);
+        state.Globals.Set("bytes", bytes);
+
+        string chosen = state
+            .Load(
+                """
+                return table.concat({
+                  probe(true), probe(1), probe('a'), probe({}), probe(function() end), probe(bytes),
+                  probe(point(1, 2)), probe(probe),
+                }, ' ')
+                """
+            )
+            .Execute<string>();
+
+        chosen.ShouldBe("boolean number string table function buffer point probe");
+    }
+
+    [Theory]
+    [InlineData("probe(nil)")]
+    [InlineData("probe(1, 2)")]
+    [InlineData("probe()")]
+    public void Overloads_WhenNoneTakesTheArguments_ShouldRaiseAnError(string call)
+    {
+        using var state = new LuauState();
+        using LuauUserdata probe = state.GetOrCreateUserdata(new Probe());
+        state.Globals.Set("probe", probe);
+
+        LuaException exception = Should.Throw<LuaException>(() => state.Load(call).Execute());
+
+        exception.Message.ShouldContain("no overload of the metamethod accepts these arguments");
+    }
+}
+
+/// <summary> Says which of its overloads a call reached. </summary>
+[LuauUserdata("Probe")]
+internal sealed partial class Probe
+{
+    private int _calls;
+
+    private string Reached(string overload)
+    {
+        _calls++;
+        return overload;
+    }
+
+    [LuauMetamethod(LuauMetamethod.Len)]
+    private int Calls() => _calls;
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(bool value) => Reached("boolean");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(double value) => Reached("number");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(string value) => Reached("string");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(LuauTableView value) => Reached("table");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(LuauFunctionView value) => Reached("function");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(LuauBufferView value) => Reached("buffer");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(Point value) => Reached("point");
+
+    [LuauMetamethod(LuauMetamethod.Call)]
+    private string Take(Probe value) => Reached("probe");
 }
 
 [LuauUserdata("Point")]
