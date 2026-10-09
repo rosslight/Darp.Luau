@@ -1,0 +1,232 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    // Luau only calls it for two values of the type.
+    [LuauMetamethod(LuauMetamethod.Lt)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public bool LessThan(double amount) => false;
+*/
+ : (7,5)-(7,38),
+      Message: Invalid generated export shape: metamethod 'Lt' on 'LessThan' must compare two values of the type itself,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Unm)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static Money Negate(double amount) => new();
+*/
+ : (10,5)-(10,39),
+      Message: Invalid generated export shape: metamethod 'Unm' on 'Negate' must have the instance as its only operand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Len)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public int Length(int unit) => 0;
+*/
+ : (13,5)-(13,39),
+      Message: Invalid generated export shape: metamethod 'Len' on 'Length' must have the instance as its only operand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.ToString)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static string Describe(double amount) => "";
+*/
+ : (16,5)-(16,44),
+      Message: Invalid generated export shape: metamethod 'ToString' on 'Describe' must have the instance as its only operand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Index)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public double Read() => 0;
+*/
+ : (19,5)-(19,41),
+      Message: Invalid generated export shape: metamethod 'Index' on 'Read' must take the instance and the key,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.NewIndex)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Store(string key) { }
+*/
+ : (22,5)-(22,44),
+      Message: Invalid generated export shape: metamethod 'NewIndex' on 'Store' must take the instance, the key and the value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Add)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Deposit(Money other) { }
+*/
+ : (25,5)-(25,39),
+      Message: Invalid generated export shape: metamethod 'Add' on 'Deposit' must return one value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Pow)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Invert() { }
+*/
+ : (28,5)-(28,39),
+      Message: Invalid generated export shape: metamethod 'Pow' on 'Invert' must have two operands, at least one of them the type itself,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Concat)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Append(string text) { }
+*/
+ : (31,5)-(31,42),
+      Message: Invalid generated export shape: metamethod 'Concat' on 'Append' must return one value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    // Nothing can cancel an operator: the script does not wait in it.
+    [LuauMetamethod(LuauMetamethod.Mul)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public Money Scale(double factor, CancellationToken cancellationToken) => this;
+*/
+ : (35,5)-(35,39),
+      Message: Invalid generated export shape: metamethod 'Mul' on 'Scale' cannot take a CancellationToken: only Call runs where a script can be cancelled while it waits,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    [LuauMetamethod(LuauMetamethod.Unm)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Empty() { }
+*/
+ : (42,5)-(42,39),
+      Message: Invalid generated export shape: metamethod 'Unm' on 'Empty' must return one value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMetamethod(LuauMetamethod.Index)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public void Read(string key) { }
+*/
+ : (45,5)-(45,41),
+      Message: Invalid generated export shape: metamethod 'Index' on 'Read' must return one value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

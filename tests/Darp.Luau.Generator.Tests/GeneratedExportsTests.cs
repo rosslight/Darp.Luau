@@ -475,6 +475,218 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task MetamethodsWithTheWrongShape_ShouldFail()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                // No operand is the type itself.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static double Sum(double a, double b) => a + b;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public int SameAs(Money other) => 0;
+
+                // Luau cannot wait inside an operator.
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public Task<Money> SubtractAsync(Money other) => Task.FromResult(other);
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public string? Describe() => null;
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                public string Length() => "";
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public bool Store(string key, double value) => true;
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public static void Run(double amount) { }
+            }
+
+            [LuauModule("bank")]
+            public static partial class BankModule
+            {
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public static void Open() { }
+            }
+
+            // Registered by hand: the generator never looks at the attribute.
+            public sealed class Account : ILuauUserdata<Account>
+            {
+                public static void Register(LuauUserdataRegistry<Account> registry) { }
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public string Describe() => "account";
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodsWithTheWrongOperands_ShouldFail()
+    {
+        const string code = """
+            using System.Threading;
+            using Darp.Luau;
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                // Luau only calls it for two values of the type.
+                [LuauMetamethod(LuauMetamethod.Lt)]
+                public bool LessThan(double amount) => false;
+
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Money Negate(double amount) => new();
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                public int Length(int unit) => 0;
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public static string Describe(double amount) => "";
+
+                [LuauMetamethod(LuauMetamethod.Index)]
+                public double Read() => 0;
+
+                [LuauMetamethod(LuauMetamethod.NewIndex)]
+                public void Store(string key) { }
+
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public void Deposit(Money other) { }
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public void Invert() { }
+
+                [LuauMetamethod(LuauMetamethod.Concat)]
+                public void Append(string text) { }
+
+                // Nothing can cancel an operator: the script does not wait in it.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(double factor, CancellationToken cancellationToken) => this;
+            }
+
+            [LuauUserdata("Wallet")]
+            public sealed partial class Wallet
+            {
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public void Empty() { }
+
+                [LuauMetamethod(LuauMetamethod.Index)]
+                public void Read(string key) { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodsGeneratedCodeCannotCall_ShouldFail()
+    {
+        const string code = """
+            #pragma warning disable CS0660, CS0661 // Equals and GetHashCode are of no interest here
+            using Darp.Luau;
+
+            public interface IDescribed
+            {
+                string Describe();
+            }
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money : IDescribed
+            {
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                string IDescribed.Describe() => "";
+
+                [LuauMetamethod(LuauMetamethod.ToString)]
+                public static implicit operator string(Money money) => "";
+
+                [LuauMetamethod(LuauMetamethod.Len)]
+                partial void Count();
+
+                // An operator only declares the metamethod it stands for.
+                [LuauMetamethod(LuauMetamethod.Unm)]
+                public static Money operator ++(Money money) => money;
+
+                [LuauMetamethod(LuauMetamethod.Pow)]
+                public static Money operator ^(Money a, Money b) => a;
+
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public static Money operator +(Money a, Money b) => a;
+
+                public static bool operator ==(Money a, Money b) => true;
+
+                [LuauMetamethod(LuauMetamethod.Eq)]
+                public static bool operator !=(Money a, Money b) => false;
+
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(System.Uri source) => this;
+
+                [LuauMetamethod((LuauMetamethod)999)]
+                public Money Unknown() => this;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MetamethodOverloadsThatLuauCannotTellApart_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Coin")]
+            public partial class Coin { }
+
+            [LuauUserdata("GoldCoin")]
+            public sealed partial class GoldCoin : Coin { }
+
+            [LuauUserdata("Money")]
+            public sealed partial class Money
+            {
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(Coin coin) => this;
+
+                // A gold coin is read as a coin as well.
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public Money Add(GoldCoin coin) => this;
+
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(int factor) => this;
+
+                // An int and a double are both a number in Luau.
+                [LuauMetamethod(LuauMetamethod.Mul)]
+                public Money Scale(double factor) => this;
+
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public Money Split(string? parts) => this;
+
+                // Both take nil.
+                [LuauMetamethod(LuauMetamethod.Div)]
+                public Money Split(double? parts) => this;
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(double amount) { }
+
+                // A LuauValue takes every value, but a call with two arguments is told apart by their number.
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(LuauValue amount) { }
+
+                [LuauMetamethod(LuauMetamethod.Call)]
+                public void Run(double amount, double times) { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task GeneratedMemberNameConflicts_ShouldFail()
     {
         const string code = """
