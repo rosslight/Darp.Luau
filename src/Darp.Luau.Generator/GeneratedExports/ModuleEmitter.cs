@@ -42,7 +42,9 @@ internal static class ModuleEmitter
         );
         writer.WriteLine();
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
-        writer.WriteLine($"public {GetOnLoadModifier(model)}void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)");
+        writer.WriteLine(
+            $"public {GetOnLoadModifier(model)}void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)"
+        );
         writer.WriteLine("{");
         writer.Indent++;
         var localNames = new ExportEmitterHelper.LocalNameAllocator();
@@ -62,9 +64,7 @@ internal static class ModuleEmitter
         ExportEmitterHelper.LocalNameAllocator localNames
     )
     {
-        foreach (
-            GeneratedModuleExportNodeIr child in node.Children.OrderBy(static x => x.Name, StringComparer.Ordinal)
-        )
+        foreach (GeneratedModuleExportNodeIr child in node.Children.OrderBy(static x => x.Name, StringComparer.Ordinal))
         {
             if (child.Member is null)
             {
@@ -127,7 +127,7 @@ internal static class ModuleEmitter
         string keyLiteral = SymbolDisplay.FormatLiteral(method.PathSegments[^1], quote: true);
 
         writer.WriteLine(
-            $"using global::Darp.Luau.LuauFunction {functionVariableName} = state.CreateFunctionBuilder(args =>"
+            $"using global::Darp.Luau.LuauFunction {functionVariableName} = state.CreateFunctionManual(args =>"
         );
         writer.WriteLine("{");
         writer.Indent++;

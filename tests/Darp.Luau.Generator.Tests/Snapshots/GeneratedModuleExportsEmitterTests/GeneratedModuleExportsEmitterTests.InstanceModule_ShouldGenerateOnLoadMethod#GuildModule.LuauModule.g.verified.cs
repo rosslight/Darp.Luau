@@ -11,7 +11,7 @@ public sealed partial class GuildModule : global::Darp.Luau.ILuauModule<global::
     public void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)
     {
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
-        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(1, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);

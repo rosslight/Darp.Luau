@@ -10,7 +10,7 @@ public static partial class NetModule
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Darp.Luau.Generator", "GeneratorVersion")]
     public static void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)
     {
-        using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(1, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);

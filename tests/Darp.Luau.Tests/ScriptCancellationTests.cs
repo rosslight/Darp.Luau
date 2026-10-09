@@ -14,7 +14,7 @@ public sealed class ScriptCancellationTests : IDisposable
     public ScriptCancellationTests()
     {
         // Lets a script cancel its own host call, so that no test depends on timing.
-        _cancel = _state.CreateFunctionBuilder(_ =>
+        _cancel = _state.CreateFunctionManual(_ =>
         {
             _cts.Cancel();
             return LuauReturn.Ok();
@@ -34,7 +34,7 @@ public sealed class ScriptCancellationTests : IDisposable
     public async Task EndlessLoop_ShouldBeStoppedFromAnotherThread()
     {
         using var loopStarted = new ManualResetEventSlim();
-        using LuauFunction started = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction started = _state.CreateFunctionManual(_ =>
         {
             loopStarted.Set();
             return LuauReturn.Ok();
@@ -164,7 +164,7 @@ public sealed class ScriptCancellationTests : IDisposable
         // The state owns the callback: it is released with it.
         state.Globals.Set(
             "cancel",
-            state.CreateFunctionBuilder(_ =>
+            state.CreateFunctionManual(_ =>
             {
                 _cts.Cancel();
                 return LuauReturn.Ok();
@@ -234,7 +234,7 @@ public sealed class ScriptCancellationTests : IDisposable
     {
         using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
         OperationCanceledException? nestedCancellation = null;
-        using LuauFunction invokeEndless = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction invokeEndless = _state.CreateFunctionManual(_ =>
         {
             nestedCancellation = Should.Throw<OperationCanceledException>(() => endless.Invoke());
             return LuauReturn.Ok();
@@ -252,7 +252,7 @@ public sealed class ScriptCancellationTests : IDisposable
         using LuauFunction endless = _state.Load("cancel() while true do end").ToFunction();
         using LuauCoroutine coroutine = _state.CreateCoroutine(endless);
         OperationCanceledException? nestedCancellation = null;
-        using LuauFunction resume = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction resume = _state.CreateFunctionManual(_ =>
         {
             nestedCancellation = Should.Throw<OperationCanceledException>(() => coroutine.Resume());
             return LuauReturn.Ok();
@@ -271,7 +271,7 @@ public sealed class ScriptCancellationTests : IDisposable
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction endless = _state.Load("while true do end").ToFunction();
-        using LuauFunction convert = _state.CreateFunctionBuilder(args =>
+        using LuauFunction convert = _state.CreateFunctionManual(args =>
             args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
                 ? awaiter.Await(
                     new ValueTask<int>(gate.Task),
@@ -317,7 +317,7 @@ public sealed class ScriptCancellationTests : IDisposable
         using LuauFunction count = _state.Load("local n = 0 for i = 1, 100 do n += 1 end return n").ToFunction();
         using LuauFunction identity = _state.Load("return ...").ToFunction();
         int counted = 0;
-        using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction runNested = _state.CreateFunctionManual(_ =>
         {
             _cts.Cancel();
             IntoLuau argument = IntoLuau.FromUserdata(state =>
@@ -341,14 +341,14 @@ public sealed class ScriptCancellationTests : IDisposable
     public async Task AsyncCallFromACallback_ShouldBeStoppedByTheTokenPassedToIt_AlsoAfterItAwaited()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using LuauFunction wait = _state.CreateFunctionBuilder(args =>
+        using LuauFunction wait = _state.CreateFunctionManual(args =>
             args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
                 ? awaiter.Await(new ValueTask(gate.Task))
                 : LuauReturn.Error(error)
         );
         _state.Globals.Set("wait", wait);
         using LuauFunction endless = _state.Load("wait() while true do end").ToFunction();
-        using LuauFunction runNested = _state.CreateFunctionBuilder(args =>
+        using LuauFunction runNested = _state.CreateFunctionManual(args =>
             args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
                 ? awaiter.Await(endless.InvokeAsync([], args.CancellationToken))
                 : LuauReturn.Error(error)
@@ -370,7 +370,7 @@ public sealed class ScriptCancellationTests : IDisposable
             .Load("cancel() local n = 0 for i = 1, 100 do n += 1 end return n")
             .ToFunction();
         double counted = 0;
-        using LuauFunction runNested = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction runNested = _state.CreateFunctionManual(_ =>
         {
             // Completed when it returns: nothing in the script awaits.
             counted = count.InvokeAsync<double>().GetAwaiter().GetResult();
@@ -389,13 +389,13 @@ public sealed class ScriptCancellationTests : IDisposable
     {
         // Continuations run inline, inside the callback that completes the gate.
         var gate = new TaskCompletionSource();
-        using LuauFunction wait = _state.CreateFunctionBuilder(args =>
+        using LuauFunction wait = _state.CreateFunctionManual(args =>
             args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
                 ? awaiter.Await(new ValueTask(gate.Task))
                 : LuauReturn.Error(error)
         );
         _state.Globals.Set("wait", wait);
-        using LuauFunction open = _state.CreateFunctionBuilder(_ =>
+        using LuauFunction open = _state.CreateFunctionManual(_ =>
         {
             _cts.Cancel();
             gate.SetResult();

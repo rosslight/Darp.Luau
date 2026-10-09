@@ -76,10 +76,10 @@ using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
 lua.Globals.Set("pair", pair);
 ```
 
-Use `CreateFunctionBuilder(...)` when you need manual argument parsing, explicit user-facing errors, or a callback shape that the generator-backed path does not support:
+Use `CreateFunctionManual(...)` when you need manual argument parsing, explicit user-facing errors, or a callback shape that the generator-backed path does not support:
 
 ```csharp
-using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
+using LuauFunction pair = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryValidateArgumentCount(2, out string? error))
         return LuauReturn.Error(error);
@@ -92,7 +92,7 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 });
 ```
 
-`CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
+`CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionManual(...)`.
 
 A callback can return a `Task` or `ValueTask`. Run the script with `ExecuteAsync(...)` or `InvokeAsync(...)`, and it waits for the result without blocking a thread:
 
@@ -107,7 +107,7 @@ int length = await lua.Load("return #fetch('https://example.com')").ExecuteAsync
 
 For the script, `fetch(url)` is a normal call. A `CancellationToken` parameter is not a Luau argument; it receives the token of the async call.
 
-Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. Builder callbacks use the `LuauAwaiter` from `args.TryGetAwaiter(...)`.
+Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. A `CreateFunctionManual(...)` callback uses the `LuauAwaiter` from `args.TryGetAwaiter(...)`.
 
 ## Work with tables
 

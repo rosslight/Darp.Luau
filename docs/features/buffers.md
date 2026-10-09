@@ -76,7 +76,7 @@ lua.Globals.Set("size", size);
 For manual callbacks, read exactly the shape you want:
 
 ```csharp
-using LuauFunction measure = lua.CreateFunctionBuilder(static args =>
+using LuauFunction measure = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadBuffer(1, out ReadOnlySpan<byte> bytes, out string? error))
         return LuauReturn.Error(error);

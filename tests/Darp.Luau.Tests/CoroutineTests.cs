@@ -43,7 +43,7 @@ public sealed class CoroutineTests : IDisposable
     public void Status_InsideTheCoroutine_ShouldBeRunning()
     {
         LuauCoroutine coroutine = default;
-        using LuauFunction readStatus = _state.CreateFunctionBuilder(_ => LuauReturn.Ok(coroutine.Status.ToString()));
+        using LuauFunction readStatus = _state.CreateFunctionManual(_ => LuauReturn.Ok(coroutine.Status.ToString()));
         _state.Globals.Set("read_status", readStatus);
         coroutine = CreateCoroutine("return read_status()");
         using (coroutine)
@@ -157,7 +157,7 @@ public sealed class CoroutineTests : IDisposable
     public void TryReadLuauCoroutine_ToOwned_ShouldOutliveTheCallback()
     {
         LuauCoroutine stored = default;
-        using LuauFunction store = _state.CreateFunctionBuilder(args =>
+        using LuauFunction store = _state.CreateFunctionManual(args =>
         {
             if (!args.TryReadLuauCoroutine(1, out LuauCoroutineView view, out string? error))
                 return LuauReturn.Error(error);
@@ -178,7 +178,7 @@ public sealed class CoroutineTests : IDisposable
     public void TryReadLuauCoroutine_WithAFunction_ShouldFail()
     {
         string? readError = null;
-        using LuauFunction read = _state.CreateFunctionBuilder(args =>
+        using LuauFunction read = _state.CreateFunctionManual(args =>
         {
             _ = args.TryReadLuauCoroutine(1, out _, out readError);
             return LuauReturn.Ok();

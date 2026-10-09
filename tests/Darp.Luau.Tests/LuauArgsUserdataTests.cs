@@ -10,7 +10,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
     [Fact]
     public void Args_TryReadUserdata_ShouldResolveManagedInstance()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdata(1, out ValueUserdata? value, out string? error))
                 return LuauReturn.Error(error);
@@ -27,7 +27,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
     [Fact]
     public void Args_TryReadUserdata_WhenTypeMismatches_ShouldFail()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdata<ValueUserdata>(1, out _, out string? error))
                 return LuauReturn.Error(error);
@@ -55,7 +55,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
     [Fact]
     public void Args_TryReadUserdata_WhenValueIsNotUserdata_ShouldFail()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdata<ValueUserdata>(1, out _, out string? error))
                 return LuauReturn.Error(error);
@@ -83,7 +83,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
     [Fact]
     public void Args_TryReadUserdataOrNil_ShouldAcceptNil()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdataOrNil(1, out ValueUserdata? value, out string? error))
                 return LuauReturn.Error(error);
@@ -99,7 +99,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
     [Fact]
     public void Args_TryReadUserdataOrNil_ShouldAcceptUserdata()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdataOrNil(1, out ValueUserdata? value, out string? error))
                 return LuauReturn.Error(error);

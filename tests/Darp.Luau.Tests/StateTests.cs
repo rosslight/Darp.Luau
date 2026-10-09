@@ -194,7 +194,7 @@ public sealed class StateTests : IDisposable
     public void Dispose_InsideACallback_ShouldThrowAndLeaveTheStateUsable()
     {
         using var state = new LuauState();
-        using LuauFunction quit = state.CreateFunctionBuilder(_ =>
+        using LuauFunction quit = state.CreateFunctionManual(_ =>
         {
             state.Dispose();
             return LuauReturn.Ok();
@@ -226,7 +226,7 @@ public sealed class StateTests : IDisposable
     public void Dispose_AfterACallbackFailed_ShouldWork()
     {
         var state = new LuauState();
-        using LuauFunction fail = state.CreateFunctionBuilder(_ => throw new InvalidOperationException("boom"));
+        using LuauFunction fail = state.CreateFunctionManual(_ => throw new InvalidOperationException("boom"));
         state.Globals.Set("fail", fail);
         Should.Throw<LuaException>(() => state.Load("fail()").Execute());
 

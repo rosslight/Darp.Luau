@@ -121,10 +121,10 @@ You can also enumerate the whole table with `foreach`, but key order is not guar
 
 ## Borrowed table views
 
-`LuauTableView` shows up in callback APIs such as `CreateFunctionBuilder(...)` and `LuauArgs.TryReadLuauTable(...)`:
+`LuauTableView` shows up in callback APIs such as `CreateFunctionManual(...)` and `LuauArgs.TryReadLuauTable(...)`:
 
 ```csharp
-using LuauFunction readValue = lua.CreateFunctionBuilder(static args =>
+using LuauFunction readValue = lua.CreateFunctionManual(static args =>
 {
     if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
         return LuauReturn.Error(error);

@@ -10,7 +10,7 @@ public sealed partial class RecoverableModule : global::Darp.Luau.ILuauModule<gl
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Darp.Luau.Generator", "GeneratorVersion")]
     public void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)
     {
-        using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -18,7 +18,7 @@ public sealed partial class RecoverableModule : global::Darp.Luau.ILuauModule<gl
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         module.Set("Field", __var0);
-        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -26,7 +26,7 @@ public sealed partial class RecoverableModule : global::Darp.Luau.ILuauModule<gl
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         module.Set("duplicate", __var1);
-        using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);

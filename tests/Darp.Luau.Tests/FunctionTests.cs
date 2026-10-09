@@ -78,7 +78,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchableByPCall()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ =>
+        using LuauFunction func = _state.CreateFunctionManual(static _ =>
             throw new InvalidOperationException("Boom from managed function")
         );
         _state.Globals.Set("explode", func);
@@ -96,7 +96,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchable()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ =>
+        using LuauFunction func = _state.CreateFunctionManual(static _ =>
             throw new InvalidOperationException("Boom from managed function")
         );
         _state.Globals.Set("explode", func);
@@ -113,7 +113,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnValue()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
                 return LuauReturn.Error(error);
@@ -130,7 +130,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnErrorString()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("user facing error"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("user facing error"));
         _state.Globals.Set("fail", func);
 
         _state.Load("ok, err = pcall(fail)").Execute();
@@ -145,7 +145,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_FromCoroutine_ShouldReturnValue()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
                 return LuauReturn.Error(error);
@@ -173,7 +173,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ErrorFromCoroutine_ShouldBeLuaError()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("boom from coroutine"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("boom from coroutine"));
         _state.Globals.Set("fail", func);
 
         (bool ok, string error) = _state
@@ -195,7 +195,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnStringValueViaOk()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok("hello from csharp"));
         _state.Globals.Set("greet", func);
 
         _state.Load("result = greet()").Execute();
@@ -207,7 +207,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ImplicitString_ShouldBeAnError()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("error from callback"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("error from callback"));
         _state.Globals.Set("fail", func);
 
         _state.Load("ok, err = pcall(fail)").Execute();
@@ -222,7 +222,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldSupportNoReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok());
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok());
         _state.Globals.Set("touch", func);
 
         _state.Load("returnCount = select('#', touch())").Execute();
@@ -234,7 +234,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldSupportMultipleReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, 11));
         _state.Globals.Set("pair", func);
 
         _state
@@ -259,7 +259,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Invoke_ScalarReturn_ShouldIgnoreAdditionalReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, 11));
 
         func.Invoke<int>().ShouldBe(10);
     }
@@ -267,7 +267,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Invoke_TupleReturn_ShouldReadMultipleReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, "hello", true));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, "hello", true));
 
         (int number, string? text, bool flag) = func.Invoke<int, string?, bool>();
 
@@ -279,7 +279,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Invoke_TupleReturn_WithOwnedReference_ShouldCloneReferenceOwnership()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        using LuauFunction func = _state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return LuauReturn.Error(error);
@@ -304,7 +304,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Invoke_TupleReturn_ShouldIgnoreAdditionalReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11, 12));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, 11, 12));
 
         (byte first, short second) = func.Invoke<byte, short>();
         first.ShouldBe<byte>(10);
@@ -314,7 +314,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Invoke_Void_ShouldIgnoreReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, 11));
 
         func.Invoke();
     }
@@ -322,7 +322,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void InvokeMulti_ShouldReadAllReturnValues()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, "hello", true));
+        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Ok(10, "hello", true));
 
         LuauValue[] values = func.InvokeMulti();
         values.Length.ShouldBe(3);
@@ -770,7 +770,7 @@ public sealed class FunctionTests : IDisposable
         const string expectedValue = "010203";
 
         using LuauBuffer buffer = _state.CreateBuffer(Convert.FromHexString(expectedValue));
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauBuffer(1, out LuauBufferView b, out string? error))
                 return LuauReturn.Error(error);
@@ -794,7 +794,7 @@ public sealed class FunctionTests : IDisposable
     public void Func_StringArg_ReturnsBuffer()
     {
         byte[] expected = [0x01, 0x02, 0x03];
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUtf8String(1, out string? hex, out string? error))
                 return LuauReturn.Error(error);
@@ -814,7 +814,7 @@ public sealed class FunctionTests : IDisposable
     {
         const string expectedValue = "hello from luau";
 
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauString(1, out LuauStringView value, out string? error))
                 return LuauReturn.Error(error);
@@ -832,7 +832,7 @@ public sealed class FunctionTests : IDisposable
     public void Func_UserdataArg_ShouldReadManagedUserdata()
     {
         var input = new ArgsUserdataA { Value = 42 };
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdata(1, out ArgsUserdataA? value, out string? error))
                 return LuauReturn.Error(error);
@@ -861,7 +861,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Func_UserdataArg_WrongType_ShouldReturnError()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdata<ArgsUserdataA>(1, out _, out string? error))
                 return LuauReturn.Error(error);
@@ -909,7 +909,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Func_UserdataArgOrNil_ShouldHandleNil()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
                 return LuauReturn.Error(error);
@@ -1074,7 +1074,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Func_UserdataArg_ShouldReadLuauUserdataReference()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauUserdata(1, out LuauUserdataView value, out string? error))
                 return LuauReturn.Error(error);
@@ -1151,7 +1151,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1182,7 +1182,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1221,7 +1221,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1250,7 +1250,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1279,7 +1279,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1308,7 +1308,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1337,7 +1337,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
                 return LuauReturn.Error(error);
@@ -1432,7 +1432,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void ReturningTable_ShouldWorkInsideManagedCallback()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        using LuauFunction func = _state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return LuauReturn.Error(error);
@@ -1450,7 +1450,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void ReturningBorrowedTable_FromCoroutine_ShouldReturnArgument()
     {
-        using LuauFunction echoTable = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction echoTable = _state.CreateFunctionManual(static args =>
         {
             if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
                 return LuauReturn.Error(error);
@@ -1485,7 +1485,7 @@ public sealed class FunctionTests : IDisposable
         using LuauTable x = _state.CreateTable();
         x.Set("value", 99);
 
-        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        using LuauFunction func = _state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out var error))
                 return LuauReturn.Error(error);
@@ -1502,7 +1502,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void ReturningBuffer_ShouldWorkInsideManagedCallback()
     {
-        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        using LuauFunction func = _state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(0, out string? error))
                 return LuauReturn.Error(error);
@@ -1524,7 +1524,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CallbackException_WhoseMessageThrows_ShouldStillBeALuaError()
     {
-        using LuauFunction fail = _state.CreateFunctionBuilder(_ => throw new BrokenMessageException());
+        using LuauFunction fail = _state.CreateFunctionManual(_ => throw new BrokenMessageException());
         _state.Globals.Set("fail", fail);
 
         LuaException exception = Should.Throw<LuaException>(() => _state.Load("fail()").Execute());
@@ -1537,7 +1537,7 @@ public sealed class FunctionTests : IDisposable
     public void CallbackError_WithAVeryLongMessage_ShouldReachTheScript()
     {
         string message = new('x', 1024 * 1024);
-        using LuauFunction fail = _state.CreateFunctionBuilder(_ => LuauReturn.Error(message));
+        using LuauFunction fail = _state.CreateFunctionManual(_ => LuauReturn.Error(message));
         _state.Globals.Set("fail", fail);
 
         int length = _state.Load("local _, err = pcall(fail) return #err").Execute<int>();

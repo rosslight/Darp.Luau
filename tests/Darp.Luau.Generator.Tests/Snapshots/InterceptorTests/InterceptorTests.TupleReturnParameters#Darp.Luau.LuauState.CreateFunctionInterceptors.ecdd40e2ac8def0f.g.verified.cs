@@ -11,7 +11,7 @@ file static class CreateFunctionInterceptors
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
-        return state.CreateFunctionBuilder(F);
+        return state.CreateFunctionManual(F);
 
         global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {

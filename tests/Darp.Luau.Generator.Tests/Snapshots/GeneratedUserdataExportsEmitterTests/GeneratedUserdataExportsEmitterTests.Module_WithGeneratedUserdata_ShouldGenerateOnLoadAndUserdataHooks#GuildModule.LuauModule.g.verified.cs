@@ -11,7 +11,7 @@ public static partial class GuildModule
     public static void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)
     {
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
-        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(1, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
@@ -22,7 +22,7 @@ public static partial class GuildModule
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
         });
         __var0.Set("create", __var1);
-        using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionBuilder(args =>
+        using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionManual(args =>
         {
             if (!args.TryValidateArgumentCount(2, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);

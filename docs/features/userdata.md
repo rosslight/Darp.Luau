@@ -130,7 +130,7 @@ Implement the static members on `ILuauUserData<T>` when the generated userdata m
 | `OnSetIndex` | `player.score = 10` | `self`, `LuauArgsSingle`, member name | return `LuauOutcome.NotHandledError` and Luau gets an unknown-member error |
 | `OnMethodCall` | `player:add(1)` | `self`, `LuauArgs`, method name | return `LuauReturn.NotHandledError` and Luau gets an unknown-method error |
 
-These hooks are manual callback surfaces, closer to `CreateFunctionBuilder(...)` than to `CreateFunction(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly.
+These hooks are manual callback surfaces, closer to `CreateFunctionManual(...)` than to `CreateFunction(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly.
 
 For `player:add(1)`, `self` is already passed separately, so `functionArgs` contains only the actual method arguments.
 
@@ -192,7 +192,7 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 
 ### Async methods
 
-`OnMethodCall` can finish later through the awaiter of its `LuauArgs`, like a callback built with `CreateFunctionBuilder(...)`. The script waits at `player:save()` without blocking a thread:
+`OnMethodCall` can finish later through the awaiter of its `LuauArgs`, like a callback built with `CreateFunctionManual(...)`. The script waits at `player:save()` without blocking a thread:
 
 ```csharp
 case "save":

@@ -89,13 +89,13 @@ public sealed class MemoryManagementTests
         using var state = new LuauState();
         int baselineCallbacks = state.MemoryStatistics.ActiveManagedCallbacks;
 
-        using (LuauFunction kept = state.CreateFunctionBuilder(_ => LuauReturn.Ok(42)))
+        using (LuauFunction kept = state.CreateFunctionManual(_ => LuauReturn.Ok(42)))
         {
             state.Globals.Set("kept", kept);
         }
         for (int i = 0; i < 1000; i++)
         {
-            using LuauFunction dropped = state.CreateFunctionBuilder(_ => LuauReturn.Ok());
+            using LuauFunction dropped = state.CreateFunctionManual(_ => LuauReturn.Ok());
         }
 
         state.CollectGarbage();
@@ -108,7 +108,7 @@ public sealed class MemoryManagementTests
     public void ManagedCallback_WhenTheStateIsDisposed_ShouldReleaseItsHandle()
     {
         var state = new LuauState();
-        using (LuauFunction kept = state.CreateFunctionBuilder(_ => LuauReturn.Ok()))
+        using (LuauFunction kept = state.CreateFunctionManual(_ => LuauReturn.Ok()))
         {
             state.Globals.Set("kept", kept);
         }
@@ -195,7 +195,7 @@ public sealed class MemoryManagementTests
     public void DisposedFunction_ToIntoLuau_ShouldThrowObjectDisposedException()
     {
         using var state = new LuauState();
-        LuauFunction function = state.CreateFunctionBuilder(_ => LuauReturn.Ok());
+        LuauFunction function = state.CreateFunctionManual(_ => LuauReturn.Ok());
         function.Dispose();
 
         Should.Throw<ObjectDisposedException>(() => state.Globals.Set("payload", function));
@@ -237,7 +237,7 @@ public sealed class MemoryManagementTests
         using var stateA = new LuauState();
         using var stateB = new LuauState();
         using LuauTable tableA = stateA.CreateTable();
-        using LuauFunction functionB = stateB.CreateFunctionBuilder(_ => LuauReturn.Ok());
+        using LuauFunction functionB = stateB.CreateFunctionManual(_ => LuauReturn.Ok());
 
         Should.Throw<InvalidOperationException>(() => functionB.Invoke(tableA));
     }
