@@ -5,7 +5,7 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Utils;
 
-/// <summary> Something of a userdata type that Luau calls: an accessor, a method or a metamethod. </summary>
+/// <summary> Something of a userdata type that Luau calls: an accessor, a method, a metamethod or a static function. </summary>
 internal abstract class UserdataMember(string label)
 {
     /// <summary> Names the member in the message of an exception it throws. </summary>
@@ -77,7 +77,7 @@ internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : Use
     }
 }
 
-/// <summary> A member that gets every argument as Luau passed it: a metamethod. </summary>
+/// <summary> A member that gets every argument as Luau passed it: a metamethod or a static function. </summary>
 internal sealed class UserdataCallback(string label, LuauCallback callback) : UserdataMember(label)
 {
     private readonly LuauCallback _callback = callback;
@@ -97,6 +97,11 @@ internal sealed class UserdataCallback(string label, LuauCallback callback) : Us
 /// <param name="Member">Index into <see cref="UserdataDescription.Members"/>.</param>
 internal readonly record struct UserdataMemberName(byte[] Name, int Member);
 
+/// <param name="Name">The name in UTF-8, with a terminating zero.</param>
+/// <param name="DisplayName">The name as it was declared, for error messages.</param>
+/// <param name="Factory">Creates the value for one state.</param>
+internal readonly record struct UserdataStaticValue(byte[] Name, string DisplayName, LuauValueFactory Factory);
+
 /// <summary> What Luau can do with a managed type. It holds no state, so every state of the process shares it. </summary>
 internal sealed class UserdataDescription
 {
@@ -114,6 +119,8 @@ internal sealed class UserdataDescription
     public required UserdataMemberName[] Metamethods { get; init; }
     public required int IndexMember { get; init; }
     public required int NewIndexMember { get; init; }
+    public required UserdataMemberName[] StaticFunctions { get; init; }
+    public required UserdataStaticValue[] StaticValues { get; init; }
 
     public static byte[] ToLuauName(string name)
     {

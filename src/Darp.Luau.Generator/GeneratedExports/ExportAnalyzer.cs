@@ -103,18 +103,6 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Userdata && property.IsStatic)
-        {
-            diagnostics.Add(
-                Diagnostic.Create(
-                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    location,
-                    $"userdata property '{property.Name}' must be an instance member"
-                )
-            );
-            return null;
-        }
-
         if (discoveredType.Kind == LuauExportedTypeKind.Module && !property.IsStatic)
         {
             diagnostics.Add(
@@ -173,6 +161,23 @@ internal static class ExportAnalyzer
             return null;
         }
 
+        // The static side of a userdata type holds the value the property had when a state first asked for it.
+        if (
+            discoveredType.Kind == LuauExportedTypeKind.Userdata
+            && property.IsStatic
+            && propertyContract is not { Getter: not null, Setter: null }
+        )
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    location,
+                    $"static userdata property '{property.Name}' must be read-only because the static side holds a snapshot of its value"
+                )
+            );
+            return null;
+        }
+
         if (
             !TryParsePath(
                 discoveredType.Kind,
@@ -226,18 +231,6 @@ internal static class ExportAnalyzer
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                     location,
                     $"partial method '{method.Name}' has no implementation"
-                )
-            );
-            return null;
-        }
-
-        if (discoveredType.Kind == LuauExportedTypeKind.Userdata && method.IsStatic)
-        {
-            diagnostics.Add(
-                Diagnostic.Create(
-                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    location,
-                    $"userdata method '{method.Name}' must be an instance member"
                 )
             );
             return null;

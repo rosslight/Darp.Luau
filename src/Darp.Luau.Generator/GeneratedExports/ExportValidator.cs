@@ -139,6 +139,20 @@ internal static class ExportValidator
             );
         }
 
+        // Scripts see the name as typeof(value), and a declaration of the type for an editor needs an identifier.
+        string? typeName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
+        if (typeName is null || !ExportPathParser.IsLuauDotPathIdentifier(typeName) || IsLuauTypeName(typeName))
+        {
+            hasFatalTypeErrors = true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    discoveredType.Origin.Location,
+                    $"userdata type name '{typeName}' must be a Luau identifier that is not the name of a built-in Luau type"
+                )
+            );
+        }
+
         if (discoveredType.Symbol.ContainingType is not null)
         {
             hasFatalTypeErrors = true;
@@ -177,6 +191,20 @@ internal static class ExportValidator
 
         return hasFatalTypeErrors;
     }
+
+    private static bool IsLuauTypeName(string name) =>
+        name
+            is "boolean"
+                or "number"
+                or "string"
+                or "table"
+                or "thread"
+                or "userdata"
+                or "vector"
+                or "buffer"
+                or "any"
+                or "unknown"
+                or "never";
 
     private static bool IsReservedModuleName(string name) =>
         name.StartsWith(".", StringComparison.Ordinal)
@@ -217,10 +245,12 @@ internal static class ExportValidator
         List<Diagnostic> diagnostics
     )
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        // The instance and the static side of a userdata type are different tables, so a name can be on both.
+        var names = new HashSet<(bool IsStatic, string Name)>();
         foreach (NormalizedExportMember member in members)
         {
-            if (!names.Add(member.LuauName))
+            bool isStatic = exportedTypeKind == LuauExportedTypeKind.Userdata && member.Symbol.IsStatic;
+            if (!names.Add((isStatic, member.LuauName)))
             {
                 diagnostics.Add(
                     Diagnostic.Create(

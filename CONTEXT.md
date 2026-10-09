@@ -37,6 +37,10 @@ A C# object that scripts hold by identity and interact with through its members.
 **Userdata type**:
 A C# class whose instances are managed userdata, together with everything scripts can do with them.
 
+**Static side**:
+The functions and values scripts reach through a userdata type itself rather than through one of its instances.
+_Avoid_: Statics, class table
+
 **Host module**:
 A module scripts load with `require` that is defined in C#.
 _Avoid_: Library

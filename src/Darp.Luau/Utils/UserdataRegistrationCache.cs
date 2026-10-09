@@ -9,6 +9,9 @@ namespace Darp.Luau.Utils;
 /// <summary> The userdata types and userdata values of one state. </summary>
 internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 {
+    // While a type builds its static side, so that a value of the static side cannot ask for the same table.
+    private const int TypeTableIsBuilding = LUA_NOREF - 1;
+
     [SuppressMessage(
         "Usage",
         "CA2213:Disposable fields should be disposed",
@@ -34,7 +37,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         public LuauState State { get; } = state;
         public UserdataDescription Description { get; } = description;
 
+        /// <summary> The context its members share. Luau owns the handle of this object through it. </summary>
+        public int ContextReference { get; set; } = LUA_NOREF;
         public int MetatableReference { get; set; } = LUA_NOREF;
+
+        /// <summary> The static side, which is built when it is first asked for. </summary>
+        public int TypeTableReference { get; set; } = LUA_NOREF;
     }
 
     public unsafe LuauUserdata GetOrCreate<T>(T userdata)
@@ -71,6 +79,26 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         return new LuauUserdata(_state, reference);
     }
 
+    /// <summary> Gets the static side of <typeparamref name="T"/>: a read-only table of its functions and values. </summary>
+    public unsafe LuauTable GetTypeTable<T>()
+        where T : class, ILuauUserdata<T>
+    {
+        UserdataType type = GetOrAddType<T>();
+        if (type.TypeTableReference == TypeTableIsBuilding)
+        {
+            throw new InvalidOperationException(
+                $"A static value of userdata type '{typeof(T)}' cannot use the static side it is part of."
+            );
+        }
+        if (type.TypeTableReference == LUA_NOREF)
+            BuildTypeTable(type, typeof(T));
+
+        lua_State* L = _state.L;
+        lua_getref(L, type.TypeTableReference);
+        ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauTable(_state, reference);
+    }
+
     public unsafe void Dispose()
     {
         if (!_state.IsDisposed && _identityMapReference != 0)
@@ -86,6 +114,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         if (_types.TryGetValue(typeof(T), out UserdataType? type))
             return type;
 
+        // Registered before any value of the type is pushed: a static value of the type can be one of its own.
         type = CreateType(UserdataDescription<T>.Value);
         _types.Add(typeof(T), type);
         return type;
@@ -127,6 +156,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             GCHandle handle = GCHandle.Alloc(type);
             darp_luau_pushmembercontext(L, &MemberCallback, (void*)GCHandle.ToIntPtr(handle), &MemberContextDestructor);
             int context = lua_gettop(L);
+            type.ContextReference = lua_ref(L, context);
 
             SetMemberFunctions(L, metatable, context, description.Metamethods);
 
@@ -147,6 +177,49 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         finally
         {
             lua_settop(L, initialTop);
+        }
+    }
+
+    private unsafe void BuildTypeTable(UserdataType type, Type managedType)
+    {
+        lua_State* L = _state.L;
+        UserdataDescription description = type.Description;
+        int initialTop = lua_gettop(L);
+        type.TypeTableReference = TypeTableIsBuilding;
+        // A value factory is code of the host. The state must not be closed under the table it is filling.
+        _state.VmDepth++;
+        try
+        {
+            lua_newtable(L);
+            int table = lua_gettop(L);
+            lua_getref(L, type.ContextReference);
+            SetMemberFunctions(L, table, lua_gettop(L), description.StaticFunctions);
+
+            foreach (UserdataStaticValue value in description.StaticValues)
+            {
+                if (!value.Factory(_state).TryPushValue(_state, L, out string? error))
+                {
+                    throw new InvalidOperationException(
+                        $"The static value '{value.DisplayName}' of userdata type '{managedType}' failed: {error}"
+                    );
+                }
+                fixed (byte* pName = value.Name)
+                    lua_rawsetfield(L, table, pName);
+            }
+
+            // Every script of the state shares the table.
+            lua_setreadonly(L, table, 1);
+            type.TypeTableReference = lua_ref(L, table);
+        }
+        catch
+        {
+            type.TypeTableReference = LUA_NOREF;
+            throw;
+        }
+        finally
+        {
+            lua_settop(L, initialTop);
+            _state.VmDepth--;
         }
     }
 

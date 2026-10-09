@@ -475,6 +475,36 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task UserdataTypeNameThatIsNoLuauIdentifier_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("")]
+            public sealed partial class Unnamed { }
+
+            // typeof(value) must not claim to be a built-in type.
+            [LuauUserdata("number")]
+            public sealed partial class Number { }
+
+            [LuauUserdata("Game.Player")]
+            public sealed partial class Dotted { }
+
+            [LuauUserdata("2d")]
+            public sealed partial class StartsWithADigit { }
+
+            // A Luau keyword.
+            [LuauUserdata("end")]
+            public sealed partial class Keyword { }
+
+            [LuauUserdata("Player_2")]
+            public sealed partial class Valid { }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task MetamethodsWithTheWrongShape_ShouldFail()
     {
         const string code = """
@@ -506,6 +536,9 @@ public class GeneratedExportsTests
 
                 [LuauMetamethod(LuauMetamethod.Call)]
                 public static void Run(double amount) { }
+
+                [LuauMember("total")]
+                public static double Total { get; set; }
             }
 
             [LuauModule("bank")]

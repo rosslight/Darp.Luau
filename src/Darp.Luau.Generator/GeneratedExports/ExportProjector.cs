@@ -31,6 +31,7 @@ internal static class ExportProjector
         return member switch
         {
             NormalizedExportPropertyMember property => new GeneratedExportPropertyIr(
+                property.PropertySymbol.IsStatic,
                 // A static property is read by its qualified name: a bare name such as 'module' or 'state' would
                 // bind to a local of the generated method instead.
                 property.PropertySymbol.IsStatic

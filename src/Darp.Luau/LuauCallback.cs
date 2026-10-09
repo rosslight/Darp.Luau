@@ -4,7 +4,8 @@ namespace Darp.Luau;
 /// <param name="args">The arguments of the call.</param>
 /// <returns>The results, an error, or work to await.</returns>
 /// <remarks>
-/// Used by <see cref="LuauState.CreateFunctionManual(LuauCallback)"/>, and for the metamethods of a userdata type.
+/// Used by <see cref="LuauState.CreateFunctionManual(LuauCallback)"/>, and for the metamethods and static functions
+/// of a userdata type.
 /// </remarks>
 public delegate LuauReturn LuauCallback(LuauArgs args);
 
@@ -31,3 +32,8 @@ public delegate LuauReturnSingle LuauGetter<in T>(T self, LuauState state)
 /// <returns>Success, or an error.</returns>
 public delegate LuauOutcome LuauSetter<in T>(T self, LuauArgsSingle value)
     where T : class;
+
+/// <summary> Creates a static value of a userdata type for one state. </summary>
+/// <param name="state">The state the value is created for.</param>
+/// <returns>The value, or an error.</returns>
+public delegate LuauReturnSingle LuauValueFactory(LuauState state);

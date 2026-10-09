@@ -124,6 +124,39 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
+    public async Task Userdata_WithANameAndAStaticSide_ShouldRegisterTheNameFunctionsAndValues()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata("Vec2")]
+            public sealed partial class Vec2(double x, double y)
+            {
+                [LuauMember("x")]
+                public double X { get; set; } = x;
+
+                [LuauMember("y")]
+                public double Y { get; } = y;
+
+                [LuauMember("new")]
+                public static Vec2 Create(double x, double y) => new(x, y);
+
+                [LuauMember("zero")]
+                public static Vec2 Zero { get; } = new(0, 0);
+
+                [LuauMember("dimensions")]
+                public static int Dimensions => 2;
+
+                // The static side is a table of its own, so it can use a name of the instance.
+                [LuauMember("x")]
+                public static Vec2 UnitX => new(1, 0);
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task Userdata_WithMetamethods_ShouldChooseTheOverloadByTheOperandsBeforeReadingThem()
     {
         const string code = """

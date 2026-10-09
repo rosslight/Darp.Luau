@@ -135,12 +135,31 @@
     },
     {
       Location: /*
+
+    [LuauMember("total")]
+     ^^^^^^^^^^^^^^^^^^^
+    public static double Total { get; set; }
+*/
+ : (29,5)-(29,24),
+      Message: Invalid generated export shape: static userdata property 'Total' must be read-only because the static side holds a snapshot of its value,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
 {
     [LuauMetamethod(LuauMetamethod.Call)]
      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     public static void Open() { }
 */
- : (33,5)-(33,40),
+ : (36,5)-(36,40),
       Message: Invalid generated export shape: method 'Open' is a metamethod, which only a [LuauUserdata] type has,
       Severity: Error,
       Descriptor: {
@@ -159,7 +178,7 @@
      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     public string Describe() => "account";
 */
- : (42,5)-(42,44),
+ : (45,5)-(45,44),
       Message: Invalid generated export shape: method 'Describe' is a metamethod, which only a [LuauUserdata] type has,
       Severity: Error,
       Descriptor: {

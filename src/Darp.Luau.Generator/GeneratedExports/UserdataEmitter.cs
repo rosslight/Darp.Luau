@@ -59,16 +59,24 @@ internal static class UserdataEmitter
             );
 
         foreach (
-            GeneratedExportMemberIr member in model.Members.OrderBy(static x => x.LuauName, StringComparer.Ordinal)
+            GeneratedExportMemberIr member in model
+                .Members.OrderBy(static x => x.IsStatic)
+                .ThenBy(static x => x.LuauName, StringComparer.Ordinal)
         )
         {
             switch (member)
             {
+                case GeneratedExportPropertyIr { IsStatic: true } property:
+                    WriteStaticValue(writer, property);
+                    break;
                 case GeneratedExportPropertyIr property:
                     WriteProperty(writer, property);
                     break;
+                case GeneratedExportMethodIr { IsStatic: true } method:
+                    WriteCallback(writer, "AddFunction", "args", method);
+                    break;
                 case GeneratedExportMethodIr method:
-                    WriteMethod(writer, method);
+                    WriteCallback(writer, "AddMethod", "(self, args)", method);
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -231,13 +239,28 @@ internal static class UserdataEmitter
         writer.WriteLine("});");
     }
 
-    private static void WriteMethod(IndentedTextWriter writer, GeneratedExportMethodIr method)
+    private static void WriteStaticValue(IndentedTextWriter writer, GeneratedExportPropertyIr property)
+    {
+        GeneratedExportAccessorIr getter =
+            property.Getter ?? throw new InvalidOperationException("A static userdata property must have a getter.");
+        string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
+        string value = LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, getter.Type);
+        writer.WriteLine($"registry.AddValue({keyLiteral}, static _ => {LuauReturnSingle}.Ok({value}));");
+    }
+
+    private static void WriteCallback(
+        IndentedTextWriter writer,
+        string registryMethod,
+        string lambdaParameters,
+        GeneratedExportMethodIr method
+    )
     {
         string keyLiteral = SymbolDisplay.FormatLiteral(method.LuauName, quote: true);
-        writer.WriteLine($"registry.AddMethod({keyLiteral}, static (self, args) =>");
+        string receiver = method.IsStatic ? method.ContainingTypeName : "self";
+        writer.WriteLine($"registry.{registryMethod}({keyLiteral}, static {lambdaParameters} =>");
         writer.WriteLine("{");
         writer.Indent++;
-        CallbackBodyEmitter.Write(writer, method.Signature, $"self.{method.ManagedName}");
+        CallbackBodyEmitter.Write(writer, method.Signature, $"{receiver}.{method.ManagedName}");
         writer.Indent--;
         writer.WriteLine("});");
     }
