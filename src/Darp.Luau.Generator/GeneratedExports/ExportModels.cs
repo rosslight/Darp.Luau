@@ -119,18 +119,20 @@ internal sealed record GeneratedExportSurfaceIr(
 );
 
 internal abstract record GeneratedExportMemberIr(
+    bool IsStatic,
     string ManagedName,
     string LuauName,
     ImmutableEquatableArray<string> PathSegments
 );
 
 internal sealed record GeneratedExportPropertyIr(
+    bool IsStatic,
     string ManagedName,
     string LuauName,
     ImmutableEquatableArray<string> PathSegments,
     GeneratedExportAccessorIr? Getter,
     GeneratedExportAccessorIr? Setter
-) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
+) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName, PathSegments);
 
 internal sealed record GeneratedExportMethodIr(
     string ContainingTypeName,
@@ -139,7 +141,7 @@ internal sealed record GeneratedExportMethodIr(
     string LuauName,
     ImmutableEquatableArray<string> PathSegments,
     InteropSignature Signature
-) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
+) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName, PathSegments);
 
 internal sealed record GeneratedExportAccessorIr(InteropType Type);
 

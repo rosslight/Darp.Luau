@@ -50,7 +50,7 @@ public sealed partial class Player
 
 The source generator implements `ILuauUserdata<Player>` for the type.
 
-The name in `[LuauUserdata("Player")]` is optional. It is what `typeof(player)` returns in Luau, and Luau uses it in its own error messages. Without a name, `typeof(player)` is `userdata`.
+The name in `[LuauUserdata("Player")]` is what `typeof(player)` returns in Luau, and Luau uses it in its own error messages. It must be a Luau identifier that is not the name of a built-in type such as `number`.
 
 Expose instances with the normal managed-userdata APIs:
 
@@ -169,6 +169,45 @@ What follows from how Luau works:
 - `Index` and `NewIndex` are only reached for keys that are not declared members, also for keys that are not strings. An `Index` whose overloads do not take the key gives `nil`.
 - Only `Call` can return a task. Luau cannot suspend a script inside another metamethod.
 
+### The static side
+
+Static members marked with `[LuauMember]` belong to the type, not to an instance:
+
+```csharp
+[LuauUserdata("Vec2")]
+public sealed partial class Vec2(double x, double y)
+{
+    [LuauMember("new")]
+    public static Vec2 Create(double x, double y) => new(x, y);
+
+    [LuauMember("zero")]
+    public static Vec2 Zero { get; } = new(0, 0);
+}
+```
+
+`GetTypeTable<T>()` returns them as a table, which you put where scripts should find it:
+
+```csharp
+using LuauTable vec2 = lua.GetTypeTable<Vec2>();
+lua.Globals.Set("Vec2", vec2);
+```
+
+```lua
+local v = Vec2.new(1, 2) + Vec2.zero
+```
+
+To offer the type through a module, put the table into the module when it loads:
+
+```csharp
+lua.RegisterModule("geometry", static (LuauState state, in LuauTable module) =>
+{
+    using LuauTable vec2 = state.GetTypeTable<Vec2>();
+    module.Set("Vec2", vec2);
+});
+```
+
+The table is read-only, and every script of a state shares it. A static property is read once for each state, when the table is first asked for; it must be read-only. The static side and the instances do not see each other's members: `Vec2.new` exists, `v.new` does not.
+
 ### Generated userdata rules
 
 Generated userdata supports:
@@ -177,6 +216,7 @@ Generated userdata supports:
 - instance methods with fixed supported signatures,
 - methods that return `Task` or `ValueTask`, and `CancellationToken` parameters,
 - metamethods on methods and operators,
+- static methods and read-only static properties, as the static side of the type,
 - generated or manual managed userdata as supported property, parameter, and return types,
 - generated userdata types as `CreateFunction(...)` parameters and returns.
 
@@ -235,6 +275,10 @@ internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
 | `AddSetter` | `player.score = 10` | the instance and the assigned value as `LuauArgsSingle` |
 | `AddMethod` | `player:add(1)`, `player.add(player, 1)` | the instance and the arguments, without the instance |
 | `AddMetamethod` | operators, calls, unknown keys | the operands as Luau passes them |
+| `AddFunction` | `Player.create(...)` on the [static side](#the-static-side) | the arguments |
+| `AddValue` | `Player.limit` on the static side | the `LuauState`; called once for each state |
+
+`TypeName` is optional here. Without it, `typeof(value)` is `userdata`.
 
 The callbacks are manual callback surfaces, like `CreateFunctionManual(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly. `LuauArgs.State` gives a callback the state it runs in.
 

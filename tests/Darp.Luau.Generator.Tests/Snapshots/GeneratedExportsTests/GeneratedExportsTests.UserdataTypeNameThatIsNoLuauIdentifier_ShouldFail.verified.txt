@@ -1,0 +1,99 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+[LuauUserdata("")]
+ ^^^^^^^^^^^^^^^^
+public sealed partial class Unnamed { }
+*/
+ : (2,1)-(2,17),
+      Message: Invalid generated export shape: userdata type name '' must be a Luau identifier that is not the name of a built-in Luau type,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+// typeof(value) must not claim to be a built-in type.
+[LuauUserdata("number")]
+ ^^^^^^^^^^^^^^^^^^^^^^
+public sealed partial class Number { }
+*/
+ : (6,1)-(6,23),
+      Message: Invalid generated export shape: userdata type name 'number' must be a Luau identifier that is not the name of a built-in Luau type,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauUserdata("Game.Player")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+public sealed partial class Dotted { }
+*/
+ : (9,1)-(9,28),
+      Message: Invalid generated export shape: userdata type name 'Game.Player' must be a Luau identifier that is not the name of a built-in Luau type,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauUserdata("2d")]
+ ^^^^^^^^^^^^^^^^^^
+public sealed partial class StartsWithADigit { }
+*/
+ : (12,1)-(12,19),
+      Message: Invalid generated export shape: userdata type name '2d' must be a Luau identifier that is not the name of a built-in Luau type,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+// A Luau keyword.
+[LuauUserdata("end")]
+ ^^^^^^^^^^^^^^^^^^^
+public sealed partial class Keyword { }
+*/
+ : (16,1)-(16,20),
+      Message: Invalid generated export shape: userdata type name 'end' must be a Luau identifier that is not the name of a built-in Luau type,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

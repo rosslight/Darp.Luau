@@ -160,7 +160,7 @@ lua.Load(
 ).Execute();
 ```
 
-See [Userdata](features/userdata.md) for generated userdata, metamethods, registration by hand, retrieval APIs, identity rules, and lifetimes.
+See [Userdata](features/userdata.md) for generated userdata, metamethods, the static side of a type, registration by hand, retrieval APIs, identity rules, and lifetimes.
 
 ## Register a host module
 

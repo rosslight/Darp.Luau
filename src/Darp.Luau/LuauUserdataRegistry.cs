@@ -5,10 +5,16 @@ namespace Darp.Luau;
 /// <summary> Receives what Luau can do with the managed type <typeparamref name="T"/>. </summary>
 /// <typeparam name="T">Managed userdata type.</typeparam>
 /// <remarks>
+/// <para>
 /// An instance has getters, setters and methods. Reading a method gives a function, so <c>value:name()</c> and
 /// <c>value.name(value)</c> are the same call. A declared name is never passed on to
 /// <see cref="LuauMetamethod.Index"/> or <see cref="LuauMetamethod.NewIndex"/>: writing a name that only has a
 /// getter, reading one that only has a setter, and assigning a method are errors.
+/// </para>
+/// <para>
+/// The static side is a table of functions and values that scripts reach through the type, not through an
+/// instance. See <see cref="LuauState.GetTypeTable{T}"/>.
+/// </para>
 /// </remarks>
 public sealed class LuauUserdataRegistry<T>
     where T : class
@@ -27,7 +33,10 @@ public sealed class LuauUserdataRegistry<T>
     private readonly List<UserdataMemberName> _getters = [];
     private readonly List<UserdataMemberName> _setters = [];
     private readonly List<UserdataMemberName> _metamethods = [];
+    private readonly List<UserdataMemberName> _staticFunctions = [];
+    private readonly List<UserdataStaticValue> _staticValues = [];
     private readonly Dictionary<string, Accessors> _instanceNames = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _staticNames = new(StringComparer.Ordinal);
     private readonly HashSet<LuauMetamethod> _declaredMetamethods = [];
     private int _indexMember = UserdataDescription.NoMember;
     private int _newIndexMember = UserdataDescription.NoMember;
@@ -133,6 +142,28 @@ public sealed class LuauUserdataRegistry<T>
         }
     }
 
+    /// <summary> Adds a function to the static side, which scripts call as <c>Type.name(...)</c>. </summary>
+    /// <param name="name">Name of the function.</param>
+    /// <param name="function">Runs the function.</param>
+    /// <exception cref="ArgumentException">Thrown when the static side already declares the name.</exception>
+    public void AddFunction(string name, LuauCallback function)
+    {
+        ArgumentNullException.ThrowIfNull(function);
+        ClaimStaticName(name);
+        _staticFunctions.Add(AddMember(name, new UserdataCallback($"userdata function '{name}'", function)));
+    }
+
+    /// <summary> Adds a value to the static side, which scripts read as <c>Type.name</c>. </summary>
+    /// <param name="name">Name of the value.</param>
+    /// <param name="value">Creates the value once for every state that uses the static side.</param>
+    /// <exception cref="ArgumentException">Thrown when the static side already declares the name.</exception>
+    public void AddValue(string name, LuauValueFactory value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ClaimStaticName(name);
+        _staticValues.Add(new UserdataStaticValue(UserdataDescription.ToLuauName(name), name, value));
+    }
+
     internal UserdataDescription Build()
     {
         _isBuilt = true;
@@ -146,6 +177,8 @@ public sealed class LuauUserdataRegistry<T>
             Metamethods = [.. _metamethods],
             IndexMember = _indexMember,
             NewIndexMember = _newIndexMember,
+            StaticFunctions = [.. _staticFunctions],
+            StaticValues = [.. _staticValues],
         };
     }
 
@@ -163,6 +196,19 @@ public sealed class LuauUserdataRegistry<T>
         if ((declared & conflicts) != Accessors.None)
             throw new ArgumentException($"Userdata type '{typeof(T)}' already declares '{name}'.", nameof(name));
         _instanceNames[name] = declared | accessor;
+    }
+
+    private void ClaimStaticName(string name)
+    {
+        ThrowIfBuilt();
+        ThrowIfNotAName(name, nameof(name));
+        if (!_staticNames.Add(name))
+        {
+            throw new ArgumentException(
+                $"The static side of userdata type '{typeof(T)}' already declares '{name}'.",
+                nameof(name)
+            );
+        }
     }
 
     private void ThrowIfBuilt()

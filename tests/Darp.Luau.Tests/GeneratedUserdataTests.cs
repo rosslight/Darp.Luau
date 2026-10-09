@@ -9,9 +9,23 @@ public sealed class GeneratedUserdataTests
     private static LuauState CreateStateWithPoint()
     {
         var state = new LuauState();
-        using LuauFunction point = state.CreateFunction((double x, double y) => new Point(x, y));
-        state.Globals.Set("point", point);
+        using LuauTable point = state.GetTypeTable<Point>();
+        state.Globals.Set("Point", point);
         return state;
+    }
+
+    [Fact]
+    public void StaticSide_ShouldCreateInstancesAndHoldValues()
+    {
+        using LuauState state = CreateStateWithPoint();
+
+        (double x, double originY, string typeName) = state
+            .Load("return Point.new(3, 4).x, Point.origin.y, typeof(Point.new(3, 4))")
+            .Execute<double, double, string>();
+
+        x.ShouldBe(3);
+        originY.ShouldBe(0);
+        typeName.ShouldBe("Point");
     }
 
     [Fact]
@@ -22,7 +36,7 @@ public sealed class GeneratedUserdataTests
         (string sum, string scaledRight, string scaledLeft, string negated) = state
             .Load(
                 """
-                local a, b = point(1, 2), point(10, 20)
+                local a, b = Point.new(1, 2), Point.new(10, 20)
                 return tostring(a + b), tostring(a * 2), tostring(3 * a), tostring(-a)
                 """
             )
@@ -39,7 +53,9 @@ public sealed class GeneratedUserdataTests
     {
         using LuauState state = CreateStateWithPoint();
 
-        LuaException exception = Should.Throw<LuaException>(() => state.Load("return point(1, 2) * 'two'").Execute());
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.Load("return Point.new(1, 2) * 'two'").Execute()
+        );
 
         exception.Message.ShouldContain("attempt to perform arithmetic (mul) on Point and string");
     }
@@ -52,8 +68,8 @@ public sealed class GeneratedUserdataTests
         (bool equal, int length, double second, bool unknownIsNil) = state
             .Load(
                 """
-                local a = point(1, 2)
-                return a == point(1, 2), #a, a[2], a[3] == nil and a.missing == nil
+                local a = Point.new(1, 2)
+                return a == Point.new(1, 2), #a, a[2], a[3] == nil and a.missing == nil
                 """
             )
             .Execute<bool, int, double, bool>();
@@ -72,7 +88,7 @@ public sealed class GeneratedUserdataTests
         (double viaColon, double viaDot) = state
             .Load(
                 """
-                local a, b = point(1, 2), point(3, 4)
+                local a, b = Point.new(1, 2), Point.new(3, 4)
                 return a:dot(b), a.dot(a, b)
                 """
             )
@@ -90,7 +106,7 @@ public sealed class GeneratedUserdataTests
         string scaled = await state
             .Load(
                 """
-                local a = point(1, 2)
+                local a = Point.new(1, 2)
                 local later = a.scaledLater
                 return tostring(later(a, 10))
                 """
@@ -108,7 +124,7 @@ public sealed class GeneratedUserdataTests
         (double sum, double scaledSum) = await state
             .Load(
                 """
-                local a = point(1, 2)
+                local a = Point.new(1, 2)
                 return a(), a(10)
                 """
             )
@@ -132,7 +148,7 @@ public sealed class GeneratedUserdataTests
                 """
                 return table.concat({
                   probe(true), probe(1), probe('a'), probe({}), probe(function() end), probe(bytes),
-                  probe(point(1, 2)), probe(probe),
+                  probe(Point.new(1, 2)), probe(probe),
                 }, ' ')
                 """
             )
@@ -154,6 +170,24 @@ public sealed class GeneratedUserdataTests
         LuaException exception = Should.Throw<LuaException>(() => state.Load(call).Execute());
 
         exception.Message.ShouldContain("no overload of the metamethod accepts these arguments");
+    }
+
+    [Fact]
+    public void TypeTable_ShouldBeMountableInAModule()
+    {
+        using var state = new LuauState();
+        state.RegisterModule(
+            "geometry",
+            static (LuauState lua, in LuauTable module) =>
+            {
+                using LuauTable point = lua.GetTypeTable<Point>();
+                module.Set("Point", point);
+            }
+        );
+
+        double y = state.Load("return require('geometry').Point.new(1, 2).y").Execute<double>();
+
+        y.ShouldBe(2);
     }
 }
 
@@ -205,6 +239,12 @@ internal sealed partial class Point(double x, double y)
 
     [LuauMember("y")]
     public double Y { get; } = y;
+
+    [LuauMember("new")]
+    public static Point Create(double x, double y) => new(x, y);
+
+    [LuauMember("origin")]
+    public static Point Origin { get; } = new(0, 0);
 
     [LuauMember("dot")]
     public double Dot(Point other) => X * other.X + Y * other.Y;

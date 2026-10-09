@@ -14,7 +14,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Typed chunk execution currently has explicit overloads for 1, 2, 3, or 4 values; use `ExecuteMulti()` for dynamic multi-return access.
 - Generator-backed `CreateFunction(...)` supports top-level tuple returns, but currently rejects nested tuples and only supports tuple arities that fit the current `LuauReturn.Ok(...)` overload set.
 - Source-generated `[LuauModule]` types must be partial, top-level, and non-generic. Instance module properties, fields, instance structs, and unsupported method shapes are not generated.
-- Source-generated `[LuauUserdata]` types must be partial, top-level, non-generic classes. Fields, static exported members, dotted userdata member names, a `Register` written by hand next to the attribute, and unsupported method shapes are not generated.
+- Source-generated `[LuauUserdata]` types must be partial, top-level, non-generic classes. Fields, settable static properties, dotted userdata member names, a `Register` written by hand next to the attribute, and unsupported method shapes are not generated.
 - Generated exports currently emit runtime C# glue only. Luau type-file output is not a documented shipped feature yet.
 - File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
@@ -62,6 +62,7 @@ These are deliberate. The library does not guard against them, so your code has 
 ### Userdata
 
 - For a binary operator such as `a + b`, Luau uses the metamethod of the left operand, and that of the right one only when the left has none. It does not try the other one after an error.
+- The static side of a userdata type holds the value a static property had when a state first asked for the type table. Later changes of the property do not reach scripts.
 - A managed object keeps the userdata type it was first pushed as. A class derived from a userdata type is not a userdata type of its own.
 - A script can call a method on any instance of its type, for example `a.add(b, 1)`. Do not rely on the instance the method was read from.
 

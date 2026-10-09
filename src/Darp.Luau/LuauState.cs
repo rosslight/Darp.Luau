@@ -25,7 +25,10 @@ public sealed unsafe class LuauState : IDisposable
 
     private LuauModuleRequirer? _moduleRequirer;
 
-    /// <summary> How many host calls into the VM are in progress. Only <see cref="LuauVm"/> changes it. </summary>
+    /// <summary>
+    /// How many operations are in progress that the state must not be closed under: the host calls into the VM,
+    /// which <see cref="LuauVm"/> counts, and the building of the static side of a userdata type.
+    /// </summary>
     internal int VmDepth;
 
     /// <summary> What Luau asks at its safepoints while <see cref="ScriptInterrupt"/> has it installed. </summary>
@@ -483,6 +486,23 @@ public sealed unsafe class LuauState : IDisposable
         return _cache.GetOrCreate(userdata);
     }
 
+    /// <summary>
+    /// Gets the static side of a userdata type: a table with the functions and values scripts reach through the
+    /// type, such as <c>Vec2.new(1, 2)</c>.
+    /// </summary>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns>A reference to the table. Every call returns a reference of its own to the same table.</returns>
+    /// <remarks>
+    /// The table is read-only and every script of the state shares it. Put it where scripts should find it: in
+    /// <see cref="Globals"/>, or in the table of a module. Its values are created when the table is first asked for.
+    /// </remarks>
+    public LuauTable GetTypeTable<T>()
+        where T : class, ILuauUserdata<T>
+    {
+        this.ThrowIfDisposed();
+        return _cache.GetTypeTable<T>();
+    }
+
     /// <summary>Creates a new Luau string from UTF-16 text.</summary>
     /// <param name="value">The string content to encode as UTF-8.</param>
     /// <returns>The created <see cref="LuauString"/> reference.</returns>
@@ -593,8 +613,8 @@ public sealed unsafe class LuauState : IDisposable
         if (VmDepth > 0 && _disposing == 0)
         {
             throw new InvalidOperationException(
-                "A LuauState cannot be disposed while it runs a script, for example from one of its callbacks. "
-                    + "Dispose it after the host call that runs the script has returned."
+                "A LuauState cannot be disposed while it runs a script or creates the static side of a userdata type, "
+                    + "for example from one of its callbacks. Dispose it after the host call that does so has returned."
             );
         }
         if (Interlocked.Exchange(ref _disposing, 1) != 0)

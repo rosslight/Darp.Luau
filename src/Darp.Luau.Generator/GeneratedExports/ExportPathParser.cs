@@ -111,7 +111,7 @@ internal static class ExportPathParser
         return true;
     }
 
-    private static bool IsLuauDotPathIdentifier(string segment)
+    public static bool IsLuauDotPathIdentifier(string segment)
     {
         if (s_luauKeywords.Contains(segment))
             return false;

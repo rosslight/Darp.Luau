@@ -2,7 +2,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Darp.Luau.Benchmarks;
 
-[LuauUserdata]
+[LuauUserdata("Counter")]
 public sealed partial class Counter
 {
     [LuauMember("value")]

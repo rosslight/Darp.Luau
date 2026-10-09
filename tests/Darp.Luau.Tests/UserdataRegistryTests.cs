@@ -257,6 +257,117 @@ public sealed class UserdataRegistryTests
     }
 
     [Fact]
+    public void TypeTable_ShouldHoldTheFunctionsAndValuesOfTheStaticSide()
+    {
+        using var state = new LuauState();
+        using LuauTable vec = state.GetTypeTable<Vec>();
+        state.Globals.Set("Vec", vec);
+
+        (string created, string zero, bool sameZero) = state
+            .Load("return tostring(Vec.new(1, 2)), tostring(Vec.zero), Vec.zero == Vec.zero")
+            .Execute<string, string, bool>();
+
+        created.ShouldBe("(1, 2)");
+        zero.ShouldBe("(0, 0)");
+        sameZero.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void TypeTable_ShouldBeOneReadOnlyTablePerState()
+    {
+        using var state = new LuauState();
+        using LuauTable first = state.GetTypeTable<Vec>();
+        using LuauTable second = state.GetTypeTable<Vec>();
+        state.Globals.Set("first", first);
+        state.Globals.Set("second", second);
+
+        (bool same, bool canWrite) = state
+            .Load("return first == second, pcall(function() first.new = nil end)")
+            .Execute<bool, bool>();
+
+        same.ShouldBeTrue();
+        canWrite.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TypeTable_OfATypeWithoutAStaticSide_ShouldBeEmpty()
+    {
+        using var state = new LuauState();
+        using LuauTable table = state.GetTypeTable<Fallbacks>();
+        state.Globals.Set("T", table);
+
+        bool isEmpty = state.Load("return next(T) == nil").Execute<bool>();
+
+        isEmpty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void StaticValue_ThatDisposesTheState_ShouldFailAndLeaveTheStateUsable()
+    {
+        using var state = new LuauState();
+
+        // The table is being filled when the value is created. Closing the state there would free it underneath.
+        Should.Throw<InvalidOperationException>(() => state.GetTypeTable<DisposingStaticSide>());
+
+        state.IsDisposed.ShouldBeFalse();
+        state.Load("return 1 + 1").Execute<int>().ShouldBe(2);
+    }
+
+    [Fact]
+    public void StaticValue_ThatFails_ShouldFailTheTypeTableAndBeCreatedAgainOnTheNextUse()
+    {
+        using var state = new LuauState();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            state.GetTypeTable<FailingOnceStaticSide>()
+        );
+        exception.Message.ShouldContain("'value'");
+        exception.Message.ShouldContain("not ready yet");
+
+        using LuauTable table = state.GetTypeTable<FailingOnceStaticSide>();
+        table.TryGet("value", out int value).ShouldBeTrue();
+        value.ShouldBe(2);
+    }
+
+    [Fact]
+    public void StaticValue_ThatAsksForTheTypeTableItIsPartOf_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            state.GetTypeTable<SelfReferencingStaticSide>()
+        );
+
+        exception.Message.ShouldContain("cannot use the static side it is part of");
+    }
+
+    [Fact]
+    public void Register_ThatDeclaresAStaticNameTwice_ShouldFail()
+    {
+        using var state = new LuauState();
+
+        ArgumentException exception = Should.Throw<ArgumentException>(() => state.GetTypeTable<DuplicateStaticName>());
+
+        exception.Message.ShouldContain("already declares 'create'");
+    }
+
+    [Fact]
+    public void StaticSideAndInstance_ShouldNotSeeEachOthersMembers()
+    {
+        using var state = new LuauState();
+        using LuauTable vec = state.GetTypeTable<Vec>();
+        state.Globals.Set("Vec", vec);
+        state.Globals.Set("v", new Vec(1, 2));
+
+        (bool instanceHasNew, bool typeHasDot) = state
+            .Load("return v.new ~= nil, Vec.dot ~= nil")
+            .Execute<bool, bool>();
+
+        instanceHasNew.ShouldBeFalse();
+        typeHasDot.ShouldBeFalse();
+    }
+
+    [Fact]
     public void Register_ThatFails_ShouldFailTheSameWayOnEveryUse()
     {
         using var state = new LuauState();
@@ -284,6 +395,8 @@ public sealed class UserdataRegistryTests
 
     private sealed class Vec(double x, double y) : ILuauUserdata<Vec>
     {
+        private static readonly Vec s_zero = new(0, 0);
+
         public static int EqualityChecks { get; set; }
 
         public double X { get; } = x;
@@ -384,6 +497,20 @@ public sealed class UserdataRegistryTests
                     return LuauReturn.Ok((self.X + self.Y) * factor);
                 }
             );
+
+            registry.AddFunction(
+                "new",
+                static args =>
+                {
+                    if (!args.TryReadNumber(1, out double x, out string? error))
+                        return LuauReturn.Error(error);
+                    if (!args.TryReadNumber(2, out double y, out error))
+                        return LuauReturn.Error(error);
+                    return LuauReturn.Ok(new Vec(x, y));
+                }
+            );
+            // A value of the static side can be a value of the type itself.
+            registry.AddValue("zero", static _ => LuauReturnSingle.Ok(s_zero));
         }
 
         private static bool TryReadBoth(
@@ -542,6 +669,56 @@ public sealed class UserdataRegistryTests
             );
 
         public static implicit operator IntoLuau(DynamicMethods value) => IntoLuau.FromUserdata(value);
+    }
+
+    private sealed class DisposingStaticSide : ILuauUserdata<DisposingStaticSide>
+    {
+        public static void Register(LuauUserdataRegistry<DisposingStaticSide> registry) =>
+            registry.AddValue(
+                "value",
+                static state =>
+                {
+                    state.Dispose();
+                    return LuauReturnSingle.Ok(1);
+                }
+            );
+    }
+
+    private sealed class FailingOnceStaticSide : ILuauUserdata<FailingOnceStaticSide>
+    {
+        private static int s_attempts;
+
+        public static void Register(LuauUserdataRegistry<FailingOnceStaticSide> registry) =>
+            registry.AddValue(
+                "value",
+                static _ =>
+                {
+                    int attempt = Interlocked.Increment(ref s_attempts);
+                    return attempt == 1 ? LuauReturnSingle.Error("not ready yet") : LuauReturnSingle.Ok(attempt);
+                }
+            );
+    }
+
+    private sealed class SelfReferencingStaticSide : ILuauUserdata<SelfReferencingStaticSide>
+    {
+        public static void Register(LuauUserdataRegistry<SelfReferencingStaticSide> registry) =>
+            registry.AddValue(
+                "self",
+                static state =>
+                {
+                    using LuauTable table = state.GetTypeTable<SelfReferencingStaticSide>();
+                    return LuauReturnSingle.Ok(table);
+                }
+            );
+    }
+
+    private sealed class DuplicateStaticName : ILuauUserdata<DuplicateStaticName>
+    {
+        public static void Register(LuauUserdataRegistry<DuplicateStaticName> registry)
+        {
+            registry.AddFunction("create", static _ => LuauReturn.Ok());
+            registry.AddValue("create", static _ => LuauReturnSingle.Ok(1));
+        }
     }
 
     private sealed class Duplicate : ILuauUserdata<Duplicate>

@@ -9,7 +9,7 @@ namespace Darp.Luau;
 public interface ILuauUserdata<TSelf>
     where TSelf : class
 {
-    /// <summary> Describes what Luau can do with an instance: its members and metamethods. </summary>
+    /// <summary> Describes what Luau can do with an instance: its members, metamethods and static side. </summary>
     /// <param name="registry">Receives the description.</param>
     /// <remarks>
     /// Called once per process, before the first instance reaches a state. The description is shared by every
