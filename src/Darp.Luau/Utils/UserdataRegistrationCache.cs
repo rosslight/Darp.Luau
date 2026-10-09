@@ -1,14 +1,12 @@
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Utils;
 
+/// <summary> The userdata types and userdata values of one state. </summary>
 internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 {
     [SuppressMessage(
@@ -17,127 +15,31 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         Justification = "The cache references LuauState but does not own it; LuauState owns and disposes the cache instead."
     )]
     private readonly LuauState _state = state;
-    private readonly Dictionary<Type, GCHandle> _registrations = [];
+    private readonly Dictionary<Type, UserdataType> _types = [];
     private readonly ConditionalWeakTable<object, ObjectIdentity> _identityByUserdata = new();
     private readonly int _identityMapReference = CreateIdentityMapReference(state);
 
     // Stored in Luau as a number, which is exact up to 2^53: more userdata than a state can create.
     private long _nextIdentity;
-    private bool _userdataCallbacksRegistered;
+    private bool _userdataDestructorRegistered;
 
     private sealed class ObjectIdentity(long value)
     {
         public long Value { get; } = value;
     }
 
-    // The name buffers of the callbacks below are written before they are read.
-    [SkipLocalsInit]
-    public unsafe GCHandle Register<T>()
-        where T : class, ILuauUserData<T>
+    /// <summary> A userdata type in this state: its description, and what the state built from it. </summary>
+    private sealed class UserdataType(LuauState state, UserdataDescription description)
     {
-        if (_registrations.TryGetValue(typeof(T), out GCHandle handle))
-            return handle;
+        public LuauState State { get; } = state;
+        public UserdataDescription Description { get; } = description;
 
-        EnsureUserdataCallbacksRegistered();
-
-        var callbackRegistration = new UserdataCallbackRegistration(
-            _state,
-            IndexCallbackManaged,
-            NewIndexCallbackManaged,
-            MethodCallbackManaged
-        );
-        handle = GCHandle.Alloc(callbackRegistration);
-        _registrations.Add(typeof(T), handle);
-        return handle;
-
-        static int IndexCallbackManaged(LuauState state, lua_State* L, object? userdata)
-        {
-            if (userdata is not T target)
-                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
-
-            if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                return LuauStateMarshal.ReturnError(L, "userdata index access requires a string member name"u8);
-
-            using var memberName = new Utf16Buffer(utf8MemberName, stackalloc char[Utf16Buffer.StackSize]);
-            ReadOnlySpan<char> resolvedMemberName = memberName.Chars;
-
-            LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
-
-            if (result.TryPushValue(state, L, out string? error))
-                return LuauStateMarshal.ReturnSuccess(L, 1);
-            if (error == LuauReturn.NotHandled)
-                return LuauStateMarshal.ReturnSuccess(L, 0);
-            return LuauStateMarshal.ReturnError(L, error);
-        }
-
-        static int NewIndexCallbackManaged(LuauState lua, lua_State* L, object? userdata)
-        {
-            if (userdata is not T target)
-                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
-
-            if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                return LuauStateMarshal.ReturnError(L, "userdata assignment requires a string member name"u8);
-
-            using var memberName = new Utf16Buffer(utf8MemberName, stackalloc char[Utf16Buffer.StackSize]);
-            ReadOnlySpan<char> resolvedMemberName = memberName.Chars;
-
-            var args = new LuauArgs(lua, L, argumentCount: 1, firstParameterStackIndex: 3);
-            Debug.Assert(args.ArgumentCount == 1);
-            var argsSingle = new LuauArgsSingle(args);
-            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
-            if (!result.TryGetError(out string? error))
-                return LuauStateMarshal.ReturnSuccess(L, 0);
-            if (error == LuauReturn.NotHandled)
-                error = $"attempt to set unknown userdata member '{resolvedMemberName}'";
-            return LuauStateMarshal.ReturnError(L, error);
-        }
-
-        static int MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
-        {
-            if (userdata is not T target)
-                return LuauStateMarshal.ReturnError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
-
-            // Scripts cannot get the metatable, so only a method call (userdata:name(...)) gets here.
-            if (!LuauStateMarshal.TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
-                return LuauStateMarshal.ReturnError(L, "userdata method call requires a method name"u8);
-
-            int topBeforeInvoke = lua_gettop(L);
-            var functionArgs = new LuauArgs(
-                lua,
-                L,
-                argumentCount: Math.Max(0, topBeforeInvoke - 1),
-                firstParameterStackIndex: 2
-            );
-            using var methodName = new Utf16Buffer(utf8MethodName, stackalloc char[Utf16Buffer.StackSize]);
-            ReadOnlySpan<char> resolvedMethodName = methodName.Chars;
-            try
-            {
-                LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
-                lua_settop(L, topBeforeInvoke);
-
-                if (result.IsNotHandled)
-                {
-                    return LuauStateMarshal.ReturnError(
-                        L,
-                        $"attempt to call unknown userdata method '{resolvedMethodName}'"
-                    );
-                }
-
-                return LuauStateMarshal.ReturnCallbackResult(lua, L, result);
-            }
-            catch
-            {
-                lua_settop(L, topBeforeInvoke);
-                throw;
-            }
-        }
+        public int MetatableReference { get; set; } = LUA_NOREF;
     }
 
     public unsafe LuauUserdata GetOrCreate<T>(T userdata)
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
-        EnsureUserdataCallbacksRegistered();
-
         long identity = _identityByUserdata.GetValue(userdata, _ => new ObjectIdentity(++_nextIdentity)).Value;
         lua_State* L = _state.L;
 #if DEBUG
@@ -149,14 +51,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             return new LuauUserdata(_state, cachedHandle);
         }
 
-        GCHandle registrationHandle = Register<T>();
-        var ptr = (LuauUserdataNative*)lua_newuserdatataggedwithmetatable(
+        UserdataType type = GetOrAddType<T>();
+        var ptr = (LuauUserdataNative*)darp_luau_newuserdatawithmetatable(
             L,
             (nuint)sizeof(LuauUserdataNative),
-            LuauUserdataNative.Tag
+            LuauUserdataNative.Tag,
+            type.MetatableReference
         );
         ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
-        ptr->RegistryValueHandle = registrationHandle;
 
         // stack: [userdata]
         lua_getref(L, _identityMapReference); // [userdata, identityMap]
@@ -174,12 +76,97 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         if (!_state.IsDisposed && _identityMapReference != 0)
             _ = lua_unref(_state.L, _identityMapReference);
 
-        foreach (GCHandle handle in _registrations.Values)
+        // The handles of the types belong to their member contexts, which Luau frees when the state closes.
+        _types.Clear();
+    }
+
+    private UserdataType GetOrAddType<T>()
+        where T : class, ILuauUserdata<T>
+    {
+        if (_types.TryGetValue(typeof(T), out UserdataType? type))
+            return type;
+
+        type = CreateType(UserdataDescription<T>.Value);
+        _types.Add(typeof(T), type);
+        return type;
+    }
+
+    private unsafe UserdataType CreateType(UserdataDescription description)
+    {
+        lua_State* L = _state.L;
+        if (!_userdataDestructorRegistered)
         {
-            if (handle.IsAllocated)
-                handle.Free();
+            lua_setuserdatadtor(L, LuauUserdataNative.Tag, &UserdataDestructor);
+            _userdataDestructorRegistered = true;
         }
-        _registrations.Clear();
+
+        var type = new UserdataType(_state, description);
+        int initialTop = lua_gettop(L);
+        try
+        {
+            lua_newtable(L);
+            int metatable = lua_gettop(L);
+
+            // A script must not get or change the metatable: every value of the type shares it.
+            fixed (byte* pMetatableName = "__metatable\0"u8)
+            {
+                LuauStateMarshal.PushString(L, "The metatable is locked"u8);
+                lua_rawsetfield(L, metatable, pMetatableName);
+            }
+            if (description.TypeName is not null)
+            {
+                fixed (byte* pTypeName = description.TypeName)
+                fixed (byte* pTypeKey = "__type\0"u8)
+                {
+                    lua_pushstring(L, pTypeName);
+                    lua_rawsetfield(L, metatable, pTypeKey);
+                }
+            }
+
+            // From here on Luau owns the handle: it releases it once the last member of the type is gone.
+            GCHandle handle = GCHandle.Alloc(type);
+            darp_luau_pushmembercontext(L, &MemberCallback, (void*)GCHandle.ToIntPtr(handle), &MemberContextDestructor);
+            int context = lua_gettop(L);
+
+            SetMemberFunctions(L, metatable, context, description.Metamethods);
+
+            // What a script can read by name: a method is its function, a getter the number of its member.
+            lua_newtable(L);
+            int readable = lua_gettop(L);
+            SetMemberFunctions(L, readable, context, description.Methods);
+            SetMemberNumbers(L, readable, description.Getters);
+            lua_newtable(L);
+            SetMemberNumbers(L, lua_gettop(L), description.Setters);
+
+            // stack: [metatable, context, readable, setters]
+            darp_luau_setmemberaccess(L, metatable, description.IndexMember, description.NewIndexMember);
+            lua_setreadonly(L, metatable, 1);
+            type.MetatableReference = lua_ref(L, metatable);
+            return type;
+        }
+        finally
+        {
+            lua_settop(L, initialTop);
+        }
+    }
+
+    private static unsafe void SetMemberFunctions(lua_State* L, int table, int context, UserdataMemberName[] members)
+    {
+        foreach (UserdataMemberName member in members)
+        {
+            fixed (byte* pName = member.Name)
+                darp_luau_setmemberfunction(L, table, pName, context, member.Member);
+        }
+    }
+
+    private static unsafe void SetMemberNumbers(lua_State* L, int table, UserdataMemberName[] members)
+    {
+        foreach (UserdataMemberName member in members)
+        {
+            lua_pushinteger(L, member.Member);
+            fixed (byte* pName = member.Name)
+                lua_rawsetfield(L, table, pName);
+        }
     }
 
     private static unsafe int CreateIdentityMapReference(LuauState state)
@@ -231,49 +218,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         return true;
     }
 
-    private unsafe void EnsureUserdataCallbacksRegistered()
-    {
-        if (_userdataCallbacksRegistered)
-            return;
-
-        lua_State* L = _state.L;
-        int initialTop = lua_gettop(L);
-        try
-        {
-            lua_newtable(L);
-
-            // Every userdata of the state shares this metatable, so a script must not get or change it.
-            fixed (byte* pMetatableName = "__metatable\0"u8)
-            {
-                LuauStateMarshal.PushString(L, "The metatable is locked"u8);
-                lua_rawsetfield(L, -2, pMetatableName);
-            }
-            fixed (byte* pIndexName = "__index\0"u8)
-            {
-                _state.PushNativeCallback(&IndexCallback, null, pIndexName);
-                lua_rawsetfield(L, -2, pIndexName);
-            }
-            fixed (byte* pNewIndexName = "__newindex\0"u8)
-            {
-                _state.PushNativeCallback(&NewIndexCallback, null, pNewIndexName);
-                lua_rawsetfield(L, -2, pNewIndexName);
-            }
-            fixed (byte* pNameCallName = "__namecall\0"u8)
-            {
-                _state.PushNativeCallback(&MethodCallback, null, pNameCallName);
-                lua_rawsetfield(L, -2, pNameCallName);
-            }
-            lua_setreadonly(L, -1, 1);
-            lua_setuserdatametatable(L, LuauUserdataNative.Tag);
-            lua_setuserdatadtor(L, LuauUserdataNative.Tag, &UserdataDestructor);
-            _userdataCallbacksRegistered = true;
-        }
-        finally
-        {
-            lua_settop(L, initialTop);
-        }
-    }
-
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe void UserdataDestructor(lua_State* _, void* pUserdata)
     {
@@ -284,105 +228,30 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             native->UserdataHandle.Free();
     }
 
+    /// <summary> Runs when Luau frees the last metatable and function of a userdata type. </summary>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int IndexCallback(lua_State* L, void* ctx)
+    private static unsafe void MemberContextDestructor(void* ctx) => GCHandle.FromIntPtr((IntPtr)ctx).Free();
+
+    /// <summary> Runs a member of a userdata type: Luau has already found out which one a script means. </summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe int MemberCallback(lua_State* L, void* ctx, int member)
     {
-        _ = ctx;
+        int top = lua_gettop(L);
+        UserdataMember? invoked = null;
         try
         {
-            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-                return LuauStateMarshal.ReturnError(L, errorMessage);
-            return registration.OnIndexCallback(registration.State, L, userdata);
+            if (GCHandle.FromIntPtr((IntPtr)ctx).Target is not UserdataType type)
+                return LuauStateMarshal.ReturnError(L, "userdata type is not registered"u8);
+            if (!type.State.OwnsThread(L))
+                return LuauStateMarshal.ReturnError(L, "userdata type belongs to a different state"u8);
+
+            invoked = type.Description.Members[member];
+            return invoked.Invoke(type.State, L);
         }
         catch (Exception exception)
         {
-            return LuauStateMarshal.ReturnCallbackException(L, "__index", exception);
+            lua_settop(L, top);
+            return LuauStateMarshal.ReturnCallbackException(L, invoked?.Label ?? "userdata member", exception);
         }
-    }
-
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int NewIndexCallback(lua_State* L, void* ctx)
-    {
-        _ = ctx;
-        try
-        {
-            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-                return LuauStateMarshal.ReturnError(L, errorMessage);
-            return registration.OnNewIndexCallback(registration.State, L, userdata);
-        }
-        catch (Exception exception)
-        {
-            return LuauStateMarshal.ReturnCallbackException(L, "__newindex", exception);
-        }
-    }
-
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int MethodCallback(lua_State* L, void* ctx)
-    {
-        _ = ctx;
-        try
-        {
-            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-                return LuauStateMarshal.ReturnError(L, errorMessage);
-            return registration.OnMethodCallback(registration.State, L, userdata);
-        }
-        catch (Exception exception)
-        {
-            return LuauStateMarshal.ReturnCallbackException(L, "__namecall", exception);
-        }
-    }
-
-    private static unsafe bool TryGetCallbackRegistration(
-        lua_State* L,
-        [NotNullWhen(true)] out UserdataCallbackRegistration? callbackRegistration,
-        out object? userdata,
-        out ReadOnlySpan<byte> errorMessage
-    )
-    {
-        callbackRegistration = null!;
-        userdata = null;
-        errorMessage = default;
-
-        var native = (LuauUserdataNative*)lua_touserdatatagged(L, 1, LuauUserdataNative.Tag);
-        if (native is null)
-        {
-            errorMessage = "invalid userdata value"u8;
-            return false;
-        }
-        if (!native->RegistryValueHandle.IsAllocated)
-        {
-            errorMessage = "userdata callback registration is not allocated"u8;
-            return false;
-        }
-        if (native->RegistryValueHandle.Target is not UserdataCallbackRegistration resolvedRegistration)
-        {
-            errorMessage = "userdata callback registration is invalid"u8;
-            return false;
-        }
-        if (!resolvedRegistration.State.OwnsThread(L))
-        {
-            errorMessage = "userdata callback registration belongs to a different state"u8;
-            return false;
-        }
-        if (!native->UserdataHandle.IsAllocated)
-        {
-            errorMessage = "userdata handle is not allocated"u8;
-            return false;
-        }
-
-        userdata = native->UserdataHandle.Target;
-        callbackRegistration = resolvedRegistration;
-        return true;
-    }
-
-    private sealed record UserdataCallbackRegistration(
-        LuauState State,
-        UserdataCallbackRegistration.OnLuaCallback OnIndexCallback,
-        UserdataCallbackRegistration.OnLuaCallback OnNewIndexCallback,
-        UserdataCallbackRegistration.OnLuaCallback OnMethodCallback
-    )
-    {
-        /// <summary> Returns the result of the native callback: a value count, an error, or a yield. </summary>
-        public unsafe delegate int OnLuaCallback(LuauState lua, lua_State* L, object? userdata);
     }
 }

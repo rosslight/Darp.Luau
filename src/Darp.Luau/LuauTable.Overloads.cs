@@ -208,20 +208,20 @@ public partial struct LuauTable
 
     /// <summary>Attempts to get managed userdata of type <typeparamref name="T"/> for <paramref name="key"/>.</summary>
     public bool TryGetUserdata<T>(IntoLuau key, [NotNullWhen(true)] out T? value)
-        where T : class, ILuauUserData<T> => TryGetUserdata(key, out value, out _);
+        where T : class, ILuauUserdata<T> => TryGetUserdata(key, out value, out _);
 
     /// <summary>Attempts to get managed userdata of type <typeparamref name="T"/> or <c>nil</c> for <paramref name="key"/>.</summary>
     public bool TryGetUserdataOrNil<T>(IntoLuau key, out T? value)
-        where T : class, ILuauUserData<T> => TryGetUserdataOrNil(key, out value, out _);
+        where T : class, ILuauUserdata<T> => TryGetUserdataOrNil(key, out value, out _);
 
     /// <summary>Gets managed userdata of type <typeparamref name="T"/> for <paramref name="key"/>.</summary>
     public T GetUserdata<T>(IntoLuau key)
-        where T : class, ILuauUserData<T> =>
+        where T : class, ILuauUserdata<T> =>
         TryGetUserdata(key, out T? value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Gets managed userdata of type <typeparamref name="T"/> or <c>nil</c> for <paramref name="key"/>.</summary>
     public T? GetUserdataOrNil<T>(IntoLuau key)
-        where T : class, ILuauUserData<T> =>
+        where T : class, ILuauUserdata<T> =>
         TryGetUserdataOrNil(key, out T? value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Gets a non-nil value for <paramref name="key"/> as <see cref="LuauValue"/>. </summary>

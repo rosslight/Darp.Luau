@@ -57,6 +57,16 @@ public class UserdataBenchmarks : IDisposable
     [Benchmark(OperationsPerInvoke = CallsPerInvoke)]
     public double ReadProperty() => _readProperty.Invoke<double>(IntoLuau.FromUserdata(_counter), CallsPerInvoke);
 
+    /// <summary> One managed object that reaches Luau for the first time. </summary>
+    [Benchmark(OperationsPerInvoke = CallsPerInvoke)]
+    public void CreateUserdata()
+    {
+        for (int i = 0; i < CallsPerInvoke; i++)
+        {
+            using LuauUserdata userdata = _state.GetOrCreateUserdata(new Counter());
+        }
+    }
+
     [GlobalCleanup]
     public void Dispose()
     {

@@ -22,7 +22,7 @@ This documentation is organized around the way you use the library in practice:
 - Borrowed `*View` types such as `LuauTableView` and `LuauFunctionView` are callback-scoped.
 - `CreateFunction(...)` is the normal typed callback API, but it must be called directly so the generator can intercept it.
 - `[LuauModule]` and `[LuauUserdata]` are the recommended source-generated paths for exposing fixed host APIs.
-- `RegisterModule(...)`, `CreateFunctionManual(...)`, and manual `ILuauUserData<T>` implementations are the manual APIs for shapes a generated type cannot express.
+- `RegisterModule(...)`, `CreateFunctionManual(...)`, and manual `ILuauUserdata<T>` implementations are the manual APIs for shapes a generated type cannot express.
 
 See [Concepts](concepts/index.md).
 
@@ -127,14 +127,14 @@ lua.Globals.Set("pair", pair);
 lua.Load("""log("hello from luau")""").Execute();
 ```
 
-Use `CreateFunction(...)` for supported fixed signatures, including managed userdata parameters and returns for generated `[LuauUserdata]` or manual `ILuauUserData<TSelf>` types and supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionManual(...)`. See [Functions](features/functions.md).
+Use `CreateFunction(...)` for supported fixed signatures, including managed userdata parameters and returns for generated `[LuauUserdata]` or manual `ILuauUserdata<TSelf>` types and supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionManual(...)`. See [Functions](features/functions.md).
 
 ## Expose userdata
 
-Use `[LuauUserdata]` to generate the normal userdata hook implementation for a partial class:
+Use `[LuauUserdata]` to generate the userdata implementation for a partial class:
 
 ```csharp
-[LuauUserdata]
+[LuauUserdata("Player")]
 public sealed partial class Player
 {
     [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
@@ -160,7 +160,7 @@ lua.Load(
 ).Execute();
 ```
 
-See [Userdata](features/userdata.md) for generated userdata, manual hook behavior, retrieval APIs, identity rules, and lifetimes.
+See [Userdata](features/userdata.md) for generated userdata, metamethods, registration by hand, retrieval APIs, identity rules, and lifetimes.
 
 ## Register a host module
 

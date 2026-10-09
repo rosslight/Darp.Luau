@@ -287,7 +287,7 @@ public sealed class ReferenceOwnershipTests : IDisposable
     public void Dispose() => _state.Dispose();
 }
 
-[LuauUserdata]
+[LuauUserdata("GeneratedEcho")]
 public sealed partial class GeneratedEcho
 {
     /// <summary> Returns a reference of its own to the value it was given. </summary>

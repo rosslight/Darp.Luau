@@ -1,43 +1,17 @@
 namespace Darp.Luau.Tests.Fixtures;
 
-internal sealed class ValueUserdata : ILuauUserData<ValueUserdata>
+internal sealed class ValueUserdata : ILuauUserdata<ValueUserdata>
 {
     public int Value { get; set; }
 
-    public static LuauReturnSingle OnIndex(ValueUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
-        LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(ValueUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
-        LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        ValueUserdata self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<ValueUserdata> registry) { }
 
     public static implicit operator IntoLuau(ValueUserdata value) => IntoLuau.FromUserdata(value);
 }
 
-internal sealed class OtherValueUserdata : ILuauUserData<OtherValueUserdata>
+internal sealed class OtherValueUserdata : ILuauUserdata<OtherValueUserdata>
 {
-    public static LuauReturnSingle OnIndex(
-        OtherValueUserdata self,
-        in LuauState state,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(
-        OtherValueUserdata self,
-        LuauArgsSingle args,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        OtherValueUserdata self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<OtherValueUserdata> registry) { }
 
     public static implicit operator IntoLuau(OtherValueUserdata value) => IntoLuau.FromUserdata(value);
 }

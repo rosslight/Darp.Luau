@@ -31,12 +31,6 @@ public readonly struct LuauReturn
     /// <summary> Gets whether this callback result completes later. See <see cref="LuauAwaiter"/>. </summary>
     public bool IsPending => !_pending.IsNone;
 
-    /// <summary> Used to indicate that a callback intentionally did not handle a request. </summary>
-    internal const string NotHandled = "__DARP_NOT_HANDLED__";
-
-    /// <summary> Gets whether this is <see cref="NotHandledError"/>. </summary>
-    internal bool IsNotHandled => _error == NotHandled;
-
     private LuauReturn(
         int valueCount,
         IntoLuau value1 = default,
@@ -100,11 +94,6 @@ public readonly struct LuauReturn
     /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
     public static LuauReturn Error(string error) => new(error);
 
-    /// <summary>
-    /// Creates a callback result that signals the member or method is not handled.
-    /// </summary>
-    public static LuauReturn NotHandledError => Error(NotHandled);
-
     /// <summary> The work a pending result waits for, if any. </summary>
     internal PendingWork Pending => _pending;
 
@@ -144,8 +133,7 @@ public readonly struct LuauReturn
         outputCount = 0;
         if (!IsOk)
         {
-            // A caller that knows what was not handled reports it before it gets here. Scripts never see the sentinel.
-            error = IsNotHandled ? "the callback did not handle the call" : _error ?? "Unknown error";
+            error = _error ?? "Unknown error";
             return false;
         }
 

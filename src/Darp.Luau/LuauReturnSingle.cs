@@ -5,10 +5,8 @@ using Darp.Luau.Native;
 namespace Darp.Luau;
 
 /// <summary>
-/// Result of a managed userdata <c>__index</c> callback.
-/// Use <see cref="Ok(IntoLuau)"/> to return a value,
-/// <see cref="NotHandled"/> when the member is unknown,
-/// or <see cref="Error(string)"/> to report an error.
+/// The result of a callback that returns one value, such as a <see cref="LuauGetter{T}"/>.
+/// Use <see cref="Ok(IntoLuau)"/> to return a value, or <see cref="Error(string)"/> to report an error.
 /// </summary>
 /// <remarks>
 /// The default value represents an error with message <c>Unknown error</c>.
@@ -36,9 +34,6 @@ public readonly ref struct LuauReturnSingle
     /// <param name="error">Error message reported to the caller.</param>
     /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
     public static LuauReturnSingle Error(string error) => new(isOk: false, error: error);
-
-    /// <summary> Creates a callback result that signals the member is not handled. </summary>
-    public static LuauReturnSingle NotHandled => Error(LuauReturn.NotHandled);
 
     /// <summary> Pushes a return value when this result is successful. </summary>
     /// <param name="state">Target state that receives the return values.</param>

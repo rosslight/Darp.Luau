@@ -14,7 +14,7 @@ That distinction matters. A type that works when reading from a table does not a
 | `boolean` | `bool` | straightforward mapping |
 | `table` | `LuauTable`, `LuauTableView` | owned vs borrowed distinction matters |
 | `function` | `LuauFunction`, `LuauFunctionView` | owned vs borrowed distinction matters |
-| `userdata` | `LuauUserdata`, `LuauUserdataView`, managed `ILuauUserData<T>` instances | managed userdata is library-defined userdata |
+| `userdata` | `LuauUserdata`, `LuauUserdataView`, managed `ILuauUserdata<T>` instances | managed userdata is library-defined userdata |
 | `buffer` | `byte[]`, `ReadOnlySpan<byte>`, `LuauBuffer`, `LuauBufferView` | spans and views can alias Luau memory |
 
 Vector and thread values are not currently documented as managed interop surfaces.
@@ -100,7 +100,7 @@ Important distinctions:
 
 ## Read callback arguments with `LuauArgs`
 
-`CreateFunctionManual(...)` and userdata hooks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
+`CreateFunctionManual(...)` and userdata callbacks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
 
 These APIs mirror the same broad conversion families, but with callback-focused shapes:
 
@@ -124,9 +124,9 @@ Borrowed `*View` values and any spans returned here are callback-scoped. Convert
 
 `CreateFunction(...)` uses a narrower set of conversions than the library as a whole.
 
-It is a good fit for fixed signatures built from common primitives, supported nullable value types, enums, strings, span-based string or buffer parameters, `LuauValue`, managed userdata types generated with `[LuauUserdata]` or implemented manually with `ILuauUserData<TSelf>`, borrowed callback views, and top-level tuple returns whose elements are individually supported.
+It is a good fit for fixed signatures built from common primitives, supported nullable value types, enums, strings, span-based string or buffer parameters, `LuauValue`, managed userdata types generated with `[LuauUserdata]` or implemented manually with `ILuauUserdata<TSelf>`, borrowed callback views, and top-level tuple returns whose elements are individually supported.
 
-For userdata specifically, `CreateFunction(...)` supports two different shapes: `LuauUserdataView` for a borrowed raw userdata view, and self-typed managed userdata for generated `[LuauUserdata]` types or manual `ILuauUserData<TSelf>` implementations.
+For userdata specifically, `CreateFunction(...)` supports two different shapes: `LuauUserdataView` for a borrowed raw userdata view, and self-typed managed userdata for generated `[LuauUserdata]` types or manual `ILuauUserdata<TSelf>` implementations.
 
 It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionManual(...)` and manual `LuauArgs` handling.
 

@@ -16,7 +16,8 @@ internal static class SymbolExtensions
 
     public static bool IsFileLocal(this INamedTypeSymbol type)
     {
-        return type.DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
+        return type
+            .DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
             .OfType<TypeDeclarationSyntax>()
             .Any(static x => x.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.FileKeyword)));
     }
@@ -26,7 +27,10 @@ internal static class SymbolExtensions
         return type.GetManualUserdataHookMembers(apiSymbols).Any();
     }
 
-    public static IEnumerable<ISymbol> GetManualUserdataHookMembers(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
+    public static IEnumerable<ISymbol> GetManualUserdataHookMembers(
+        this INamedTypeSymbol type,
+        LuauApiSymbols apiSymbols
+    )
     {
         if (
             !type.AllInterfaces.Any(@interface =>
@@ -51,10 +55,7 @@ internal static class SymbolExtensions
             foreach (ISymbol interfaceMember in @interface.GetMembers())
             {
                 ISymbol? implementation = type.FindImplementationForInterfaceMember(interfaceMember);
-                if (
-                    implementation is IMethodSymbol { Name: "OnIndex" or "OnSetIndex" or "OnMethodCall" }
-                    && implementation.HasNonGeneratedDeclaration()
-                )
+                if (implementation is IMethodSymbol && implementation.HasNonGeneratedDeclaration())
                 {
                     yield return implementation;
                 }

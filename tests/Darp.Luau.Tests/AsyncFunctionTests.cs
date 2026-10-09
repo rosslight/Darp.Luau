@@ -833,19 +833,6 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task NotHandledResult_AfterAwait_ShouldNotLeakTheInternalSentinel()
-    {
-        SetAwaitingUserdata("waiter", (_, _) => YieldThen(LuauReturn.NotHandledError));
-
-        LuaException exception = await Should.ThrowAsync<LuaException>(() =>
-            _state.Load("waiter:wait()").ExecuteAsync([], TestToken).AsTask()
-        );
-
-        exception.Message.ShouldContain("the callback did not handle the call");
-        exception.Message.ShouldNotContain(LuauReturn.NotHandled);
-    }
-
-    [Fact]
     public async Task Cancellation_ShouldReachAUserdataMethodAndCancelTheInvocation()
     {
         using var cts = new CancellationTokenSource();
@@ -864,34 +851,22 @@ public sealed class AsyncFunctionTests : IDisposable
         _state.Globals.Set(name, IntoLuau.FromUserdata(new AwaitingUserdata(work)));
 
     private sealed class AwaitingUserdata(Func<double, CancellationToken, ValueTask<LuauReturn>> work)
-        : ILuauUserData<AwaitingUserdata>
+        : ILuauUserdata<AwaitingUserdata>
     {
         private readonly Func<double, CancellationToken, ValueTask<LuauReturn>> _work = work;
 
-        public static LuauReturnSingle OnIndex(
-            AwaitingUserdata self,
-            in LuauState state,
-            in ReadOnlySpan<char> fieldName
-        ) => LuauReturnSingle.NotHandled;
-
-        public static LuauOutcome OnSetIndex(
-            AwaitingUserdata self,
-            LuauArgsSingle args,
-            in ReadOnlySpan<char> fieldName
-        ) => LuauOutcome.NotHandledError;
-
-        public static LuauReturn OnMethodCall(
-            AwaitingUserdata self,
-            LuauArgs functionArgs,
-            in ReadOnlySpan<char> methodName
-        )
-        {
-            double value =
-                functionArgs.ArgumentCount > 0 && functionArgs.TryReadNumber(1, out double number, out _) ? number : 0;
-            if (!functionArgs.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
-                return LuauReturn.Error(error);
-            return awaiter.Await(self._work(value, functionArgs.CancellationToken));
-        }
+        public static void Register(LuauUserdataRegistry<AwaitingUserdata> registry) =>
+            registry.AddMethod(
+                "wait",
+                static (self, args) =>
+                {
+                    double value =
+                        args.ArgumentCount > 0 && args.TryReadNumber(1, out double number, out _) ? number : 0;
+                    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
+                        return LuauReturn.Error(error);
+                    return awaiter.Await(self._work(value, args.CancellationToken));
+                }
+            );
     }
 
     [Fact]
@@ -1211,7 +1186,7 @@ public sealed class AsyncFunctionTests : IDisposable
     public void Dispose() => _state.Dispose();
 }
 
-[LuauUserdata]
+[LuauUserdata("GeneratedVault")]
 public sealed partial class GeneratedVault
 {
     public TaskCompletionSource<int> Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

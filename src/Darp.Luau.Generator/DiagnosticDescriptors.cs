@@ -132,8 +132,8 @@ internal static class DiagnosticDescriptors
 
     public static readonly DiagnosticDescriptor GeneratedUserdataManualInteropConflictDescriptor = new(
         id: "DLUAU1011",
-        title: "Generated and manual userdata hooks cannot mix",
-        messageFormat: "Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1",
+        title: "Generated and manual userdata registration cannot mix",
+        messageFormat: "Userdata type '{0}' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true

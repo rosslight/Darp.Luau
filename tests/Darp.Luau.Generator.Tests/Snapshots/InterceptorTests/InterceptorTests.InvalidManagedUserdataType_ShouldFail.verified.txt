@@ -1,4 +1,4 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
@@ -7,7 +7,7 @@
                               ^^^^^^^^^^^^^
         state.CreateFunction((WrongUserdata p1) => p1);
 */
- : (25,30)-(25,43),
+ : (21,30)-(21,43),
       Message: Type 'PlainUserdata' used for parameter 'arg' is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
@@ -26,7 +26,7 @@
                               ^^^^^^^^^^^^^
         state.CreateFunction(() => plain);
 */
- : (26,30)-(26,43),
+ : (22,30)-(22,43),
       Message: Type 'WrongUserdata' used for parameter 'arg' is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
@@ -45,7 +45,7 @@
                                    ^^^^^
         state.CreateFunction(() => wrong);
 */
- : (27,35)-(27,40),
+ : (23,35)-(23,40),
       Message: Type 'PlainUserdata' used for the return value is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
@@ -64,7 +64,7 @@
                                    ^^^^^
     }
 */
- : (28,35)-(28,40),
+ : (24,35)-(24,40),
       Message: Type 'WrongUserdata' used for the return value is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {

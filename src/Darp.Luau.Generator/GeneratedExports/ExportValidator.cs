@@ -186,10 +186,7 @@ internal static class ExportValidator
         || name.Contains("/", StringComparison.Ordinal)
         || name.Contains("\\", StringComparison.Ordinal);
 
-    private static bool ReportGeneratedModuleMemberNameConflicts(
-        INamedTypeSymbol type,
-        List<Diagnostic> diagnostics
-    )
+    private static bool ReportGeneratedModuleMemberNameConflicts(INamedTypeSymbol type, List<Diagnostic> diagnostics)
     {
         bool hasConflicts = false;
         foreach (ISymbol member in type.GetMembers())
@@ -220,10 +217,10 @@ internal static class ExportValidator
         List<Diagnostic> diagnostics
     )
     {
-        var names = new Dictionary<string, NormalizedExportMember>(StringComparer.Ordinal);
+        var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (NormalizedExportMember member in members)
         {
-            if (names.TryGetValue(member.LuauName, out _))
+            if (!names.Add(member.LuauName))
             {
                 diagnostics.Add(
                     Diagnostic.Create(
@@ -234,11 +231,7 @@ internal static class ExportValidator
                         type.Name
                     )
                 );
-                continue;
             }
-
-            names.Add(member.LuauName, member);
         }
     }
-
 }

@@ -139,23 +139,7 @@ public sealed class IntoLuauTests
     }
 }
 
-internal sealed class SimpleUserdataType : ILuauUserData<SimpleUserdataType>
+internal sealed class SimpleUserdataType : ILuauUserdata<SimpleUserdataType>
 {
-    public static LuauReturnSingle OnIndex(
-        SimpleUserdataType self,
-        in LuauState state,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauReturnSingle.NotHandled;
-
-    public static LuauOutcome OnSetIndex(
-        SimpleUserdataType self,
-        LuauArgsSingle args,
-        in ReadOnlySpan<char> fieldName
-    ) => LuauOutcome.NotHandledError;
-
-    public static LuauReturn OnMethodCall(
-        SimpleUserdataType self,
-        LuauArgs functionArgs,
-        in ReadOnlySpan<char> methodName
-    ) => LuauReturn.NotHandledError;
+    public static void Register(LuauUserdataRegistry<SimpleUserdataType> registry) { }
 }

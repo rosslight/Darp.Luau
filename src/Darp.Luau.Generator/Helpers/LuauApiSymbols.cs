@@ -42,7 +42,7 @@ internal sealed class LuauApiSymbols
             "Darp.Luau.LuauUserdataAttribute"
         );
         INamedTypeSymbol? memberAttributeSymbol = compilation.GetTypeByMetadataName("Darp.Luau.LuauMemberAttribute");
-        INamedTypeSymbol? luauUserdataInterfaceSymbol = compilation.GetTypeByMetadataName("Darp.Luau.ILuauUserData`1");
+        INamedTypeSymbol? luauUserdataInterfaceSymbol = compilation.GetTypeByMetadataName("Darp.Luau.ILuauUserdata`1");
         if (
             luauStateSymbol is null
             || delegateTypeSymbol is null

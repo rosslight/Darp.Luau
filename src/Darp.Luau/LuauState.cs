@@ -476,7 +476,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <typeparam name="T">Managed userdata type.</typeparam>
     /// <returns>A Lua userdata reference associated with <paramref name="userdata"/>.</returns>
     public LuauUserdata GetOrCreateUserdata<T>(T userdata)
-        where T : class, ILuauUserData<T>
+        where T : class, ILuauUserdata<T>
     {
         this.ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(userdata);
