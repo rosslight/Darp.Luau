@@ -33,5 +33,6 @@
 
   <ItemGroup>
     <None Include="Require/scripts/**/*" Pack="true" PackagePath="Require/scripts/" CopyToOutputDirectory="Always" />
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
