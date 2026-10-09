@@ -220,6 +220,32 @@ public sealed class UserdataRegistryTests
     }
 
     [Fact]
+    public void Setter_ShouldReadAnotherInstanceAndNilOnlyWhereItIsAllowed()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("a", new Node("a"));
+        state.Globals.Set("b", new Node("b"));
+
+        (string next, bool cleared, string owner, bool nilOwnerAccepted) = state
+            .Load(
+                """
+                a.next = b
+                local next = a.next
+                a.next = nil
+                a.owner = b
+                local accepted = pcall(function() a.owner = nil end)
+                return next, a.next == nil, a.owner, accepted
+                """
+            )
+            .Execute<string, bool, string, bool>();
+
+        next.ShouldBe("b");
+        cleared.ShouldBeTrue();
+        owner.ShouldBe("b");
+        nilOwnerAccepted.ShouldBeFalse();
+    }
+
+    [Fact]
     public void OperatorThatIsNotDeclared_ShouldRaiseTheErrorOfLuauWithTheTypeName()
     {
         using var state = new LuauState();
@@ -459,6 +485,40 @@ public sealed class UserdataRegistryTests
     {
         public static void Register(LuauUserdataRegistry<NameWithAZero> registry) =>
             registry.AddGetter("ab\0cd", static (_, _) => LuauReturnSingle.Ok(1));
+    }
+
+    /// <summary> Its setters take another instance; reading one back gives its name. </summary>
+    private sealed class Node(string name) : ILuauUserdata<Node>
+    {
+        private Node? _next;
+        private Node? _owner;
+
+        private string Name { get; } = name;
+
+        public static void Register(LuauUserdataRegistry<Node> registry)
+        {
+            registry.AddGetter("next", static (self, _) => LuauReturnSingle.Ok(self._next?.Name));
+            registry.AddSetter(
+                "next",
+                static (self, value) =>
+                    value.TryReadUserdataOrNil(out self._next, out string? error)
+                        ? LuauOutcome.Ok()
+                        : LuauOutcome.Error(error)
+            );
+            registry.AddGetter("owner", static (self, _) => LuauReturnSingle.Ok(self._owner?.Name));
+            registry.AddSetter(
+                "owner",
+                static (self, value) =>
+                {
+                    if (!value.TryReadUserdata(out Node? owner, out string? error))
+                        return LuauOutcome.Error(error);
+                    self._owner = owner;
+                    return LuauOutcome.Ok();
+                }
+            );
+        }
+
+        public static implicit operator IntoLuau(Node value) => IntoLuau.FromUserdata(value);
     }
 
     private sealed class DynamicMethods : ILuauUserdata<DynamicMethods>
