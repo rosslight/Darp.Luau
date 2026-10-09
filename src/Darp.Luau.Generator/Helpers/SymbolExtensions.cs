@@ -27,21 +27,13 @@ internal static class SymbolExtensions
         return type.GetManualUserdataHookMembers(apiSymbols).Any();
     }
 
+    /// <summary> Gets the <c>Register</c> methods a type wrote itself. </summary>
     public static IEnumerable<ISymbol> GetManualUserdataHookMembers(
         this INamedTypeSymbol type,
         LuauApiSymbols apiSymbols
     )
     {
-        if (
-            !type.AllInterfaces.Any(@interface =>
-                SymbolEqualityComparer.Default.Equals(
-                    @interface.OriginalDefinition,
-                    apiSymbols.LuauUserdataInterfaceSymbol
-                )
-            )
-        )
-            yield break;
-
+        var registrations = new List<ISymbol>();
         foreach (INamedTypeSymbol @interface in type.AllInterfaces)
         {
             if (
@@ -56,11 +48,31 @@ internal static class SymbolExtensions
             {
                 ISymbol? implementation = type.FindImplementationForInterfaceMember(interfaceMember);
                 if (implementation is IMethodSymbol && implementation.HasNonGeneratedDeclaration())
-                {
-                    yield return implementation;
-                }
+                    registrations.Add(implementation);
             }
         }
+
+        // A type that declares the method without listing the interface means the same. The generated explicit
+        // implementation would take its place without a word.
+        foreach (IMethodSymbol method in type.GetMembers("Register").OfType<IMethodSymbol>())
+        {
+            if (
+                method
+                    is {
+                        IsStatic: true,
+                        Parameters: [{ Type: INamedTypeSymbol { Name: "LuauUserdataRegistry", Arity: 1 } registry }],
+                    }
+                && registry.ContainingNamespace.ToDisplayString() == "Darp.Luau"
+                && SymbolEqualityComparer.Default.Equals(registry.TypeArguments[0], type)
+                && method.HasNonGeneratedDeclaration()
+                && !registrations.Contains(method, SymbolEqualityComparer.Default)
+            )
+            {
+                registrations.Add(method);
+            }
+        }
+
+        return registrations;
     }
 
     public static bool HasNonGeneratedDeclaration(this ISymbol symbol)

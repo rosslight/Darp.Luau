@@ -381,6 +381,13 @@ public class GeneratedExportsTests
 
                 public static void Register(LuauUserdataRegistry<Player> registry) { }
             }
+
+            // Without the interface in its base list, the method would be replaced by the generated one unnoticed.
+            [LuauUserdata("Enemy")]
+            public sealed partial class Enemy
+            {
+                public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
             """;
 
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);

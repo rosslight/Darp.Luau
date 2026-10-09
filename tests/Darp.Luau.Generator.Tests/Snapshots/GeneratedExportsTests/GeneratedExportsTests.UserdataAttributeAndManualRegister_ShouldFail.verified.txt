@@ -80,6 +80,25 @@ using System.Collections.Generic;
         DefaultSeverity: Error,
         IsEnabledByDefault: true
       }
+    },
+    {
+      Location: /*
+{
+    public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+                       ^^^^^^^^
+}
+*/
+ : (20,23)-(20,31),
+      Message: Userdata type 'Enemy' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata registration cannot mix,
+        MessageFormat: Userdata type '{0}' cannot have both [LuauUserdata] and a Register method of its own: describe the type either with attributes or by hand,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
     }
   ]
 }
