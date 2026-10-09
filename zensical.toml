@@ -65,6 +65,7 @@ nav = [
     { "Strings" = "features/strings.md" },
     { "Standard libraries" = "features/standard-libraries.md" },
     { "Modules and require" = "features/modules.md" },
+    { "Sandbox" = "features/sandbox.md" },
   ]},
 ]
 

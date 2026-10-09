@@ -68,3 +68,7 @@ A Luau value converted into an ordinary C# value with a normal .NET lifetime.
 **Coroutine**:
 A Luau thread of execution that can suspend and resume.
 _Avoid_: Thread (reserved for operating-system threads)
+
+**Sandbox**:
+The mode of a state in which scripts can use the host API and the standard libraries but not change them, and every script has globals of its own. It protects the host API from scripts; it does not confine a script the host does not trust.
+_Avoid_: Isolation, jail
