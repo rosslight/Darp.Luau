@@ -74,12 +74,6 @@ internal static class MetamethodAnalyzer
             return null;
         }
 
-        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.UserDefinedOperator))
-        {
-            Report(diagnostics, location, $"'{method.Name}' is neither an ordinary method nor an operator");
-            return null;
-        }
-
         if (!method.ExplicitInterfaceImplementations.IsEmpty)
         {
             Report(
@@ -87,6 +81,12 @@ internal static class MetamethodAnalyzer
                 location,
                 $"method '{method.Name}' is an explicit interface implementation, which generated code cannot access"
             );
+            return null;
+        }
+
+        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.UserDefinedOperator))
+        {
+            Report(diagnostics, location, $"'{method.Name}' is neither an ordinary method nor an operator");
             return null;
         }
 

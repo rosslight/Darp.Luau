@@ -96,28 +96,17 @@ internal static class UserdataEmitter
         }
         else
         {
-            bool takesEveryOperand = false;
             foreach (GeneratedMetamethodOverloadIr overload in metamethod.Overloads)
             {
                 // The overload is chosen before an operand is read, so that no other one has to undo a read.
-                string? check = FormatOperandCheck(metamethod, overload);
-                if (check is null)
-                {
-                    // Overloads differ in what they take, so one that takes everything is the only one.
-                    WriteMetamethodCall(writer, overload);
-                    takesEveryOperand = true;
-                    break;
-                }
-
-                writer.WriteLine($"if ({check})");
+                writer.WriteLine($"if ({FormatOperandCheck(metamethod, overload)})");
                 writer.WriteLine("{");
                 writer.Indent++;
                 WriteMetamethodCall(writer, overload);
                 writer.Indent--;
                 writer.WriteLine("}");
             }
-            if (!takesEveryOperand)
-                writer.WriteLine($"return {mismatch};");
+            writer.WriteLine($"return {mismatch};");
         }
 
         writer.Indent--;
@@ -160,8 +149,11 @@ internal static class UserdataEmitter
         };
     }
 
-    /// <summary> Writes the test whether an overload takes the operands, or returns null when it takes any. </summary>
-    private static string? FormatOperandCheck(GeneratedMetamethodIr metamethod, GeneratedMetamethodOverloadIr overload)
+    /// <summary>
+    /// Writes the test whether an overload takes the operands. There is always something to test: every metamethod
+    /// has the instance among its operands.
+    /// </summary>
+    private static string FormatOperandCheck(GeneratedMetamethodIr metamethod, GeneratedMetamethodOverloadIr overload)
     {
         const string valueType = "global::Darp.Luau.LuauValueType";
         var checks = new List<string>();
@@ -193,7 +185,7 @@ internal static class UserdataEmitter
         // Luau passes a fixed number of operands to every metamethod but a call.
         if (metamethod.Name == "Call")
             checks.Insert(0, $"args.ArgumentCount == {index}");
-        return checks.Count == 0 ? null : string.Join(" && ", checks);
+        return string.Join(" && ", checks);
     }
 
     private static void WriteMetamethodCall(IndentedTextWriter writer, GeneratedMetamethodOverloadIr overload)
