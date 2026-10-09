@@ -66,6 +66,12 @@ These are deliberate. The library does not guard against them, so your code has 
 - A managed object keeps the userdata type it was first pushed as. A class derived from a userdata type is not a userdata type of its own.
 - A script can call a method on any instance of its type, for example `a.add(b, 1)`. Do not rely on the instance the method was read from.
 
+### Sandbox
+
+- A sandbox makes the globals and the tables directly in them read-only, not what those tables contain. Nested tables, the members of a userdata and the table a module returned stay writable.
+- A script in an environment does not get the faster calls of built-in functions that a sandboxed state gives a script with globals of its own.
+- A sandbox is not a boundary for scripts the host does not trust and sets no limit on memory or running time.
+
 ### Modules and generated code
 
 - `require(...)` reads whatever path the `ILuauFileSystem` of the state resolves, including paths above the entry script. Restrict the file system if scripts must stay in one directory.

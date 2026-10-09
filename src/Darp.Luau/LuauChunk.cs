@@ -514,14 +514,16 @@ public readonly ref struct LuauChunk
 
     private unsafe void CompileAndLoadByteCode(lua_State* L, byte* pSource, nuint sourceLength, byte* pChunkName)
     {
+        LuauSandbox? sandbox = GetState().Sandbox;
         lua_CompileOptions* pOptions = null;
-        if (!ReferenceEquals(_compiler, LuauCompiler.Default))
+        if (sandbox is not null || !ReferenceEquals(_compiler, LuauCompiler.Default))
         {
             var options = new lua_CompileOptions
             {
                 optimizationLevel = _compiler.OptimizationLevel,
                 debugLevel = _compiler.DebugLevel,
             };
+            sandbox?.Apply(ref options);
             pOptions = &options;
         }
 
@@ -529,38 +531,68 @@ public readonly ref struct LuauChunk
         byte* pByteCode = luau_compile(pSource, sourceLength, pOptions, &nSizeByteCode);
         try
         {
-            int environmentStackIndex = 0;
-            if (_environmentHandle != 0)
-            {
-                RegistryReferenceTracker.TrackedReference environmentReference = GetState()
-                    .GetTrackedReferenceOrThrow(_environmentHandle);
-#pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
-                _ = environmentReference.PushToTop();
-#pragma warning restore CA2000
-                environmentStackIndex = lua_gettop(L);
-            }
-            try
-            {
-                int loadStatus = LuauVm.Load(
-                    GetState(),
-                    L,
-                    pChunkName,
-                    pByteCode,
-                    nSizeByteCode,
-                    environmentStackIndex
-                );
-                ScriptInterrupt.ThrowIfNotOk(GetState(), L, loadStatus, "luau_load");
-            }
-            finally
-            {
-                if (environmentStackIndex != 0)
-                    lua_remove(L, environmentStackIndex);
-            }
+            // An environment is a table of the host: its scripts look everything up, sandboxed or not.
+            if (sandbox is not null && _environmentHandle == 0)
+                LoadWithOwnGlobals(L, sandbox, pChunkName, pByteCode, nSizeByteCode);
+            else
+                LoadIntoEnvironment(L, pChunkName, pByteCode, nSizeByteCode);
         }
         finally
         {
             luau_free(pByteCode);
         }
+    }
+
+    private unsafe void LoadIntoEnvironment(lua_State* L, byte* pChunkName, byte* pByteCode, nuint nSizeByteCode)
+    {
+        int environmentStackIndex = 0;
+        if (_environmentHandle != 0)
+        {
+            RegistryReferenceTracker.TrackedReference environmentReference = GetState()
+                .GetTrackedReferenceOrThrow(_environmentHandle);
+#pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
+            _ = environmentReference.PushToTop();
+#pragma warning restore CA2000
+            environmentStackIndex = lua_gettop(L);
+        }
+        try
+        {
+            int loadStatus = LuauVm.Load(GetState(), L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
+            ScriptInterrupt.ThrowIfNotOk(GetState(), L, loadStatus, "luau_load");
+        }
+        finally
+        {
+            if (environmentStackIndex != 0)
+                lua_remove(L, environmentStackIndex);
+        }
+    }
+
+    /// <summary>
+    /// Loads the script of a sandboxed state the way Luau's own host does: with a global table of its own as the
+    /// globals of the loading thread. Luau resolves what the script reads against the globals of that thread,
+    /// so passing the table to the load call alone would resolve against the globals of the state instead.
+    /// </summary>
+    private unsafe void LoadWithOwnGlobals(
+        lua_State* L,
+        LuauSandbox sandbox,
+        byte* pChunkName,
+        byte* pByteCode,
+        nuint nSizeByteCode
+    )
+    {
+        LuauState state = GetState();
+        state.PushOwnScriptGlobals(sandbox);
+
+        // [globals of the script]
+        lua_pushvalue(L, LUA_GLOBALSINDEX); // [globals of the script, globals of the thread]
+        lua_pushvalue(L, -2);
+        lua_replace(L, LUA_GLOBALSINDEX);
+        int loadStatus = LuauVm.Load(state, L, pChunkName, pByteCode, nSizeByteCode, 0); // [.., .., function or error]
+        lua_pushvalue(L, -2);
+        lua_replace(L, LUA_GLOBALSINDEX);
+        lua_remove(L, -2);
+        lua_remove(L, -2); // [function or error]
+        ScriptInterrupt.ThrowIfNotOk(state, L, loadStatus, "luau_load");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -214,3 +214,4 @@ See [Modules and require](features/modules.md) for generated modules, manual `Re
 - [Userdata](features/userdata.md)
 - [Standard libraries](features/standard-libraries.md)
 - [Modules and require](features/modules.md)
+- [Sandbox](features/sandbox.md)
