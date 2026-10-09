@@ -678,6 +678,7 @@ public class GeneratedExportsTests
     public async Task MetamethodForALeftOperandThatHasTheOperatorItself_ShouldWarn()
     {
         const string code = """
+            #nullable enable
             using Darp.Luau;
 
             [LuauUserdata("Vec")]
@@ -685,6 +686,9 @@ public class GeneratedExportsTests
             {
                 [LuauMetamethod(LuauMetamethod.Mul)]
                 public Vec Scale(double factor) => this;
+
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public Vec Minus(Vec other) => this;
 
                 // Reached: a Mat has no Add of its own.
                 [LuauMetamethod(LuauMetamethod.Add)]
@@ -697,6 +701,10 @@ public class GeneratedExportsTests
                 // Never called: Luau asks the Vec on the left, which has a Mul but none for a Mat.
                 [LuauMetamethod(LuauMetamethod.Mul)]
                 public static Vec Transform(Vec vec, Mat mat) => vec;
+
+                // Reached with nil on the left: nil has no Sub, so Luau asks the Mat on the right.
+                [LuauMetamethod(LuauMetamethod.Sub)]
+                public static Mat Without(Vec? vec, Mat mat) => mat;
             }
             """;
 

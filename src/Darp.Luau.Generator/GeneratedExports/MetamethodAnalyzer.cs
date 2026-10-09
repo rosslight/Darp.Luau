@@ -342,7 +342,8 @@ internal static class MetamethodAnalyzer
 
     /// <summary>
     /// Luau picks the metamethod of the left operand and never tries another one, so an overload for a left operand
-    /// of a type that has the operator itself is never called.
+    /// of a type that has the operator itself is never called. One that also takes nil on the left is: nil has no
+    /// metamethod, so Luau asks the right operand.
     /// </summary>
     private static void ReportOverloadOfAnotherTypesOperator(
         INamedTypeSymbol ownType,
@@ -353,6 +354,7 @@ internal static class MetamethodAnalyzer
     {
         if (
             candidate.Metamethod is not ("Add" or "Sub" or "Mul" or "Div" or "Mod" or "Pow" or "IDiv" or "Concat")
+            || candidate.Overload.Signature.Parameters[0].IsNullable
             || candidate.OperandTypes[0] is not INamedTypeSymbol leftType
             || SymbolEqualityComparer.Default.Equals(leftType, ownType)
             || context.GetUserdataAttribute(leftType) is null
