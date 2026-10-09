@@ -411,9 +411,15 @@ public class GeneratedExportsTests
                 public static void Register(LuauUserdataRegistry<Enemy> registry) { }
             }
 
-            public sealed class Enemy : ILuauUserdata<Enemy>
+            public class Enemy : ILuauUserdata<Enemy>
             {
                 public static void Register(LuauUserdataRegistry<Enemy> registry) { }
+            }
+
+            // The registration it inherits describes an enemy, not a boss.
+            [LuauUserdata("Boss")]
+            public sealed partial class Boss : Enemy
+            {
             }
             """;
 

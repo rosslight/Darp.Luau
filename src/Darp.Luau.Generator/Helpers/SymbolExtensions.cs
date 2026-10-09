@@ -36,11 +36,12 @@ internal static class SymbolExtensions
         var registrations = new List<ISymbol>();
         foreach (INamedTypeSymbol @interface in type.AllInterfaces)
         {
+            // The interface of a base class describes the base class, not this type.
             if (
                 !SymbolEqualityComparer.Default.Equals(
                     @interface.OriginalDefinition,
                     apiSymbols.LuauUserdataInterfaceSymbol
-                )
+                ) || !SymbolEqualityComparer.Default.Equals(@interface.TypeArguments[0], type)
             )
                 continue;
 
