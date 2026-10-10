@@ -312,6 +312,23 @@ public sealed class SandboxTests
     }
 
     [Fact]
+    public void Script_ShouldNotChangeAMetatableOfTheGlobals()
+    {
+        using var state = new LuauState();
+        state
+            .Load("setmetatable(_G, { __index = function(_, name) if name == 'dynamic' then return 1 end end })")
+            .Execute();
+        state.EnableSandbox();
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.Load("getmetatable(_G).__index = function() return 2 end").Execute()
+        );
+
+        exception.Message.ShouldContain("readonly");
+        state.Load("return dynamic").Execute<int>().ShouldBe(1);
+    }
+
+    [Fact]
     public void ScriptModule_ShouldReadTheGlobalsOfTheStateWhateverTheMainThreadHas()
     {
         var fileSystem = new FakeFileSystem([
