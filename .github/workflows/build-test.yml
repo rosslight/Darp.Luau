@@ -21,16 +21,17 @@ jobs:
       - name: Test
         run: |
           dotnet tool restore
-          dotnet coverage collect --output-format cobertura --output coverage-results/coverage.cobertura.xml \
-            "dotnet test --no-build --no-progress"
+          for project in Darp.Luau.Tests Darp.Luau.Generator.Tests; do
+            dotnet coverlet tests/$project/bin/Debug/net10.0/$project.dll \
+              --target dotnet --targetargs "test --project tests/$project --no-build --no-progress" \
+              --format cobertura --output coverage-results/$project/
+          done
 
       - name: Attach code-coverage comment
         uses: rosslight/pr-code-coverage-visualizer@v2.2.0
         with:
           files: |
-            coverage-results/coverage.cobertura.xml
-          exclude-files: |
-            **/tests/**
+            coverage-results/**/coverage.cobertura.xml
           update-comment: true
           show-changed-lines-only: true
 
