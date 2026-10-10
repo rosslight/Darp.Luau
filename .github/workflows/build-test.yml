@@ -20,15 +20,17 @@ jobs:
         run: dotnet build --no-restore
       - name: Test
         run: |
-          dotnet test --no-build --verbosity normal \
-            --collect:"XPlat Code Coverage;Format=cobertura" \
-            --results-directory ./coverage-results
+          dotnet tool restore
+          dotnet coverage collect --output-format cobertura --output coverage-results/coverage.cobertura.xml \
+            "dotnet test --no-build --no-progress"
 
       - name: Attach code-coverage comment
         uses: rosslight/pr-code-coverage-visualizer@v2.2.0
         with:
           files: |
-            coverage-results/**/coverage.cobertura.xml
+            coverage-results/coverage.cobertura.xml
+          exclude-files: |
+            **/tests/**
           update-comment: true
           show-changed-lines-only: true
 
@@ -85,7 +87,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
       - name: Test generators
-        run: dotnet test tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --verbosity normal
+        run: dotnet test --project tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --no-progress
       - name: Publish runtime tests with Native AOT
         run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests /warnaserror
       - name: Test Native AOT
