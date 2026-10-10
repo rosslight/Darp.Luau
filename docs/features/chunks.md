@@ -122,7 +122,7 @@ Environment reads fall back to `lua.Globals`, but assignments stay on the enviro
 
 - Reuse the same environment across multiple chunk executions when they should share chunk-local globals.
 - `_G` inside that environment points back to the environment table.
-- This is a scoping helper, not a sandbox or isolation boundary.
+- This is a scoping helper. It does not stop a chunk from changing the globals of the state or a standard library; a [sandbox](sandbox.md) does, and there a chunk without an environment already has globals of its own.
 
 ## Convert a chunk into a function
 

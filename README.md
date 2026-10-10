@@ -229,7 +229,6 @@ Darp.Luau is pre-1.0 and breaking changes are still expected. The aim before 1.0
 
 Planned before 1.0:
 
-- An opt-in sandbox with read-only libraries and globals
 - Structured errors with script location, traceback, and the original managed exception
 - Luau type definitions generated for the host API
 - More than four arguments and return values, including variadics
