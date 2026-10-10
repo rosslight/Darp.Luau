@@ -28,7 +28,7 @@ _G.log = nil                           -- globals of the host as well
 setfenv(0, {})                         -- getfenv and setfenv are removed
 ```
 
-Read-only are the global table, every table directly in it (the standard libraries and tables of the host), and the metatable of strings.
+Read-only are the global table, every table directly in it (the standard libraries and tables of the host), and the metatable of strings. If the host gave the global table a metatable, that is read-only too.
 
 ## Every script has globals of its own
 

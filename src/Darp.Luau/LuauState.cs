@@ -76,10 +76,10 @@ public sealed unsafe class LuauState : IDisposable
     /// call does nothing.
     /// </para>
     /// <para>
-    /// From then on neither a script nor the host can change the global table, a table directly in it, or the
-    /// metatable of strings, and <c>getfenv</c> and <c>setfenv</c> are gone. A script that assigns a global
-    /// keeps it to itself. Use <see cref="CreateEnvironment"/> for globals the host reads or several scripts
-    /// share.
+    /// From then on neither a script nor the host can change the global table, its metatable, a table directly
+    /// in it, or the metatable of strings, and <c>getfenv</c> and <c>setfenv</c> are gone. A script that assigns
+    /// a global keeps it to itself. Use <see cref="CreateEnvironment"/> for globals the host reads or several
+    /// scripts share.
     /// </para>
     /// <para>
     /// This protects what the host set up from the scripts it runs. It is not a boundary for scripts the host
@@ -105,6 +105,13 @@ public sealed unsafe class LuauState : IDisposable
 
         // Freezes the global table, every table directly in it and the metatable of strings.
         luaL_sandbox(L);
+        // It leaves a metatable of the globals writable. With it a script gives every other script another
+        // '__index', and through that other globals.
+        if (lua_getmetatable(L, LUA_GLOBALSINDEX) != 0)
+        {
+            lua_setreadonly(L, -1, 1);
+            lua_pop(L, 1);
+        }
         // It also marks the globals as safe, which lets Luau resolve 'a.b.c' once when a script is loaded and
         // call built-in functions without looking them up. That is for the scripts loaded from now on, which get
         // globals of their own with that mark. A function that was loaded before was compiled without knowing
