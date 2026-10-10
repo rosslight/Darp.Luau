@@ -17,12 +17,16 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore
+        # coverlet leaves out an assembly whose symbols point to the source paths of a CI build
+        run: dotnet build --no-restore -p:ContinuousIntegrationBuild=false
       - name: Test
         run: |
-          dotnet test --no-build --verbosity normal \
-            --collect:"XPlat Code Coverage;Format=cobertura" \
-            --results-directory ./coverage-results
+          dotnet tool restore
+          for project in Darp.Luau.Tests Darp.Luau.Generator.Tests; do
+            dotnet coverlet tests/$project/bin/Debug/net10.0/$project.dll \
+              --target dotnet --targetargs "test --project tests/$project --no-build --no-progress" \
+              --format cobertura --output coverage-results/$project/
+          done
 
       - name: Attach code-coverage comment
         uses: rosslight/pr-code-coverage-visualizer@v2.2.0
@@ -85,7 +89,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
       - name: Test generators
-        run: dotnet test tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --verbosity normal
+        run: dotnet test --project tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --no-progress
       - name: Publish runtime tests with Native AOT
         run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests /warnaserror
       - name: Test Native AOT
