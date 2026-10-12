@@ -294,8 +294,28 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         lua_State* ML = lua_newthread(GL);
         lua_xmove(GL, L, 1);
 
+        // The main thread can have other globals for a moment, or because a script replaced them. A module reads
+        // the globals of the state.
+        req._state.PushGlobals();
+        lua_xmove(GL, ML, 1);
+        lua_replace(ML, LUA_GLOBALSINDEX);
+
         // new thread needs to have the globals sandboxed
         luaL_sandboxthread(ML);
+
+        // That also marks the globals of the module as safe: Luau resolves 'a.b.c' once when the module is loaded
+        // and calls built-in functions without looking them up. Only in a sandboxed state do the globals behind
+        // them stay what they are, and only there does the compiler know which ones do not.
+        LuauSandbox? sandbox = req._state.Sandbox;
+        lua_CompileOptions* pOptions = null;
+        if (sandbox is not { AllowsFastPaths: true })
+            lua_setsafeenv(ML, LUA_GLOBALSINDEX, 0);
+        if (sandbox is not null)
+        {
+            var options = new lua_CompileOptions { optimizationLevel = 1, debugLevel = 1 };
+            sandbox.Apply(ref options);
+            pOptions = &options;
+        }
 
         string? errorMessage = null;
         bool bOk = false;
@@ -303,7 +323,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         fixed (byte* pSource = spanSource)
         {
             nuint nSizeByteCode = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nSizeByteCode);
+            byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, pOptions, &nSizeByteCode);
             try
             {
                 int nStatus = LuauVm.Load(req._state, ML, chunkname, pByteCode, nSizeByteCode, 0);

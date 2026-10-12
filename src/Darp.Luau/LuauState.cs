@@ -60,6 +60,105 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary>The effective set of built-in libraries loaded into this state.</summary>
     public LuauLibraries EnabledLibraries { get; private set; }
 
+    /// <summary> Whether <see cref="EnableSandbox"/> was called on this state. </summary>
+    public bool IsSandboxed => Sandbox is not null;
+
+    /// <summary> What the scripts of a sandboxed state are compiled with. Null until the state is sandboxed. </summary>
+    internal LuauSandbox? Sandbox { get; private set; }
+
+    /// <summary>
+    /// Makes the globals and the standard libraries of this state read-only, and gives every script globals of
+    /// its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Call it once the libraries, globals and modules of the host are set up. It cannot be undone, and a second
+    /// call does nothing.
+    /// </para>
+    /// <para>
+    /// From then on neither a script nor the host can change the global table, its metatable, a table directly
+    /// in it, or the metatable of strings, and <c>getfenv</c> and <c>setfenv</c> are gone. A script that assigns
+    /// a global keeps it to itself. Use <see cref="CreateEnvironment"/> for globals the host reads or several
+    /// scripts share.
+    /// </para>
+    /// <para>
+    /// This protects what the host set up from the scripts it runs. It is not a boundary for scripts the host
+    /// does not trust and sets no limit on memory or running time.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="LuaException">Thrown when the globals cannot be changed any more, for example because a script froze them.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when the state has been disposed.</exception>
+    public void EnableSandbox()
+    {
+        this.ThrowIfDisposed();
+        if (IsSandboxed)
+            return;
+
+        // With these a script replaces the globals of a thread, or of a function of another script. Luau keeps
+        // them for old scripts only. Removed first: when the globals cannot be written, nothing has changed yet.
+        Globals.Set("getfenv", default(IntoLuau));
+        Globals.Set("setfenv", default(IntoLuau));
+
+        // A script may have given the main thread other globals. The ones of the state are frozen and used.
+        PushGlobals();
+        lua_replace(L, LUA_GLOBALSINDEX);
+
+        // Freezes the global table, every table directly in it and the metatable of strings.
+        luaL_sandbox(L);
+        // It leaves a metatable of the globals writable. With it a script gives every other script another
+        // '__index', and through that other globals.
+        if (lua_getmetatable(L, LUA_GLOBALSINDEX) != 0)
+        {
+            lua_setreadonly(L, -1, 1);
+            lua_pop(L, 1);
+        }
+        // It also marks the globals as safe, which lets Luau resolve 'a.b.c' once when a script is loaded and
+        // call built-in functions without looking them up. That is for the scripts loaded from now on, which get
+        // globals of their own with that mark. A function that was loaded before was compiled without knowing
+        // which globals change, and keeps looking everything up.
+        lua_setsafeenv(L, LUA_GLOBALSINDEX, 0);
+        Sandbox = LuauSandbox.Create(this);
+    }
+
+    /// <summary> Pushes the global table of the state, whatever the globals of its main thread are right now. </summary>
+    internal void PushGlobals()
+    {
+#pragma warning disable CA2000 // The caller takes the value from the stack.
+        _ = this.GetTrackedReferenceOrThrow(_globalsHandle).PushToTop();
+#pragma warning restore CA2000
+    }
+
+    /// <summary>
+    /// Pushes a table for the globals of one script, as <c>luaL_sandboxthread</c> makes it: it keeps what the
+    /// script assigns and reads everything else from the globals of the state. <c>_G</c> is those globals.
+    /// </summary>
+    /// <remarks>
+    /// Only the script reaches the table: the host gets no reference to it, and a script has no way to ask for
+    /// its globals. Every global the script reads is therefore either one it assigns itself, which the compiler
+    /// sees, or one of the state, which is frozen. That is what makes Luau's fast paths right here and not in
+    /// an environment, which the host holds and can change or hand to a script at any time.
+    /// </remarks>
+    internal void PushOwnScriptGlobals(LuauSandbox sandbox)
+    {
+        lua_newtable(L); // [globals]
+        lua_newtable(L); // [globals, metatable]
+        PushGlobals();
+        fixed (byte* pIndex = "__index\0"u8)
+            lua_rawsetfield(L, -2, pIndex);
+        lua_setreadonly(L, -1, 1);
+        _ = lua_setmetatable(L, -2);
+        if (sandbox.AllowsFastPaths)
+            lua_setsafeenv(L, -1, 1);
+    }
+
+    private void ThrowIfSandboxed(string what)
+    {
+        if (IsSandboxed)
+            throw new InvalidOperationException(
+                $"{what} before the sandbox is enabled: the globals are read-only now."
+            );
+    }
+
     /// <summary>
     /// Gets current memory-related tracking counters for this state.
     /// </summary>
@@ -138,6 +237,7 @@ public sealed unsafe class LuauState : IDisposable
         if (missingLibraries == 0)
             return;
 
+        ThrowIfSandboxed("Load standard libraries");
         OpenBuiltinLibraries(missingLibraries);
         EnabledLibraries |= missingLibraries;
     }
@@ -236,6 +336,9 @@ public sealed unsafe class LuauState : IDisposable
 
     internal LuauModuleRequirer GetOrCreateModuleRequirer()
     {
+        // The first module installs the global 'require'.
+        if (_moduleRequirer is null)
+            ThrowIfSandboxed("Register the first module or enable script modules");
         _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
     }
@@ -625,6 +728,7 @@ public sealed unsafe class LuauState : IDisposable
         ReferenceTracker.ReleaseAll();
         // Closing frees every function, which releases the handles of the managed callbacks.
         LuauVm.Close(this);
+        Sandbox?.Dispose();
         ScriptInterrupt.Free(Interrupt);
         _selfHandle.Free();
     }
