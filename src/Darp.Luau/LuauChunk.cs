@@ -106,7 +106,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first Luau return value converted to <typeparamref name="TR"/>.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
-    /// <exception cref="InvalidCastException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
+    /// <exception cref="LuaGetException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
     public TR Execute<TR>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 1, LuauFunctionInvokeCore.ResultSelector<TR>);
 
@@ -117,7 +117,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first two Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2) Execute<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 2, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
 
@@ -129,7 +129,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first three Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2, TR3) Execute<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 3, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
 
@@ -142,7 +142,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first four Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2, TR3, TR4) Execute<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         ExecuteCore(args, nResults: 4, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>);
 
@@ -191,7 +191,7 @@ public readonly ref struct LuauChunk
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
+    /// <exception cref="LuaGetException">Thrown when the return value cannot be converted to <typeparamref name="TR"/>.</exception>
     public ValueTask<TR> ExecuteAsync<TR>(params RefEnumerable<IntoLuau> args) =>
         ExecuteAsync<TR>(args, CancellationToken.None);
 
@@ -214,7 +214,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first two Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2)> ExecuteAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         ExecuteAsync<TR1, TR2>(args, CancellationToken.None);
 
@@ -240,7 +240,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first three Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3)> ExecuteAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         ExecuteAsync<TR1, TR2, TR3>(args, CancellationToken.None);
 
@@ -267,7 +267,7 @@ public readonly ref struct LuauChunk
     /// <returns>The first four Luau return values converted to a tuple.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load or runtime error, or when the chunk yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ExecuteAsync<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         ExecuteAsync<TR1, TR2, TR3, TR4>(args, CancellationToken.None);
 

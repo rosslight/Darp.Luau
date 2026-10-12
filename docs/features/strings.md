@@ -28,7 +28,7 @@ Most code just passes `string`:
 lua.Globals.Set("name", "Ada");
 
 using LuauFunction greet = lua.Globals.GetLuauFunction("greet");
-greet.Invoke<LuauNil>("Ada");
+greet.Invoke("Ada");
 ```
 
 Create `LuauString` only when you want to keep or reuse the same Luau string value:

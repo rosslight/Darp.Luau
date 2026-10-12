@@ -8,9 +8,9 @@ That distinction matters. A type that works when reading from a table does not a
 
 | Luau value | Common managed forms | Notes |
 | --- | --- | --- |
-| `nil` | `LuauNil`, `null` in supported nullable cases | `nil` support depends on the API surface |
+| `nil` | `null` of a nullable value type such as `int?`, or of a reference type where the API reads optional values | `nil` support depends on the API surface |
 | `string` | `string`, `ReadOnlySpan<byte>`, `LuauString`, `LuauStringView` | spans and views can alias Luau memory |
-| `number` | `double`, integral types, floating-point types, enums | a type only takes a number it can hold; see [Numeric conversions](#numeric-conversions) |
+| `number` | `double`, integral types, floating-point types, `decimal`, enums | a type only takes a number it can hold; see [Numeric conversions](#numeric-conversions) |
 | `boolean` | `bool` | straightforward mapping |
 | `table` | `LuauTable`, `LuauTableView` | owned vs borrowed distinction matters |
 | `function` | `LuauFunction`, `LuauFunctionView` | owned vs borrowed distinction matters |
@@ -139,7 +139,7 @@ You get it from APIs such as:
 - `TryGetLuauValue(...)`,
 - `TryReadLuauValue(...)`.
 
-Then reinterpret it with `TryGet<T>(...)`:
+Then read it as a managed type:
 
 ```csharp
 if (lua.Globals.TryGetLuauValue("payload", out LuauValue value))
@@ -154,10 +154,29 @@ if (lua.Globals.TryGetLuauValue("payload", out LuauValue value))
 }
 ```
 
+| Method | `nil` | Another type |
+| --- | --- | --- |
+| `Get<T>()` | throws `LuaGetException` | throws `LuaGetException` |
+| `GetOrNull<T>()` | `null` | throws `LuaGetException` |
+| `TryGet<T>(out T value)` | `false` | `false` |
+| `TryGetOrNull<T>(out T? value)` | `true` with `null` | `false` |
+
+`T` is any type a Luau value has a managed form for: a number type, an enum, `bool`, `string`, `byte[]`, a managed userdata type, an owned wrapper such as `LuauTable`, or `LuauValue` for a copy. The same types work as the result of `Invoke<T>(...)`, `Execute<T>()` and `Resume<T>(...)`.
+
+The `nil` column holds for a `T` that has no value for `nil`. Two kinds of `T` have one and read it with `Get<T>()` and `TryGet<T>(...)`:
+
+- a nullable value type: `Get<int?>()` and `TryGet(out int? number)` read `nil` as `null`,
+- `LuauValue` itself, which reads `nil` as a nil value and therefore has no nullable form.
+
+A reference type cannot say that `nil` is fine, because `string` and `string?` are the same type at run time, so it has the `OrNull` methods.
+
+A typed result has no `OrNull` form: `Invoke<string>(...)` returns `null` when the function returns `nil`.
+
 Important `LuauValue` rules:
 
 - reference-backed values such as strings, tables, functions, userdata, and buffers can own registry references and should be disposed,
-- converting a reference-backed `LuauValue` to an owned wrapper clones ownership, so the resulting wrapper must also be disposed,
+- reading a reference-backed `LuauValue` as an owned wrapper gives you a reference of its own, so the resulting wrapper must also be disposed,
+- reading a `LuauValue` that was disposed throws `ObjectDisposedException`,
 - `LuauValueType.Nil` is the default value and represents `nil`.
 
 ## Numeric conversions
@@ -176,7 +195,7 @@ What a rejected number does depends on where it is read:
 
 - `TryReadNumber(...)` and `TryGetNumber(...)` return `false`. `TryReadNumber(...)` names the parameter, the type and the number in its error.
 - A generated callback raises a Luau error, which the script can catch with `pcall(...)`.
-- A typed result such as `Execute<int>()` throws `InvalidCastException`.
+- A typed result such as `Execute<int>()` throws `LuaGetException`.
 
 `TryReadNumber<T>(...)` and `TryGetNumber<T>(...)` are generic over the numeric type, so `out int`, `out byte`, `out Int128` or `out decimal` all use the same call.
 

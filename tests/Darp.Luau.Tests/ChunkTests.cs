@@ -96,9 +96,9 @@ public sealed class ChunkTests : IDisposable
         using LuauValue value2 = values[1];
         using LuauValue value3 = values[2];
 
-        value1.TryGet(out int number, acceptNil: false).ShouldBeTrue();
-        value2.TryGet(out string? text, acceptNil: false).ShouldBeTrue();
-        value3.TryGet(out bool flag, acceptNil: false).ShouldBeTrue();
+        value1.TryGet(out int number).ShouldBeTrue();
+        value2.TryGet(out string? text).ShouldBeTrue();
+        value3.TryGet(out bool flag).ShouldBeTrue();
 
         number.ShouldBe(10);
         text.ShouldBe("hello");
@@ -125,7 +125,7 @@ public sealed class ChunkTests : IDisposable
         }
         _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone);
 
-        countValue.TryGet(out int count, acceptNil: false).ShouldBeTrue();
+        countValue.TryGet(out int count).ShouldBeTrue();
         count.ShouldBe(5);
     }
 
@@ -158,8 +158,8 @@ public sealed class ChunkTests : IDisposable
         using LuauValue value1 = values[0];
         using LuauValue value2 = values[1];
 
-        value1.TryGet(out int first, acceptNil: false).ShouldBeTrue();
-        value2.TryGet(out int second, acceptNil: false).ShouldBeTrue();
+        value1.TryGet(out int first).ShouldBeTrue();
+        value2.TryGet(out int second).ShouldBeTrue();
 
         first.ShouldBe(1);
         second.ShouldBe(2);

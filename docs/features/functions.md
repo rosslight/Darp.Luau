@@ -28,7 +28,7 @@ The generic return type controls how the Luau return value is converted.
 - Argument values go through the normal `IntoLuau` conversion rules.
 - The current argument buffer accepts up to 4 arguments per call.
 
-If Luau raises an error, `Invoke<TR>(...)` throws `LuaException`. If the return value cannot be converted to `TR`, it throws `InvalidCastException`.
+If Luau raises an error, `Invoke<TR>(...)` throws `LuaException`. If the return value cannot be converted to `TR`, it throws `LuaGetException`. A value the function did not return is read as `nil`.
 
 Each `Invoke` overload has an `InvokeAsync` counterpart that lets managed callbacks await. See [Async callbacks](#async-callbacks).
 

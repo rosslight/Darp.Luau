@@ -44,11 +44,11 @@ public sealed class LuauTableListTests : IDisposable
 
         KeyValuePair<int, LuauValue>[] content = table.IPairs().ToArray();
         content[0].Key.ShouldBe(1);
-        content[0].Value.As<double>().ShouldBe(1);
+        content[0].Value.Get<double>().ShouldBe(1);
         content[1].Key.ShouldBe(2);
-        content[1].Value.As<double>().ShouldBe(4);
+        content[1].Value.Get<double>().ShouldBe(4);
         content[2].Key.ShouldBe(3);
-        content[2].Value.As<double>().ShouldBe(9);
+        content[2].Value.Get<double>().ShouldBe(9);
     }
 
     [Fact]
@@ -57,12 +57,12 @@ public sealed class LuauTableListTests : IDisposable
         using LuauTable table = _lua.CreateTable([1, 4, 9]);
 
         KeyValuePair<LuauValue, LuauValue>[] content = table.ToArray();
-        content[0].Key.As<double>().ShouldBe(1);
-        content[0].Value.As<double>().ShouldBe(1);
-        content[1].Key.As<double>().ShouldBe(2);
-        content[1].Value.As<double>().ShouldBe(4);
-        content[2].Key.As<double>().ShouldBe(3);
-        content[2].Value.As<double>().ShouldBe(9);
+        content[0].Key.Get<double>().ShouldBe(1);
+        content[0].Value.Get<double>().ShouldBe(1);
+        content[1].Key.Get<double>().ShouldBe(2);
+        content[1].Value.Get<double>().ShouldBe(4);
+        content[2].Key.Get<double>().ShouldBe(3);
+        content[2].Value.Get<double>().ShouldBe(9);
     }
 
     [Fact]
@@ -75,10 +75,10 @@ public sealed class LuauTableListTests : IDisposable
         KeyValuePair<LuauValue, LuauValue>[] content = table.ToArray();
         try
         {
-            content[0].Key.As<string>().ShouldBe("a");
-            content[0].Value.As<double>().ShouldBe(1);
-            content[1].Key.As<double>().ShouldBe(2);
-            content[1].Value.As<double>().ShouldBe(3);
+            content[0].Key.Get<string>().ShouldBe("a");
+            content[0].Value.Get<double>().ShouldBe(1);
+            content[1].Key.Get<double>().ShouldBe(2);
+            content[1].Value.Get<double>().ShouldBe(3);
         }
         finally
         {

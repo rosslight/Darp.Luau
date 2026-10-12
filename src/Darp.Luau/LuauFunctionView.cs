@@ -29,7 +29,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <typeparam name="TR">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    /// <exception cref="InvalidCastException">
+    /// <exception cref="LuaGetException">
     /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(params RefEnumerable<IntoLuau> args)
@@ -43,7 +43,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    /// <exception cref="InvalidCastException">
+    /// <exception cref="LuaGetException">
     /// Thrown when the Luau return values cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/>.
     /// </exception>
     public (TR1, TR2) Invoke<TR1, TR2>(params RefEnumerable<IntoLuau> args)
@@ -58,7 +58,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    /// <exception cref="InvalidCastException">
+    /// <exception cref="LuaGetException">
     /// Thrown when the Luau return values cannot be converted to <typeparamref name="TR1"/>, <typeparamref name="TR2"/>, or <typeparamref name="TR3"/>.
     /// </exception>
     public (TR1, TR2, TR3) Invoke<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args)
@@ -74,7 +74,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <typeparam name="TR4">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    /// <exception cref="InvalidCastException">
+    /// <exception cref="LuaGetException">
     /// Thrown when the Luau return values cannot be converted to <typeparamref name="TR1"/>, <typeparamref name="TR2"/>, <typeparamref name="TR3"/>, or <typeparamref name="TR4"/>.
     /// </exception>
     public (TR1, TR2, TR3, TR4) Invoke<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args)
@@ -137,7 +137,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<TR> InvokeAsync<TR>(params RefEnumerable<IntoLuau> args) =>
         InvokeAsync<TR>(args, CancellationToken.None);
 
@@ -170,7 +170,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2)> InvokeAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         InvokeAsync<TR1, TR2>(args, CancellationToken.None);
 
@@ -207,7 +207,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3)> InvokeAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         InvokeAsync<TR1, TR2, TR3>(args, CancellationToken.None);
 
@@ -245,7 +245,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error, or when the function yields.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a return value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a return value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> InvokeAsync<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         InvokeAsync<TR1, TR2, TR3, TR4>(args, CancellationToken.None);
 

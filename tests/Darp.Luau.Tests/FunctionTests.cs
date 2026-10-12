@@ -331,9 +331,9 @@ public sealed class FunctionTests : IDisposable
         using LuauValue value2 = values[1];
         using LuauValue value3 = values[2];
 
-        value1.TryGet(out int number, acceptNil: false).ShouldBeTrue();
-        value2.TryGet(out string? text, acceptNil: false).ShouldBeTrue();
-        value3.TryGet(out bool flag, acceptNil: false).ShouldBeTrue();
+        value1.TryGet(out int number).ShouldBeTrue();
+        value2.TryGet(out string? text).ShouldBeTrue();
+        value3.TryGet(out bool flag).ShouldBeTrue();
 
         number.ShouldBe(10);
         text.ShouldBe("hello");
@@ -746,7 +746,8 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunction(() => expectedValue);
         _state.Globals.Set("f", func);
         _state.Load("result = f()").Execute();
-        _state.Globals.TryGet("result", out bool? result).ShouldBeFalse();
+        // A nullable value type reads nil as null.
+        _state.Globals.TryGet("result", out bool? result).ShouldBeTrue();
 
         result.ShouldBe(expectedValue);
     }
@@ -1350,11 +1351,11 @@ public sealed class FunctionTests : IDisposable
             using LuauValue value2 = values[1];
             using LuauValue value3 = values[2];
 
-            if (!value1.TryGet(out int number, acceptNil: false))
+            if (!value1.TryGet(out int number))
                 return LuauReturn.Error("Expected first return value to be an int.");
-            if (!value2.TryGet(out string? text, acceptNil: false))
+            if (!value2.TryGet(out string? text))
                 return LuauReturn.Error("Expected second return value to be a string.");
-            if (!value3.TryGet(out bool flag, acceptNil: false))
+            if (!value3.TryGet(out bool flag))
                 return LuauReturn.Error("Expected third return value to be a bool.");
 
             return LuauReturn.Ok($"{number}:{text}:{flag}");

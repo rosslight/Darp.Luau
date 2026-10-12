@@ -660,6 +660,28 @@ public readonly unsafe ref partial struct LuauArgs
         );
     }
 
+    /// <summary> Reads the result at <paramref name="index"/> of a call whose results this window holds. </summary>
+    /// <param name="index">1-based index of the result.</param>
+    /// <remarks> A result the call did not return is nil. </remarks>
+    /// <exception cref="LuaGetException">Thrown when the result is not a <typeparamref name="T"/>.</exception>
+    internal T ReadResult<T>(int index)
+    {
+        _state.ThrowIfDisposed();
+        ReadSource source =
+            index > ArgumentCount
+                ? ReadSource.Nil
+                : ReadSource.FromStack(_state, _luaState, _firstParameterStackIndex + index - 1);
+
+        // A call has no second method to ask for an optional result, so nil is the null of every reference type.
+        // Whether T is annotated as nullable is the caller's choice, which the method cannot see.
+        if (source.IsNil && !typeof(T).IsValueType)
+            return default!;
+
+        return LuauReader.TryRead<T>(source, out var value, out ReadFailure failure)
+            ? value
+            : throw failure.ToException($"result #{index}");
+    }
+
     /// <summary>
     /// Resolves stack metadata for a parameter index.
     /// </summary>

@@ -209,8 +209,8 @@ public sealed class ReferenceOwnershipTests : IDisposable
     {
         ulong baseline = ActiveReferences;
 
-        Should.Throw<InvalidCastException>(() => _state.Load("return {}, 'text'").Execute<LuauTable, int>());
-        Should.Throw<InvalidCastException>(() =>
+        Should.Throw<LuaGetException>(() => _state.Load("return {}, 'text'").Execute<LuauTable, int>());
+        Should.Throw<LuaGetException>(() =>
             _state.Load("return {}, {}, {}, 'text'").Execute<LuauTable, LuauTable, LuauTable, int>()
         );
 
@@ -229,12 +229,13 @@ public sealed class ReferenceOwnershipTests : IDisposable
     }
 
     [Fact]
-    public void DisposedLuauValue_ShouldNotBeCopied()
+    public void DisposedLuauValue_ShouldThrowWhenItIsRead()
     {
         LuauValue value = _state.CreateTable().DisposeAndToLuauValue();
         value.Dispose();
 
-        value.TryGet(out LuauValue _).ShouldBeFalse();
+        Should.Throw<ObjectDisposedException>(() => value.TryGet(out LuauValue _));
+        Should.Throw<ObjectDisposedException>(() => value.Get<LuauTable>());
     }
 
     [Fact]

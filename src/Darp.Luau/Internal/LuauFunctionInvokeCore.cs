@@ -172,21 +172,21 @@ internal static unsafe class LuauFunctionInvokeCore
     /// <summary> Ignores all results. Used where no result is requested. </summary>
     public static bool IgnoreResults(LuauArgs a) => false;
 
-    public static TR ResultSelector<TR>(LuauArgs a) => a.Read<TR>(1);
+    public static TR ResultSelector<TR>(LuauArgs a) => a.ReadResult<TR>(1);
 
     // A result that was read holds a reference when it is a table, function or other reference type. When a later
     // result cannot be read, the caller gets none of them, so the ones already read are released here.
 
     public static (TR1, TR2) ResultSelector<TR1, TR2>(LuauArgs a)
     {
-        TR1 result1 = a.Read<TR1>(1);
+        TR1 result1 = a.ReadResult<TR1>(1);
         try
         {
-            return (result1, a.Read<TR2>(2));
+            return (result1, a.ReadResult<TR2>(2));
         }
         catch
         {
-            Release(result1);
+            LuauReader.Release(result1);
             throw;
         }
     }
@@ -196,12 +196,12 @@ internal static unsafe class LuauFunctionInvokeCore
         (TR1 result1, TR2 result2) = ResultSelector<TR1, TR2>(a);
         try
         {
-            return (result1, result2, a.Read<TR3>(3));
+            return (result1, result2, a.ReadResult<TR3>(3));
         }
         catch
         {
-            Release(result1);
-            Release(result2);
+            LuauReader.Release(result1);
+            LuauReader.Release(result2);
             throw;
         }
     }
@@ -211,13 +211,13 @@ internal static unsafe class LuauFunctionInvokeCore
         (TR1 result1, TR2 result2, TR3 result3) = ResultSelector<TR1, TR2, TR3>(a);
         try
         {
-            return (result1, result2, result3, a.Read<TR4>(4));
+            return (result1, result2, result3, a.ReadResult<TR4>(4));
         }
         catch
         {
-            Release(result1);
-            Release(result2);
-            Release(result3);
+            LuauReader.Release(result1);
+            LuauReader.Release(result2);
+            LuauReader.Release(result3);
             throw;
         }
     }
@@ -243,11 +243,5 @@ internal static unsafe class LuauFunctionInvokeCore
         }
 
         return values;
-    }
-
-    private static void Release<T>(T result)
-    {
-        if (result is IDisposable disposable)
-            disposable.Dispose();
     }
 }

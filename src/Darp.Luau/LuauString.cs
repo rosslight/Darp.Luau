@@ -24,7 +24,7 @@ public readonly struct LuauString : ILuauReference
     [Obsolete("Do not initialize the LuauString. Create using the LuauState instead", true)]
     public LuauString() { }
 
-    internal LuauString(LuauState state, ulong handle)
+    internal LuauString(LuauState? state, ulong handle)
     {
         _state = state;
         _handle = handle;

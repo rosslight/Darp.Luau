@@ -65,7 +65,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public TR Resume<TR>(params RefEnumerable<IntoLuau> args) =>
         ResumeCore(args, LuauFunctionInvokeCore.ResultSelector<TR>);
 
@@ -77,7 +77,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2) Resume<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         ResumeCore(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
 
@@ -90,7 +90,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2, TR3) Resume<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         ResumeCore(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
 
@@ -104,7 +104,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public (TR1, TR2, TR3, TR4) Resume<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         ResumeCore(args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>);
 
@@ -156,7 +156,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public ValueTask<TR> ResumeAsync<TR>(params RefEnumerable<IntoLuau> args) =>
         ResumeAsync<TR>(args, CancellationToken.None);
 
@@ -185,7 +185,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2)> ResumeAsync<TR1, TR2>(params RefEnumerable<IntoLuau> args) =>
         ResumeAsync<TR1, TR2>(args, CancellationToken.None);
 
@@ -217,7 +217,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3)> ResumeAsync<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args) =>
         ResumeAsync<TR1, TR2, TR3>(args, CancellationToken.None);
 
@@ -250,7 +250,7 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the coroutine is not <see cref="LuauCoroutineStatus.Suspended"/>.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports an error inside the coroutine.</exception>
-    /// <exception cref="InvalidCastException">Thrown when a value cannot be converted to the requested managed type.</exception>
+    /// <exception cref="LuaGetException">Thrown when a value cannot be converted to the requested managed type.</exception>
     public ValueTask<(TR1, TR2, TR3, TR4)> ResumeAsync<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args) =>
         ResumeAsync<TR1, TR2, TR3, TR4>(args, CancellationToken.None);
 
