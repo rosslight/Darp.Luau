@@ -102,6 +102,44 @@ public sealed class UserdataIdentityCacheTests : IDisposable
     }
 
     [Fact]
+    public void Cache_AfterManyShortLivedInstances_ShouldNotKeepLuauMemory()
+    {
+        _state.CollectGarbage();
+        int before = _state.GetLuauKilobytes();
+
+        for (int i = 0; i < 200_000; i++)
+        {
+            using LuauUserdata userdata = _state.GetOrCreateUserdata(new ValueUserdata());
+        }
+
+        // Luau has to collect them while they are created, not only when it is asked to: unreclaimed, they
+        // would be about ten megabytes by now.
+        (_state.GetLuauKilobytes() - before).ShouldBeLessThan(1024);
+        _state.CollectGarbage();
+        // Sixteen bytes for every instance ever pushed would be more than three megabytes here.
+        (_state.GetLuauKilobytes() - before).ShouldBeLessThan(256);
+    }
+
+    [Fact]
+    public void Cache_WhenTheUserdataOfAnInstanceWasCollected_ShouldNotGiveItTheUserdataOfAnother()
+    {
+        var first = new ValueUserdata { Value = 1 };
+        _state.GetOrCreateUserdata(first).Dispose();
+        _state.CollectGarbage();
+        // Whatever the cache remembered for the first instance may belong to these by now.
+        var others = new List<LuauUserdata>();
+        for (int i = 0; i < 64; i++)
+            others.Add(_state.GetOrCreateUserdata(new ValueUserdata { Value = 100 + i }));
+
+        using LuauUserdata again = _state.GetOrCreateUserdata(first);
+
+        again.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
+        resolved.ShouldBeSameAs(first);
+        foreach (LuauUserdata other in others)
+            other.Dispose();
+    }
+
+    [Fact]
     public void Cache_ShouldStayStableUnderRepeatedLookups()
     {
         var value = new ValueUserdata();
