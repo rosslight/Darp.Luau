@@ -19,16 +19,18 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
       - name: Test
+        # Without filters coverlet leaves out every assembly the test process has loaded already, Darp.Luau among them
         run: |
-          dotnet test --no-build --verbosity normal \
-            --collect:"XPlat Code Coverage;Format=cobertura" \
-            --results-directory ./coverage-results
+          dotnet test --no-build --no-progress --results-directory ./coverage-results \
+            --coverlet --coverlet-output-format cobertura \
+            --coverlet-include "[Darp.Luau]*" --coverlet-include "[Darp.Luau.Generator]*" \
+            --coverlet-exclude "[*.Tests]*"
 
       - name: Attach code-coverage comment
         uses: rosslight/pr-code-coverage-visualizer@v2.2.0
         with:
           files: |
-            coverage-results/**/coverage.cobertura.xml
+            coverage-results/coverage.cobertura.*.xml
           update-comment: true
           show-changed-lines-only: true
 
@@ -85,7 +87,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
       - name: Test generators
-        run: dotnet test tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --verbosity normal
+        run: dotnet test --project tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --no-progress
       - name: Publish runtime tests with Native AOT
         run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests /warnaserror
       - name: Test Native AOT
