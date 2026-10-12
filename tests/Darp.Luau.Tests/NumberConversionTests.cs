@@ -181,7 +181,7 @@ public sealed class NumberConversionTests : IDisposable
             )
             .Execute<bool, string>();
         ok.ShouldBeFalse();
-        error.ShouldContain("Parameter 1 must be a number that fits Int32 but was 1.5.");
+        error.ShouldBe("invalid argument #1 (number that fits Int32 expected, got 1.5)");
         (ok, error) = _state
             .Load(
                 """
@@ -191,7 +191,7 @@ public sealed class NumberConversionTests : IDisposable
             )
             .Execute<bool, string>();
         ok.ShouldBeFalse();
-        error.ShouldContain("Parameter 2 must be a number that fits Byte but was -1.");
+        error.ShouldBe("invalid argument #2 (number that fits Byte expected, got -1)");
         called.ShouldBeFalse();
 
         _state.Load("return take(40, 2)").Execute<int>().ShouldBe(42);

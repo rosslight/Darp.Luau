@@ -41,10 +41,8 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
         LuauState state = CreateState(LuauLibraries.None);
         using LuauFunction add = state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadNumber(1, out int a, out string? error))
-                return LuauReturn.Error(error);
-            if (!args.TryReadNumber(2, out int b, out error))
-                return LuauReturn.Error(error);
+            int a = args[1].Get<int>();
+            int b = args[2].Get<int>();
             return LuauReturn.Ok(a + b);
         });
         state.Globals.Set("add", add);
@@ -113,10 +111,8 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
             {
                 using LuauFunction add = lua.CreateFunctionManual(static args =>
                 {
-                    if (!args.TryReadNumber(1, out int a, out string? error))
-                        return LuauReturn.Error(error);
-                    if (!args.TryReadNumber(2, out int b, out error))
-                        return LuauReturn.Error(error);
+                    int a = args[1].Get<int>();
+                    int b = args[2].Get<int>();
                     return LuauReturn.Ok(a + b);
                 });
                 module.Set("add", add);
@@ -141,10 +137,8 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
 
                 using LuauFunction add = state.CreateFunctionManual(static args =>
                 {
-                    if (!args.TryReadNumber(1, out int a, out string? error))
-                        return LuauReturn.Error(error);
-                    if (!args.TryReadNumber(2, out int b, out error))
-                        return LuauReturn.Error(error);
+                    int a = args[1].Get<int>();
+                    int b = args[2].Get<int>();
                     return LuauReturn.Ok(a + b);
                 });
                 module.Set("add", add);

@@ -10,44 +10,30 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
         registry.TypeName = "Vec2";
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Add, static args =>
         {
-            if (args.IsUserdata<global::Vec2>(1) && args.IsUserdata<global::Vec2>(2))
+            if (args[1].TryGet<global::Vec2>(out _) && args[2].TryGet<global::Vec2>(out _))
             {
-                if (!args.TryValidateArgumentCount(2, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 2, out global::Vec2? a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                global::Vec2 a2 = args[2].Get<global::Vec2>();
                 var returns = (a1 + a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (add) on {args.GetTypeName(1)} and {args.GetTypeName(2)}");
+            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (add) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Call, static args =>
         {
-            if (args.ArgumentCount == 2 && args.IsUserdata<global::Vec2>(1) && args.IsUserdata<global::Vec2>(2))
+            if (args.Count == 2 && args[1].TryGet<global::Vec2>(out _) && args[2].TryGet<global::Vec2>(out _))
             {
-                if (!args.TryValidateArgumentCount(2, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 2, out global::Vec2? a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                global::Vec2 a2 = args[2].Get<global::Vec2>();
                 var returns = a1.Dot(a2);
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             }
-            if (args.ArgumentCount == 3 && args.IsUserdata<global::Vec2>(1) && args.GetValueType(2) is global::Darp.Luau.LuauValueType.Number && (args.GetValueType(3) is global::Darp.Luau.LuauValueType.String || args.GetValueType(3) is global::Darp.Luau.LuauValueType.Nil))
+            if (args.Count == 3 && args[1].TryGet<global::Vec2>(out _) && args[2].Type is global::Darp.Luau.LuauValueType.Number && (args[3].Type is global::Darp.Luau.LuauValueType.String || args[3].Type is global::Darp.Luau.LuauValueType.Nil))
             {
-                if (!args.TryValidateArgumentCount(3, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadNumber(parameterIndex: 2, out double a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUtf8StringOrNil(parameterIndex: 3, out global::System.ReadOnlySpan<byte> a3Raw, out bool a3IsNil, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                string? a3 = a3IsNil ? null : global::System.Text.Encoding.UTF8.GetString(a3Raw);
-                if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                double a2 = args[2].Get<double>();
+                string? a3 = args[3].GetOrNull<string>();
+                if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 return awaiter.Await(
                     new global::System.Threading.Tasks.ValueTask<double>(a1.ScaledSumAsync(a2, a3, args.CancellationToken)),
@@ -58,25 +44,17 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Eq, static args =>
         {
-            if (!args.TryValidateArgumentCount(2, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 2, out global::Vec2? a2, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Vec2 a1 = args[1].Get<global::Vec2>();
+            global::Vec2 a2 = args[2].Get<global::Vec2>();
             var returns = a1.SameAs(a2);
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Index, static args =>
         {
-            if (args.IsUserdata<global::Vec2>(1) && args.GetValueType(2) is global::Darp.Luau.LuauValueType.Number)
+            if (args[1].TryGet<global::Vec2>(out _) && args[2].Type is global::Darp.Luau.LuauValueType.Number)
             {
-                if (!args.TryValidateArgumentCount(2, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadNumber(parameterIndex: 2, out int a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                int a2 = args[2].Get<int>();
                 var returns = a1.Component(a2);
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             }
@@ -84,53 +62,36 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Len, static args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Vec2 a1 = args[1].Get<global::Vec2>();
             var returns = a1.Count();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Mul, static args =>
         {
-            if (args.IsUserdata<global::Vec2>(1) && args.GetValueType(2) is global::Darp.Luau.LuauValueType.Number)
+            if (args[1].TryGet<global::Vec2>(out _) && args[2].Type is global::Darp.Luau.LuauValueType.Number)
             {
-                if (!args.TryValidateArgumentCount(2, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadNumber(parameterIndex: 2, out double a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                double a2 = args[2].Get<double>();
                 var returns = a1.Scale(a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            if (args.GetValueType(1) is global::Darp.Luau.LuauValueType.Number && args.IsUserdata<global::Vec2>(2))
+            if (args[1].Type is global::Darp.Luau.LuauValueType.Number && args[2].TryGet<global::Vec2>(out _))
             {
-                if (!args.TryValidateArgumentCount(2, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadNumber(parameterIndex: 1, out double a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 2, out global::Vec2? a2, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                double a1 = args[1].Get<double>();
+                global::Vec2 a2 = args[2].Get<global::Vec2>();
                 var returns = global::Vec2.Scale(a1, a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (mul) on {args.GetTypeName(1)} and {args.GetTypeName(2)}");
+            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.NewIndex, static args =>
         {
-            if (!args.TryValidateArgumentCount(3, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             global::Darp.Luau.LuauValue a3 = default;
             try
             {
-                if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                if (!args.TryReadUtf8String(parameterIndex: 2, out global::System.ReadOnlySpan<byte> a2Raw, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                string a2 = global::System.Text.Encoding.UTF8.GetString(a2Raw);
-                if (!args.TryReadLuauValue(parameterIndex: 3, out a3, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Vec2 a1 = args[1].Get<global::Vec2>();
+                string a2 = args[2].Get<string>();
+                a3 = args[3].Get<global::Darp.Luau.LuauValue>();
                 a1.Reject(a2, a3);
                 return global::Darp.Luau.LuauReturn.Ok();
             }
@@ -141,19 +102,13 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.ToString, static args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Vec2 a1 = args[1].Get<global::Vec2>();
             var returns = a1.Describe();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Unm, static args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::Vec2>(parameterIndex: 1, out global::Vec2? a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Vec2 a1 = args[1].Get<global::Vec2>();
             var returns = (-a1);
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
         });

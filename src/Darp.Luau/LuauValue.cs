@@ -216,6 +216,22 @@ public readonly struct LuauValue : IDisposable
         }
     }
 
+    internal static LuauValueType GetValueType(lua_Type type) =>
+        type switch
+        {
+            lua_Type.LUA_TNIL => LuauValueType.Nil,
+            lua_Type.LUA_TBOOLEAN => LuauValueType.Boolean,
+            lua_Type.LUA_TNUMBER => LuauValueType.Number,
+            lua_Type.LUA_TSTRING => LuauValueType.String,
+            lua_Type.LUA_TTABLE => LuauValueType.Table,
+            lua_Type.LUA_TFUNCTION => LuauValueType.Function,
+            lua_Type.LUA_TTHREAD => LuauValueType.Thread,
+            lua_Type.LUA_TUSERDATA => LuauValueType.Userdata,
+            lua_Type.LUA_TVECTOR => LuauValueType.Vector,
+            lua_Type.LUA_TBUFFER => LuauValueType.Buffer,
+            _ => throw new NotSupportedException($"The lua type {type} is not supported!"),
+        };
+
     private static lua_Type GetLuaType(LuauValueType type) =>
         type switch
         {
@@ -288,7 +304,7 @@ public readonly struct LuauValue : IDisposable
     }
 
     /// <summary> Reads <paramref name="source"/> as a value, with a reference of its own when it is reference-backed. </summary>
-    internal static bool TryRead(in ReadSource source, out LuauValue value, out ReadFailure failure)
+    internal static bool TryRead(scoped in ReadSource source, out LuauValue value, out ReadFailure failure)
     {
         failure = default;
         if (source.IsNil)
@@ -330,7 +346,7 @@ public readonly struct LuauValue : IDisposable
         }
     }
 
-    private static LuauValue Own(in ReadSource source, LuauValueType type) =>
+    private static LuauValue Own(scoped in ReadSource source, LuauValueType type) =>
         new(source.State, type, new LuauValueUnion(LuauReader.Own(source)));
 
     /// <summary>

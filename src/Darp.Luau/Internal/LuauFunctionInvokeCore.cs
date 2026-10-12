@@ -224,15 +224,11 @@ internal static unsafe class LuauFunctionInvokeCore
 
     public static LuauValue[] ResultSelectorMulti(LuauArgs a)
     {
-        var values = new LuauValue[a.ArgumentCount];
+        var values = new LuauValue[a.Count];
         try
         {
             for (int i = 1; i <= values.Length; i++)
-            {
-                if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
-                    throw new ArgumentOutOfRangeException(nameof(a), error);
-                values[i - 1] = value;
-            }
+                values[i - 1] = a.ReadResult<LuauValue>(i);
         }
         catch
         {

@@ -44,7 +44,7 @@ internal sealed class UserdataSetter<T>(string name, LuauSetter<T> setter) : Use
         if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out string? error, valueLabel: "self"))
             return LuauStateMarshal.ReturnError(L, error);
 
-        var value = new LuauArgsSingle(new LuauArgs(state, L, argumentCount: 1, firstParameterStackIndex: 3));
+        var value = new LuauValueView(state, L, stackIndex: 3, position: 0);
         return _setter(self, value).TryGetError(out error)
             ? LuauStateMarshal.ReturnError(L, error)
             : LuauStateMarshal.ReturnSuccess(L, 0);

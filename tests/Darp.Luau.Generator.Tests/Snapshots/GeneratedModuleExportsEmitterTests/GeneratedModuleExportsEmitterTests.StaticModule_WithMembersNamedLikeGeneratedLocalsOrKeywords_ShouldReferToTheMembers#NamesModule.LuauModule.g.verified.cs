@@ -12,10 +12,7 @@ public static partial class NamesModule
     {
         using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out int a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            int a1 = args[1].Get<int>();
             var returns = global::NamesModule.@return(a1);
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

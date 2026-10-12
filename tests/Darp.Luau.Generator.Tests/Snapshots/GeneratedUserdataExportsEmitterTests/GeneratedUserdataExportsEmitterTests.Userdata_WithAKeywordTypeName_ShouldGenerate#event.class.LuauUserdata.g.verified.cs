@@ -11,11 +11,9 @@ namespace @event
         {
             registry.TypeName = "class";
             registry.AddGetter("level", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Level));
-            registry.AddSetter("level", static (self, args) =>
+            registry.AddSetter("level", static (self, value) =>
             {
-                if (!args.TryReadNumber(out int value, out string? error))
-                    return global::Darp.Luau.LuauOutcome.Error(error);
-                self.Level = value;
+                self.Level = value.Get<int>();
                 return global::Darp.Luau.LuauOutcome.Ok();
             });
         }

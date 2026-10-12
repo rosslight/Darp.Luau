@@ -12,24 +12,18 @@ public sealed partial class RecoverableModule : global::Darp.Luau.ILuauModule<gl
     {
         using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = this.CreateField();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         module.Set("Field", __var0);
         using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = this.DuplicateOne();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         module.Set("duplicate", __var1);
         using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = this.Ok();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

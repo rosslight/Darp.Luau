@@ -15,13 +15,10 @@ file static class CreateFunctionInterceptors
 
         global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             global::Darp.Luau.LuauValue a1 = default;
             try
             {
-                if (!args.TryReadLuauValue(parameterIndex: 1, out a1, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                a1 = args[1].Get<global::Darp.Luau.LuauValue>();
                 var returns = onLuaCall(a1);
                 try
                 {

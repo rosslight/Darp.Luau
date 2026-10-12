@@ -247,20 +247,15 @@ internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
         registry.AddGetter("score", static (self, _) => LuauReturnSingle.Ok(self.Score));
         registry.AddSetter("score", static (self, value) =>
         {
-            if (!value.TryReadNumber(out int score, out string? error))
-                return LuauOutcome.Error(error);
-
-            self.Score = score;
+            self.Score = value.Get<int>();
             return LuauOutcome.Ok();
         });
         registry.AddMethod("add", static (self, args) =>
         {
-            if (args.ArgumentCount != 1)
+            if (args.Count != 1)
                 return LuauReturn.Error("Expected exactly 1 argument.");
-            if (!args.TryReadNumber(1, out int amount, out string? error))
-                return LuauReturn.Error(error);
 
-            self.Score += amount;
+            self.Score += args[1].Get<int>();
             return LuauReturn.Ok(self.Score);
         });
     }
@@ -272,7 +267,7 @@ internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
 | Registry method | Luau syntax | The callback receives |
 | --- | --- | --- |
 | `AddGetter` | `player.name` | the instance and the `LuauState` |
-| `AddSetter` | `player.score = 10` | the instance and the assigned value as `LuauArgsSingle` |
+| `AddSetter` | `player.score = 10` | the instance and the assigned value as a `LuauValueView` |
 | `AddMethod` | `player:add(1)`, `player.add(player, 1)` | the instance and the arguments, without the instance |
 | `AddMetamethod` | operators, calls, unknown keys | the operands as Luau passes them |
 | `AddFunction` | `Player.create(...)` on the [static side](#the-static-side) | the arguments |
@@ -289,19 +284,19 @@ A metamethod receives its operands as Luau passes them, so for a binary operator
 ```csharp
 registry.AddMetamethod(LuauMetamethod.Mul, static args =>
 {
-    if (args.IsUserdata<Vec2>(1) && args.GetValueType(2) is LuauValueType.Number)
+    if (args[1].TryGet(out Vec2? vector) && args[2].TryGet(out double factor))
     {
         // vec * 2
     }
-    if (args.GetValueType(1) is LuauValueType.Number && args.IsUserdata<Vec2>(2))
+    if (args[1].TryGet(out factor) && args[2].TryGet(out vector))
     {
         // 2 * vec
     }
-    return LuauReturn.Error($"attempt to perform arithmetic (mul) on {args.GetTypeName(1)} and {args.GetTypeName(2)}");
+    return LuauReturn.Error($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
 });
 ```
 
-`GetValueType`, `IsUserdata<T>` and `GetTypeName` look at an argument without reading it.
+`TryGet` returns `false` instead of raising an error, so it chooses between the operands a metamethod can get. `Type` and `TypeName` look at an argument without reading it.
 
 ### Member names that are only known at run time
 
@@ -310,8 +305,7 @@ registry.AddMetamethod(LuauMetamethod.Mul, static args =>
 ```csharp
 registry.AddMetamethod(LuauMetamethod.Index, static args =>
 {
-    if (!args.TryReadUtf8String(2, out string? name, out string? error))
-        return LuauReturn.Error(error);
+    string name = args[2].Get<string>();
 
     LuauFunction method = args.State.CreateFunctionManual(call => LuauReturn.Ok($"called {name}"));
     return LuauReturn.Ok(method.DisposeAndToLuauValue());
@@ -374,8 +368,8 @@ Choose the read API that matches what you need:
 
 The same split exists inside callbacks:
 
-- `args.TryReadUserdata<T>(...)` reads the managed instance directly.
-- `args.TryReadLuauUserdata(...)` reads a borrowed `LuauUserdataView`.
+- `args[1].Get<T>()` reads the managed instance directly.
+- `args[1].Get<LuauUserdataView>()` reads a borrowed `LuauUserdataView`.
 
 ## Error behavior
 
@@ -403,7 +397,7 @@ Lifetime rules follow the normal owned-vs-borrowed model:
 
 - `LuauUserdata` is an owned reference; keep it in a `using` block.
 - `LuauUserdataView` is callback-scoped and temporary.
-- `LuauArgs`, `LuauArgsSingle`, and other `*View` values in userdata callbacks are also callback-scoped.
+- `LuauArgs` and the `*View` values in userdata callbacks are also callback-scoped.
 - call `ToOwned()` before storing or reusing a borrowed userdata value outside the current callback.
 
 See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownership model.

@@ -30,7 +30,7 @@ public delegate LuauReturnSingle LuauGetter<in T>(T self, LuauState state)
 /// <param name="value">The assigned value.</param>
 /// <typeparam name="T">Managed userdata type.</typeparam>
 /// <returns>Success, or an error.</returns>
-public delegate LuauOutcome LuauSetter<in T>(T self, LuauArgsSingle value)
+public delegate LuauOutcome LuauSetter<in T>(T self, LuauValueView value)
     where T : class;
 
 /// <summary> Creates a static value of a userdata type for one state. </summary>

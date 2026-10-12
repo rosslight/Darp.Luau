@@ -127,8 +127,8 @@ internal static class UserdataEmitter
     /// </summary>
     private static string? GetOperandMismatchResult(GeneratedMetamethodIr metamethod)
     {
-        const string firstType = "{args.GetTypeName(1)}";
-        const string secondType = "{args.GetTypeName(2)}";
+        const string firstType = "{args[1].TypeName}";
+        const string secondType = "{args[2].TypeName}";
         string? operation = metamethod.Name switch
         {
             "Add" => "add",
@@ -150,7 +150,7 @@ internal static class UserdataEmitter
             "Concat" => $"{LuauReturn}.Error($\"attempt to concatenate {firstType} with {secondType}\")",
             "Index" => $"{LuauReturn}.Ok()",
             "NewIndex" when metamethod.Overloads.Length > 1 =>
-                $"{LuauReturn}.Error($\"attempt to set a userdata member with a {secondType} key and a {{args.GetTypeName(3)}} value\")",
+                $"{LuauReturn}.Error($\"attempt to set a userdata member with a {secondType} key and a {{args[3].TypeName}} value\")",
             _ when metamethod.Overloads.Length > 1 =>
                 $"{LuauReturn}.Error(\"no overload of the metamethod accepts these arguments\")",
             _ => null,
@@ -174,25 +174,25 @@ internal static class UserdataEmitter
             index++;
             string? check = operand.Type switch
             {
-                LuauInteropKind.ManagedUserdata => $"args.IsUserdata<{operand.OriginalTypeName}>({index})",
-                LuauInteropKind.Boolean => $"args.GetValueType({index}) is {valueType}.Boolean",
-                LuauInteropKind.LuauTableView => $"args.GetValueType({index}) is {valueType}.Table",
-                LuauInteropKind.LuauFunctionView => $"args.GetValueType({index}) is {valueType}.Function",
-                LuauInteropKind.LuauBufferView => $"args.GetValueType({index}) is {valueType}.Buffer",
-                LuauInteropKind.LuauUserdataView => $"args.GetValueType({index}) is {valueType}.Userdata",
-                _ when MetamethodAnalyzer.IsNumber(operand.Type) => $"args.GetValueType({index}) is {valueType}.Number",
-                _ when MetamethodAnalyzer.IsString(operand.Type) => $"args.GetValueType({index}) is {valueType}.String",
+                LuauInteropKind.ManagedUserdata => $"args[{index}].TryGet<{operand.OriginalTypeName}>(out _)",
+                LuauInteropKind.Boolean => $"args[{index}].Type is {valueType}.Boolean",
+                LuauInteropKind.LuauTableView => $"args[{index}].Type is {valueType}.Table",
+                LuauInteropKind.LuauFunctionView => $"args[{index}].Type is {valueType}.Function",
+                LuauInteropKind.LuauBufferView => $"args[{index}].Type is {valueType}.Buffer",
+                LuauInteropKind.LuauUserdataView => $"args[{index}].Type is {valueType}.Userdata",
+                _ when MetamethodAnalyzer.IsNumber(operand.Type) => $"args[{index}].Type is {valueType}.Number",
+                _ when MetamethodAnalyzer.IsString(operand.Type) => $"args[{index}].Type is {valueType}.String",
                 _ => null,
             };
             if (check is null)
                 continue;
 
-            checks.Add(operand.IsNullable ? $"({check} || args.GetValueType({index}) is {valueType}.Nil)" : check);
+            checks.Add(operand.IsNullable ? $"({check} || args[{index}].Type is {valueType}.Nil)" : check);
         }
 
         // Luau passes a fixed number of operands to every metamethod but a call.
         if (metamethod.Name == "Call")
-            checks.Insert(0, $"args.ArgumentCount == {index}");
+            checks.Insert(0, $"args.Count == {index}");
         return string.Join(" && ", checks);
     }
 
@@ -229,11 +229,12 @@ internal static class UserdataEmitter
         if (property.Setter is null)
             return;
 
-        writer.WriteLine($"registry.AddSetter({keyLiteral}, static (self, args) =>");
+        writer.WriteLine($"registry.AddSetter({keyLiteral}, static (self, value) =>");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteMultiLine(LuauMarshalEmitter.GenerateSingleArgumentRead("value", property.Setter.Type));
-        writer.WriteLine($"self.{property.ManagedName} = value;");
+        writer.WriteLine(
+            $"self.{property.ManagedName} = {LuauMarshalEmitter.FormatRead("value", property.Setter.Type)};"
+        );
         writer.WriteLine($"return {LuauOutcome}.Ok();");
         writer.Indent--;
         writer.WriteLine("});");

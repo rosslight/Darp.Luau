@@ -17,7 +17,7 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         LuauFunction function = _state.CreateFunctionManual(args =>
         {
-            double value = args.ArgumentCount > 0 && args.TryReadNumber(1, out double number, out _) ? number : 0;
+            double value = args[1].TryGet(out double number) ? number : 0;
             if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
                 return LuauReturn.Error(error);
             _startedWorkCount++;
@@ -160,8 +160,7 @@ public sealed class AsyncFunctionTests : IDisposable
         );
         using LuauFunction readToken = _state.CreateFunctionManual(args =>
         {
-            args.TryReadNumber(1, out double index, out _).ShouldBeTrue();
-            observedTokens[(int)index] = args.CancellationToken;
+            observedTokens[args[1].Get<int>()] = args.CancellationToken;
             return LuauReturn.Ok();
         });
         _state.Globals.Set("read_token", readToken);
@@ -395,9 +394,8 @@ public sealed class AsyncFunctionTests : IDisposable
         LuauState state = _state;
         using LuauFunction callLater = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView callbackView, out string? error))
-                return LuauReturn.Error(error);
-            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+            LuauFunctionView callbackView = args[1].Get<LuauFunctionView>();
+            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
                 return LuauReturn.Error(error);
             return awaiter.Await(CallLater(state, callbackView.ToOwned(), gate.Task));
 
@@ -860,8 +858,7 @@ public sealed class AsyncFunctionTests : IDisposable
                 "wait",
                 static (self, args) =>
                 {
-                    double value =
-                        args.ArgumentCount > 0 && args.TryReadNumber(1, out double number, out _) ? number : 0;
+                    double value = args[1].TryGet(out double number) ? number : 0;
                     if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
                         return LuauReturn.Error(error);
                     return awaiter.Await(self._work(value, args.CancellationToken));

@@ -13,24 +13,15 @@ public static partial class GuildModule
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
         using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
+            string a1 = args[1].Get<string>();
             var returns = global::GuildModule.CreateHero(a1);
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
         });
         __var0.Set("create", __var1);
         using global::Darp.Luau.LuauFunction __var2 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(2, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUserdata<global::HeroCard>(parameterIndex: 1, out global::HeroCard? a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUtf8String(parameterIndex: 2, out global::System.ReadOnlySpan<byte> a2Raw, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            string a2 = global::System.Text.Encoding.UTF8.GetString(a2Raw);
+            global::HeroCard a1 = args[1].Get<global::HeroCard>();
+            string a2 = args[2].Get<string>();
             global::GuildModule.RenameHero(a1, a2);
             return global::Darp.Luau.LuauReturn.Ok();
         });

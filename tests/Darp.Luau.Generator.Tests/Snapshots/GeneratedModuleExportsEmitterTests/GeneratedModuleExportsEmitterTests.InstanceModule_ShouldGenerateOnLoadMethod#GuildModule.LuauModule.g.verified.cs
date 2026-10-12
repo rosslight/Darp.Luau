@@ -13,11 +13,7 @@ public sealed partial class GuildModule : global::Darp.Luau.ILuauModule<global::
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
         using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
+            string a1 = args[1].Get<string>();
             var returns = this.CreateHero(a1);
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
         });

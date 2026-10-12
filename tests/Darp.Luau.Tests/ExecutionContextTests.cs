@@ -17,11 +17,9 @@ public sealed class ExecutionContextTests : IDisposable
         LuauState state = _state;
         using LuauFunction touch = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView callbackView, out string? error))
-                return LuauReturn.Error(error);
-            if (!args.TryReadNumber(2, out int value, out error))
-                return LuauReturn.Error(error);
-            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+            LuauFunctionView callbackView = args[1].Get<LuauFunctionView>();
+            int value = args[2].Get<int>();
+            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
                 return LuauReturn.Error(error);
             return awaiter.Await(TouchAsync(state, callbackView.ToOwned(), value));
 
@@ -59,8 +57,7 @@ public sealed class ExecutionContextTests : IDisposable
         LuauState state = _state;
         using LuauFunction delayed = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryReadNumber(1, out int value, out string? error))
-                return LuauReturn.Error(error);
+            int value = args[1].Get<int>();
             return args.AwaitOrError(() => DelayedAsync(state, value));
 
             static async ValueTask<LuauReturn> DelayedAsync(LuauState state, int value)
@@ -164,10 +161,10 @@ public sealed class ExecutionContextTests : IDisposable
     public async Task NestedCalls_FromCallbacksAndTheirContinuations_ShouldWork()
     {
         using LuauFunction echo = _state.CreateFunctionManual(args =>
-            args.TryReadNumber(1, out int value, out string? error)
-                ? args.AwaitOrError(() => EchoAsync(value))
-                : LuauReturn.Error(error)
-        );
+        {
+            int value = args[1].Get<int>();
+            return args.AwaitOrError(() => EchoAsync(value));
+        });
         _state.Globals.Set("echo", echo);
         using LuauFunction inner = _state.Load("return function(x) return echo(x) + 1 end").Execute<LuauFunction>();
         using LuauFunction outer = _state.CreateFunctionManual(args => args.AwaitOrError(() => OuterAsync(inner)));

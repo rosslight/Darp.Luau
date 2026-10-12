@@ -63,8 +63,15 @@ internal static class LuauStateMarshal
         ReturnError(state, FormatCallbackException(exception, callbackName));
 
     /// <summary> Formats an exception thrown by a managed callback as the Luau error message the script receives. </summary>
+    /// <remarks>
+    /// A value the callback could not read is an error of the script, not of the callback: its message is the Luau
+    /// error as it is, such as <c>invalid argument #1 (number expected, got string)</c>.
+    /// </remarks>
     public static string FormatCallbackException(Exception exception, string callbackName = "managed function")
     {
+        if (exception is LuaGetException)
+            return exception.Message;
+
         string message;
         try
         {

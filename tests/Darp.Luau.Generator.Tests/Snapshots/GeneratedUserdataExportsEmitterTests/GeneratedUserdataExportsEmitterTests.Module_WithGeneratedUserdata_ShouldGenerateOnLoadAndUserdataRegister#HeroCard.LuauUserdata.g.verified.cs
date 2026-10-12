@@ -9,11 +9,9 @@ public sealed partial class HeroCard : global::Darp.Luau.ILuauUserdata<global::H
     {
         registry.TypeName = "HeroCard";
         registry.AddGetter("name", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Name));
-        registry.AddSetter("name", static (self, args) =>
+        registry.AddSetter("name", static (self, value) =>
         {
-            if (!args.TryReadUtf8String(out string? value, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            self.Name = value;
+            self.Name = value.Get<string>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
     }

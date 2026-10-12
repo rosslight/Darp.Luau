@@ -154,13 +154,12 @@ public sealed class CoroutineTests : IDisposable
     }
 
     [Fact]
-    public void TryReadLuauCoroutine_ToOwned_ShouldOutliveTheCallback()
+    public void CoroutineArgument_ToOwned_ShouldOutliveTheCallback()
     {
         LuauCoroutine stored = default;
         using LuauFunction store = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryReadLuauCoroutine(1, out LuauCoroutineView view, out string? error))
-                return LuauReturn.Error(error);
+            LuauCoroutineView view = args[1].Get<LuauCoroutineView>();
             stored = view.ToOwned();
             return LuauReturn.Ok();
         });
@@ -175,20 +174,18 @@ public sealed class CoroutineTests : IDisposable
     }
 
     [Fact]
-    public void TryReadLuauCoroutine_WithAFunction_ShouldFail()
+    public void CoroutineArgument_WithAFunction_ShouldFail()
     {
-        string? readError = null;
         using LuauFunction read = _state.CreateFunctionManual(args =>
         {
-            _ = args.TryReadLuauCoroutine(1, out _, out readError);
+            _ = args[1].Get<LuauCoroutineView>();
             return LuauReturn.Ok();
         });
         _state.Globals.Set("read", read);
 
-        _state.Load("read(print)").Execute();
+        LuaException exception = Should.Throw<LuaException>(() => _state.Load("read(print)").Execute());
 
-        readError.ShouldNotBeNull();
-        readError.ShouldContain("LUA_TTHREAD");
+        exception.Message.ShouldContain("invalid argument #1 (thread expected, got function)");
     }
 
     [Fact]

@@ -81,10 +81,8 @@ Use `CreateFunctionManual(...)` when you need manual argument parsing, explicit 
 ```csharp
 using LuauFunction pair = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryValidateArgumentCount(2, out string? error))
-        return LuauReturn.Error(error);
-    if (!args.TryReadNumber(1, out int a, out error) || !args.TryReadNumber(2, out int b, out error))
-        return LuauReturn.Error(error);
+    int a = args[1].Get<int>();
+    int b = args[2].Get<int>();
     if (a <= b)
         return LuauReturn.Error("Expected a to be greater than b");
 

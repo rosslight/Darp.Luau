@@ -8,12 +8,11 @@ public sealed class LuauArgsUserdataTests : IDisposable
     private readonly LuauState _state = new();
 
     [Fact]
-    public void Args_TryReadUserdata_ShouldResolveManagedInstance()
+    public void Args_Get_ShouldResolveManagedInstance()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdata(1, out ValueUserdata? value, out string? error))
-                return LuauReturn.Error(error);
+            ValueUserdata value = args[1].Get<ValueUserdata>();
             return LuauReturn.Ok(value.Value);
         });
         _state.Globals.Set("input", new ValueUserdata { Value = 42 });
@@ -25,12 +24,11 @@ public sealed class LuauArgsUserdataTests : IDisposable
     }
 
     [Fact]
-    public void Args_TryReadUserdata_WhenTypeMismatches_ShouldFail()
+    public void Args_Get_WhenTypeMismatches_ShouldFail()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdata<ValueUserdata>(1, out _, out string? error))
-                return LuauReturn.Error(error);
+            _ = args[1].Get<ValueUserdata>();
             return LuauReturn.Ok();
         });
         _state.Globals.Set("input", new OtherValueUserdata());
@@ -49,16 +47,15 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
         _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("must be userdata of type");
+        err.ShouldBe("invalid argument #1 (ValueUserdata expected, got userdata)");
     }
 
     [Fact]
-    public void Args_TryReadUserdata_WhenValueIsNotUserdata_ShouldFail()
+    public void Args_Get_WhenValueIsNotUserdata_ShouldFail()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdata<ValueUserdata>(1, out _, out string? error))
-                return LuauReturn.Error(error);
+            _ = args[1].Get<ValueUserdata>();
             return LuauReturn.Ok();
         });
         _state.Globals.Set("input", 12);
@@ -77,16 +74,15 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
         _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("LUA_TUSERDATA");
+        err.ShouldBe("invalid argument #1 (ValueUserdata expected, got number)");
     }
 
     [Fact]
-    public void Args_TryReadUserdataOrNil_ShouldAcceptNil()
+    public void Args_GetOrNull_ShouldAcceptNil()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdataOrNil(1, out ValueUserdata? value, out string? error))
-                return LuauReturn.Error(error);
+            ValueUserdata? value = args[1].GetOrNull<ValueUserdata>();
             return LuauReturn.Ok(value is null ? "nil" : "value");
         });
         _state.Globals.Set("f", func);
@@ -97,12 +93,11 @@ public sealed class LuauArgsUserdataTests : IDisposable
     }
 
     [Fact]
-    public void Args_TryReadUserdataOrNil_ShouldAcceptUserdata()
+    public void Args_GetOrNull_ShouldAcceptUserdata()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdataOrNil(1, out ValueUserdata? value, out string? error))
-                return LuauReturn.Error(error);
+            ValueUserdata? value = args[1].GetOrNull<ValueUserdata>();
             return LuauReturn.Ok(value is null ? "nil" : "value");
         });
         _state.Globals.Set("input", new ValueUserdata());
@@ -114,13 +109,13 @@ public sealed class LuauArgsUserdataTests : IDisposable
     }
 
     [Fact]
-    public void Args_GetValueTypeAndGetTypeName_ShouldTellTheTypeOfEveryArgumentAndNilPastTheLast()
+    public void Args_TypeAndTypeName_ShouldTellTheTypeOfEveryArgumentAndNilPastTheLast()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
             var types = new List<string>();
-            for (int index = 1; index <= args.ArgumentCount + 1; index++)
-                types.Add($"{args.GetValueType(index)}={args.GetTypeName(index)}");
+            for (int index = 1; index <= args.Count + 1; index++)
+                types.Add($"{args[index].Type}={args[index].TypeName}");
             return LuauReturn.Ok(string.Join(' ', types));
         });
         using LuauBuffer bytes = _state.CreateBuffer([1]);
@@ -139,16 +134,16 @@ public sealed class LuauArgsUserdataTests : IDisposable
     }
 
     [Fact]
-    public void Args_IsUserdata_ShouldOnlyAcceptTheManagedTypeOfTheArgument()
+    public void Args_TryGet_ShouldOnlyAcceptTheManagedTypeOfTheArgument()
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
             LuauReturn.Ok(
                 string.Join(
                     ' ',
-                    args.IsUserdata<ValueUserdata>(1),
-                    args.IsUserdata<OtherValueUserdata>(1),
-                    args.IsUserdata<ValueUserdata>(2),
-                    args.IsUserdata<ValueUserdata>(3)
+                    args[1].TryGet<ValueUserdata>(out _),
+                    args[1].TryGet<OtherValueUserdata>(out _),
+                    args[2].TryGet<ValueUserdata>(out _),
+                    args[3].TryGet<ValueUserdata>(out _)
                 )
             )
         );
