@@ -7,6 +7,7 @@
       "include-component-in-tag": false,
       "package-name": "Darp.Luau",
       "release-type": "simple",
+      "bump-minor-pre-major": true,
       "extra-files": [
         {
           "type": "xml",
