@@ -341,7 +341,7 @@ public readonly struct LuauValue : IDisposable
                 return true;
             default:
                 value = default;
-                failure = new ReadFailure($"The lua type {source.Type} is not supported!", IsNotSupported: true);
+                failure = ReadFailure.NotSupported($"The lua type {source.Type} is not supported!");
                 return false;
         }
     }

@@ -92,12 +92,62 @@ internal readonly unsafe ref struct ReadSource
 }
 
 /// <summary> Why a value could not be read. </summary>
-/// <param name="Reason">What was expected and what was found, such as <c>number expected, got string</c>.</param>
-/// <param name="IsNotSupported">
-/// Whether the requested type or the value has no managed form at all. That is an error of the host, not of the value.
-/// </param>
-internal readonly record struct ReadFailure(string Reason, bool IsNotSupported)
+/// <remarks>
+/// A read that only asks whether a value has a type, like <c>TryGet</c>, fails often and never looks at the reason.
+/// The text is therefore built when it is asked for, and a failure allocates nothing.
+/// </remarks>
+internal readonly struct ReadFailure
 {
+    private enum Kind
+    {
+        Mismatch,
+        NumberDoesNotFit,
+        NotSupported,
+    }
+
+    private readonly Kind _kind;
+
+    // What was expected. For a read that is not supported: the whole message.
+    private readonly string _expected;
+
+    // The type that was found. Null for a value that was not passed.
+    private readonly string? _actual;
+    private readonly double _number;
+
+    private ReadFailure(Kind kind, string expected, string? actual = null, double number = 0)
+    {
+        _kind = kind;
+        _expected = expected;
+        _actual = actual;
+        _number = number;
+    }
+
+    /// <summary> The value has another type than was asked for. </summary>
+    /// <param name="expected">The name of the Luau type that was asked for.</param>
+    /// <param name="actual">The name of the type of the value, or null for a value that was not passed.</param>
+    public static ReadFailure Mismatch(string expected, string? actual) => new(Kind.Mismatch, expected, actual);
+
+    /// <summary> The value is a number that <paramref name="numberType"/> cannot hold. </summary>
+    public static ReadFailure NumberDoesNotFit(string numberType, double number) =>
+        new(Kind.NumberDoesNotFit, numberType, number: number);
+
+    /// <summary> The requested type, or the value, has no managed form at all. </summary>
+    public static ReadFailure NotSupported(string message) => new(Kind.NotSupported, message);
+
+    /// <summary> Whether the read is not supported at all. That is an error of the host, not of the value. </summary>
+    public bool IsNotSupported => _kind is Kind.NotSupported;
+
+    /// <summary> What was expected and what was found, such as <c>number expected, got string</c>. </summary>
+    public string Reason =>
+        _kind switch
+        {
+            Kind.Mismatch when _actual is null => $"{_expected} expected",
+            Kind.Mismatch => $"{_expected} expected, got {_actual}",
+            Kind.NumberDoesNotFit =>
+                $"number that fits {_expected} expected, got {_number.ToString(CultureInfo.InvariantCulture)}",
+            _ => _expected,
+        };
+
     /// <summary> The exception a throwing read raises. </summary>
     /// <param name="what">What was read, such as <c>result #1</c>.</param>
     public Exception ToException(string what) =>
@@ -320,30 +370,25 @@ internal static unsafe class LuauReader
     }
 
     /// <summary> The name of the type of <paramref name="source"/> as scripts see it: what <c>typeof</c> returns in Luau. </summary>
-    public static string TypeName(scoped in ReadSource source)
-    {
-        // A value on no stack has the name of its Luau type. Only a stack slot can tell what typeof makes of a userdata.
-        if (source.L is null)
+    public static string TypeName(scoped in ReadSource source) =>
+        source.Type switch
         {
-            return source.Type switch
-            {
-                lua_Type.LUA_TNIL => "nil",
-                lua_Type.LUA_TNUMBER => "number",
-                lua_Type.LUA_TBOOLEAN => "boolean",
-                lua_Type.LUA_TSTRING => "string",
-                lua_Type.LUA_TTABLE => "table",
-                lua_Type.LUA_TFUNCTION => "function",
-                lua_Type.LUA_TUSERDATA => "userdata",
-                lua_Type.LUA_TTHREAD => "thread",
-                lua_Type.LUA_TBUFFER => "buffer",
-                _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
-            };
-        }
-
-        return Encoding.UTF8.GetString(
-            MemoryMarshal.CreateReadOnlySpanFromNullTerminated(luaL_typename(source.L, source.Index))
-        );
-    }
+            lua_Type.LUA_TNIL => "nil",
+            lua_Type.LUA_TBOOLEAN => "boolean",
+            lua_Type.LUA_TNUMBER => "number",
+            lua_Type.LUA_TSTRING => "string",
+            lua_Type.LUA_TTABLE => "table",
+            lua_Type.LUA_TFUNCTION => "function",
+            lua_Type.LUA_TTHREAD => "thread",
+            lua_Type.LUA_TBUFFER => "buffer",
+            lua_Type.LUA_TVECTOR => "vector",
+            // A userdata type can have a name of its own, which only the value on a stack can tell.
+            _ when source.L is not null => Encoding.UTF8.GetString(
+                MemoryMarshal.CreateReadOnlySpanFromNullTerminated(luaL_typename(source.L, source.Index))
+            ),
+            lua_Type.LUA_TUSERDATA => "userdata",
+            _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
+        };
 
     /// <summary> Reads a number as <typeparamref name="TNumber"/>. </summary>
     /// <typeparam name="TNumber">The numeric type that holds the number.</typeparam>
@@ -475,10 +520,7 @@ internal static unsafe class LuauReader
     {
         value = default;
         // A value that was not passed has no type to name. The caller reports it as missing.
-        failure = new ReadFailure(
-            source.IsMissing ? $"{expected} expected" : $"{expected} expected, got {TypeName(source)}",
-            IsNotSupported: false
-        );
+        failure = ReadFailure.Mismatch(expected, source.IsMissing ? null : TypeName(source));
         return false;
     }
 
@@ -491,10 +533,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = new ReadFailure(
-            $"number that fits {typeof(TNumber).Name} expected, got {number.ToString(CultureInfo.InvariantCulture)}",
-            IsNotSupported: false
-        );
+        failure = ReadFailure.NumberDoesNotFit(typeof(TNumber).Name, number);
         return false;
     }
 
@@ -503,7 +542,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = new ReadFailure($"A Luau value cannot be read as {typeof(T)}.", IsNotSupported: true);
+        failure = ReadFailure.NotSupported($"A Luau value cannot be read as {typeof(T)}.");
         return false;
     }
 
