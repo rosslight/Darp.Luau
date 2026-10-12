@@ -270,6 +270,33 @@ public sealed class CallbackArgumentTests : IDisposable
     }
 
     [Fact]
+    public void TryGet_ThatFails_ShouldNotAllocate()
+    {
+        // A callback that chooses by type, like a metamethod with overloads, fails most of its reads.
+        using LuauFunction probe = _state.CreateFunctionManual(static args =>
+        {
+            _ = args[1].TryGet(out double _);
+            _ = args[1].TryGet(out string? _);
+            _ = args[1].TryGet(out OtherValueUserdata? _);
+            _ = args[2].TryGet(out ValueUserdata? _);
+            _ = args[2].TryGet(out int _);
+            _ = args[3].TryGet(out LuauTableView _);
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("probe", probe);
+        _state.Globals.Set("input", new ValueUserdata());
+        using LuauFunction loop = _state.Load("for i = 1, ... do probe(input, 1.5) end").ToFunction();
+        loop.Invoke(100);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        loop.Invoke(1000);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Far less than one object for each of the thousand calls.
+        allocated.ShouldBeLessThan(1000);
+    }
+
+    [Fact]
     public void FailedRead_InsideACallback_ShouldBeTheErrorOfTheScript()
     {
         // Not only arguments: every read that fails is reported as it is, without the name of the exception.

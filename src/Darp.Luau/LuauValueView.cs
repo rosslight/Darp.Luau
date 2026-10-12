@@ -118,7 +118,7 @@ public readonly unsafe ref struct LuauValueView
     private bool TryGet<T>(scoped in ReadSource source, [NotNullWhen(true)] out T? value)
         where T : allows ref struct
     {
-        if (LuauReader.TryRead<T>(source, out var read, out ReadFailure failure))
+        if (LuauReader.TryRead<T>(source.AsProbe(), out var read, out ReadFailure failure))
         {
             // Not null, except for the null of a nullable value type, which is what the caller asked to read nil as.
             value = read!;

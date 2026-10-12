@@ -142,23 +142,29 @@ public sealed class LuauValueTests : IDisposable
         // TryGet is how a callback chooses between the types a value may have, so most of its calls fail.
         var number = (LuauValue)1.5;
         using LuauValue table = Value("{}");
+        using LuauUserdata reference = _state.GetOrCreateUserdata(new Fixtures.ValueUserdata());
+        using LuauValue userdata = reference.DisposeAndToLuauValue();
         for (int i = 0; i < 100; i++)
-            Fail(number, table);
+            Fail(number, table, userdata);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 1000; i++)
-            Fail(number, table);
+            Fail(number, table, userdata);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         allocated.ShouldBe(0);
 
-        static void Fail(LuauValue number, LuauValue table)
+        static void Fail(LuauValue number, LuauValue table, LuauValue userdata)
         {
             number.TryGet(out string? _).ShouldBeFalse();
+            // A number the type cannot hold.
             number.TryGet(out int _).ShouldBeFalse();
             number.TryGet(out LuauTable _).ShouldBeFalse();
+            number.TryGet(out Fixtures.ValueUserdata? _).ShouldBeFalse();
             table.TryGet(out double _).ShouldBeFalse();
             table.TryGet(out string? _).ShouldBeFalse();
+            // Managed userdata of another type.
+            userdata.TryGet(out Fixtures.OtherValueUserdata? _).ShouldBeFalse();
         }
     }
 

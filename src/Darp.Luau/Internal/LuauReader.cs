@@ -55,6 +55,16 @@ internal readonly unsafe ref struct ReadSource
     /// <summary> Whether the value was not passed at all, like an omitted argument. It is nil. </summary>
     public bool IsMissing { get; }
 
+    /// <summary> Whether the read only asks if the value has a type, like <c>TryGet</c> does. </summary>
+    /// <remarks>
+    /// Such a read fails often and nobody looks at why. Its failure therefore does not name the type that was
+    /// found: the name of a userdata type has to be fetched from Luau and decoded.
+    /// </remarks>
+    public bool IsProbe { get; private init; }
+
+    /// <summary> The same value, read to find out whether it has a type. See <see cref="IsProbe"/>. </summary>
+    public ReadSource AsProbe() => this with { IsProbe = true };
+
     public double Number => L is null ? _number : lua_tonumber(L, Index);
 
     public bool Boolean => L is null ? _number != 0 : lua_toboolean(L, Index) != 0;
@@ -107,14 +117,16 @@ internal readonly struct ReadFailure
 
     private readonly Kind _kind;
 
-    // What was expected. For a read that is not supported: the whole message.
-    private readonly string _expected;
+    // What was expected: the name of a Luau type, or a managed type whose name stands for it. The name of a managed
+    // type is only read for the text: under Native AOT every read of Type.Name allocates a string.
+    // For a read that is not supported: the whole message.
+    private readonly object _expected;
 
     // The type that was found. Null for a value that was not passed.
     private readonly string? _actual;
     private readonly double _number;
 
-    private ReadFailure(Kind kind, string expected, string? actual = null, double number = 0)
+    private ReadFailure(Kind kind, object expected, string? actual = null, double number = 0)
     {
         _kind = kind;
         _expected = expected;
@@ -127,12 +139,19 @@ internal readonly struct ReadFailure
     /// <param name="actual">The name of the type of the value, or null for a value that was not passed.</param>
     public static ReadFailure Mismatch(string expected, string? actual) => new(Kind.Mismatch, expected, actual);
 
+    /// <summary> The value is not managed userdata of the type that was asked for. </summary>
+    /// <param name="expected">The managed type that was asked for.</param>
+    /// <param name="actual">The name of the type of the value, or null for a value that was not passed.</param>
+    public static ReadFailure Mismatch(Type expected, string? actual) => new(Kind.Mismatch, expected, actual);
+
     /// <summary> The value is a number that <paramref name="numberType"/> cannot hold. </summary>
-    public static ReadFailure NumberDoesNotFit(string numberType, double number) =>
+    public static ReadFailure NumberDoesNotFit(Type numberType, double number) =>
         new(Kind.NumberDoesNotFit, numberType, number: number);
 
     /// <summary> The requested type, or the value, has no managed form at all. </summary>
     public static ReadFailure NotSupported(string message) => new(Kind.NotSupported, message);
+
+    private string Expected => _expected as string ?? ((Type)_expected).Name;
 
     /// <summary> Whether the read is not supported at all. That is an error of the host, not of the value. </summary>
     public bool IsNotSupported => _kind is Kind.NotSupported;
@@ -141,11 +160,11 @@ internal readonly struct ReadFailure
     public string Reason =>
         _kind switch
         {
-            Kind.Mismatch when _actual is null => $"{_expected} expected",
-            Kind.Mismatch => $"{_expected} expected, got {_actual}",
+            Kind.Mismatch when _actual is null => $"{Expected} expected",
+            Kind.Mismatch => $"{Expected} expected, got {_actual}",
             Kind.NumberDoesNotFit =>
-                $"number that fits {_expected} expected, got {_number.ToString(CultureInfo.InvariantCulture)}",
-            _ => _expected,
+                $"number that fits {Expected} expected, got {_number.ToString(CultureInfo.InvariantCulture)}",
+            _ => Expected,
         };
 
     /// <summary> The exception a throwing read raises. </summary>
@@ -390,6 +409,14 @@ internal static unsafe class LuauReader
             _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
         };
 
+    /// <summary> The name of the type that was found instead of the one that was asked for. </summary>
+    /// <returns>
+    /// Null for a value that was not passed, which has no type to name: the caller reports it as missing. Null also
+    /// for a read whose failure nobody looks at.
+    /// </returns>
+    private static string? ActualTypeName(scoped in ReadSource source) =>
+        source.IsMissing || source.IsProbe ? null : TypeName(source);
+
     /// <summary> Reads a number as <typeparamref name="TNumber"/>. </summary>
     /// <typeparam name="TNumber">The numeric type that holds the number.</typeparam>
     /// <typeparam name="T">
@@ -446,7 +473,9 @@ internal static unsafe class LuauReader
             }
         }
 
-        return Mismatch(source, typeof(T).Name, out value, out failure);
+        value = default;
+        failure = ReadFailure.Mismatch(typeof(T), ActualTypeName(source));
+        return false;
     }
 
     /// <summary> Ends a read with <paramref name="read"/>, which is the <typeparamref name="T"/> that was asked for. </summary>
@@ -519,8 +548,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        // A value that was not passed has no type to name. The caller reports it as missing.
-        failure = ReadFailure.Mismatch(expected, source.IsMissing ? null : TypeName(source));
+        failure = ReadFailure.Mismatch(expected, ActualTypeName(source));
         return false;
     }
 
@@ -533,7 +561,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = ReadFailure.NumberDoesNotFit(typeof(TNumber).Name, number);
+        failure = ReadFailure.NumberDoesNotFit(typeof(TNumber), number);
         return false;
     }
 
