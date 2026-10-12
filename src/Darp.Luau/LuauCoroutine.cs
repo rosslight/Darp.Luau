@@ -17,7 +17,7 @@ namespace Darp.Luau;
     "CA1815:Override equals and operator equals on value types",
     Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
 )]
-public readonly struct LuauCoroutine : ILuauReference
+public readonly struct LuauCoroutine : IDisposable
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
@@ -304,7 +304,9 @@ public readonly struct LuauCoroutine : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked.</exception>
     public static implicit operator IntoLuau(LuauCoroutine value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <inheritdoc/>
+    /// <summary> Hands this reference over to a <see cref="LuauValue"/>, which then holds it. </summary>
+    /// <returns>A value that keeps the coroutine alive until it is disposed.</returns>
+    /// <remarks> This wrapper must not be used afterwards. </remarks>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Thread);
 
     /// <inheritdoc />
@@ -333,7 +335,7 @@ public readonly struct LuauCoroutine : ILuauReference
         CancellationToken cancellationToken
     )
     {
-        LuauState state = _state.GetTrackedReferenceOrThrow(_handle).ValidateInternal();
+        LuauState state = _state.GetTrackedReferenceOrThrow(_handle).State;
         LuauSynchronizationContext context = state.AsyncContext;
         if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
         {

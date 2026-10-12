@@ -39,7 +39,7 @@ public sealed class ScriptModuleIntegrationTests
 
         using (result)
         {
-            result.GetUtf8String(1).ShouldBe("result from dependency");
+            result.Get<string>(1).ShouldBe("result from dependency");
         }
     }
 

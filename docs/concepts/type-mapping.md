@@ -74,28 +74,28 @@ For managed userdata, forward to `IntoLuau.FromUserdata(...)`.
 
 ## Read values from tables and globals
 
-Tables and globals use a family of typed read methods:
+Tables and globals read a value with four generic methods:
 
-- `Get*` for required values,
-- `TryGet*` for optional or external data,
-- `*OrNil` when `nil` is a valid result,
-- `GetLuau*` and `TryGetLuau*` when you want an owned Luau wrapper instead of an immediate managed copy.
+- `Get<T>` for required values,
+- `TryGet<T>` for optional or external data,
+- `GetOrNull<T>` and `TryGetOrNull<T>` when `nil` is a valid result for a reference type; a value type uses its nullable form instead, such as `Get<int?>`,
+- an owned wrapper as `T`, such as `Get<LuauTable>`, when you want an owned reference instead of an immediate managed copy.
 
 Examples:
 
 ```csharp
-string name = lua.Globals.GetUtf8String("name");
-bool hasScore = lua.Globals.TryGetNumber("score", out int score);
-byte[]? maybeBuffer = lua.Globals.GetBufferOrNil("payload");
-using LuauTable nested = lua.Globals.GetLuauTable("config");
+string name = lua.Globals.Get<string>("name");
+bool hasScore = lua.Globals.TryGet("score", out int score);
+byte[]? maybeBuffer = lua.Globals.GetOrNull<byte[]>("payload");
+using LuauTable nested = lua.Globals.Get<LuauTable>("config");
 ```
 
 Important distinctions:
 
-- `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
+- `Get<string>(...)` and `Get<byte[]>(...)` return managed copies.
 - `LuauMarshal.TryGetUtf8StringSpan(...)` and `LuauMarshal.TryGetBufferSpan(...)` expose Luau-owned memory of a table value without a copy. Nothing keeps that memory alive, so consume it immediately.
-- `GetLuauTable(...)`, `GetLuauFunction(...)`, `GetLuauString(...)`, `GetLuauBuffer(...)`, and `GetLuauUserdata(...)` return owned references that need disposal.
-- `TryGetUserdata<T>(...)` resolves directly back to your managed userdata instance when the value is managed userdata created by this library and matches `T`.
+- `Get<LuauTable>(...)`, `Get<LuauFunction>(...)`, `Get<LuauString>(...)`, `Get<LuauBuffer>(...)`, and `Get<LuauUserdata>(...)` return owned references that need disposal.
+- `TryGet<T>(...)` with a managed userdata class as `T` resolves directly back to your managed userdata instance when the value is managed userdata created by this library and matches `T`.
 
 ## Read callback arguments with `LuauArgs`
 
@@ -133,21 +133,16 @@ It is not the catch-all conversion surface for every wrapper type. Nested tuple 
 You get it from APIs such as:
 
 - `table[key]`,
-- `TryGetLuauValue(...)`,
+- `table.Get<LuauValue>(key)` and `table.TryGet(key, out LuauValue value)`,
 - `args[1].Get<LuauValue>()`.
 
 Then read it as a managed type:
 
 ```csharp
-if (lua.Globals.TryGetLuauValue("payload", out LuauValue value))
+using LuauValue value = lua.Globals["payload"];
+if (value.TryGet(out string? text))
 {
-    using (value)
-    {
-        if (value.TryGet(out string? text))
-        {
-            // use text
-        }
-    }
+    // use text
 }
 ```
 
@@ -190,11 +185,11 @@ A Luau number is a `double`. Reading it as another numeric type only succeeds wh
 
 What a rejected number does depends on where it is read:
 
-- `TryGetNumber(...)` and `TryGet(...)` return `false`.
+- `TryGet(...)` returns `false`.
 - An argument read with `Get<T>()`, in a manual or a generated callback, raises a Luau error that names the argument, the type and the number. The script can catch it with `pcall(...)`.
 - A typed result such as `Execute<int>()` throws `LuaGetException`.
 
-`TryGetNumber<T>(...)` is generic over the numeric type, so `out int`, `out byte`, `out Int128` or `out decimal` all use the same call.
+`TryGet<T>(...)` is generic over the numeric type, so `out int`, `out byte`, `out Int128` or `out decimal` all use the same call.
 
 An enum value does not have to be one of the named values: `7` is read into an enum that only names `1` and `2`. Check that in your callback when it matters.
 

@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -15,12 +14,12 @@ namespace Darp.Luau;
     "CA1815:Override equals and operator equals on value types",
     Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
 )]
-public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
+public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
-    /// <inheritdoc/>
+    /// <summary> Gets whether this reference was disposed, or its state was. </summary>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary>
@@ -48,36 +47,35 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         return _handle;
     }
 
-    /// <summary> Gets the count of the table if viewed as a list </summary>
-    /// <remarks> If a lua table has holes, this property is unreliable! </remarks>
-    public int ListCount
-    {
-        get
-        {
-            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-            return LuauTableAccessCore.ListCount(trackedReference);
-        }
-    }
+    /// <inheritdoc cref="LuauTableView.ListCount"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public int ListCount => AsView().ListCount;
 
-    /// <summary> Set a value </summary>
-    /// <param name="key"> The key of the value to set </param>
-    /// <param name="value"> The value to set </param>
-    /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    /// <exception cref="ArgumentNullException"> Thrown if a <c>Nil</c> <paramref name="key"/> is provided </exception>
-    public void Set(IntoLuau key, IntoLuau value)
-    {
-        RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-        LuauTableAccessCore.Set(trackedReference, key, value);
-    }
+    /// <inheritdoc cref="LuauTableView.Get{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public T Get<T>(IntoLuau key) => AsView().Get<T>(key);
 
-    /// <summary> Determines whether <paramref name="key"/> resolves to a non-<c>nil</c> value. </summary>
-    /// <param name="key">The key to resolve.</param>
-    /// <remarks>Uses regular table lookup and therefore honors table metamethods such as <c>__index</c>.</remarks>
-    public bool ContainsKey(IntoLuau key)
-    {
-        RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-        return LuauTableAccessCore.ContainsKey(trackedReference, key);
-    }
+    /// <inheritdoc cref="LuauTableView.GetOrNull{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public T? GetOrNull<T>(IntoLuau key)
+        where T : class => AsView().GetOrNull<T>(key);
+
+    /// <inheritdoc cref="LuauTableView.TryGet{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public bool TryGet<T>(IntoLuau key, [NotNullWhen(true)] out T? value) => AsView().TryGet(key, out value);
+
+    /// <inheritdoc cref="LuauTableView.TryGetOrNull{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public bool TryGetOrNull<T>(IntoLuau key, out T? value)
+        where T : class => AsView().TryGetOrNull(key, out value);
+
+    /// <inheritdoc cref="LuauTableView.Set"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public void Set(IntoLuau key, IntoLuau value) => AsView().Set(key, value);
+
+    /// <inheritdoc cref="LuauTableView.ContainsKey"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public bool ContainsKey(IntoLuau key) => AsView().ContainsKey(key);
 
     /// <summary>
     /// Converts this table reference to an <see cref="IntoLuau"/> value.
@@ -86,7 +84,9 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
     /// <returns>A temporary Luau argument that borrows the same underlying table.</returns>
     public static implicit operator IntoLuau(LuauTable value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <inheritdoc/>
+    /// <summary> Hands this reference over to a <see cref="LuauValue"/>, which then holds it. </summary>
+    /// <returns>A value that keeps the table alive until it is disposed.</returns>
+    /// <remarks> This wrapper must not be used afterwards. </remarks>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Table);
 
     /// <inheritdoc />
@@ -105,14 +105,14 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
-    /// <param name="key"> The key to look for </param>
+    /// <inheritdoc cref="LuauTableView.this[IntoLuau]"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
     [SuppressMessage(
         "Design",
         "CA1043:Use integral or string argument for indexers",
         Justification = "Lua tables support arbitrary key types, and IntoLuau models that domain directly."
     )]
-    public LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
+    public LuauValue this[IntoLuau key] => AsView()[key];
 
     /// <summary>
     /// Returns an <c>ipairs</c>-style enumerable over consecutive integer keys starting at <c>1</c>.
@@ -125,6 +125,9 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
     /// Releases this table reference from the state registry.
     /// </summary>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
+
+    /// <summary> A view of this table, which is valid while this reference is. </summary>
+    internal LuauTableView AsView() => new(_state.GetSlotOrThrow(_handle));
 
     /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
     public struct Enumerator : IEnumerator<KeyValuePair<LuauValue, LuauValue>>

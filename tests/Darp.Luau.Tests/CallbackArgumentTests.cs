@@ -128,8 +128,8 @@ public sealed class CallbackArgumentTests : IDisposable
                 static args =>
                 {
                     string text = Encoding.UTF8.GetString(args[1].Get<ReadOnlySpan<byte>>());
-                    args[1].Get<LuauStringView>().TryGet(out string? sameText).ShouldBeTrue();
-                    args[2].Get<LuauBufferView>().TryGet(out byte[] bytes).ShouldBeTrue();
+                    string sameText = args[1].Get<LuauStringView>().ToString();
+                    byte[] bytes = args[2].Get<LuauBufferView>().ToArray();
                     int count = args[3].Get<LuauTableView>().ListCount;
                     string? result = args[4].Get<LuauFunctionView>().Invoke<string>();
                     return LuauReturn.Ok($"{text} {sameText} {Encoding.UTF8.GetString(bytes)} {count} {result}");
@@ -169,8 +169,9 @@ public sealed class CallbackArgumentTests : IDisposable
                 "return f(input)",
                 args =>
                 {
-                    args[1].Get<LuauUserdataView>().TryGetManaged(out ValueUserdata? managed, out _).ShouldBeTrue();
-                    return LuauReturn.Ok(ReferenceEquals(managed, userdata));
+                    LuauUserdataView view = args[1].Get<LuauUserdataView>();
+                    view.TryGet(out OtherValueUserdata? _).ShouldBeFalse();
+                    return LuauReturn.Ok(ReferenceEquals(view.Get<ValueUserdata>(), userdata));
                 }
             )
             .ShouldBeTrue();
@@ -218,7 +219,7 @@ public sealed class CallbackArgumentTests : IDisposable
         );
 
         using (stored)
-            stored.GetNumber("answer").ShouldBe(42);
+            stored.Get<double>("answer").ShouldBe(42);
     }
 
     [Fact]

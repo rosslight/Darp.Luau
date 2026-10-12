@@ -71,7 +71,7 @@ public sealed class ReferenceOwnershipTests : IDisposable
         // The argument was released when the call was over. The copy is a reference of its own.
         using (kept)
         {
-            kept.GetNumber("answer").ShouldBe(42);
+            kept.Get<double>("answer").ShouldBe(42);
         }
     }
 
@@ -282,7 +282,7 @@ public sealed class ReferenceOwnershipTests : IDisposable
         ActiveReferences.ShouldBe(baseline);
         // The registry is intact: new references still resolve to what they were created for.
         using LuauTable other = _state.Load("return { marker = 7 }").Execute<LuauTable>();
-        other.GetNumber("marker").ShouldBe(7);
+        other.Get<double>("marker").ShouldBe(7);
     }
 
     public void Dispose() => _state.Dispose();

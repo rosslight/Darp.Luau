@@ -25,63 +25,66 @@ lua.Globals.Set("config", config);
 
 ## Choose a read API
 
-Pick the read family that matches how strict the table contract is:
+A table value is read with four generic methods. Pick the one that matches how strict the table contract is:
 
-| API | Missing key | Wrong type | Returns | Best for |
+| API | Missing key | Another type | Returns | Best for |
 | --- | --- | --- | --- | --- |
-| `GetNumber("score")` | throws | throws | managed value | required fields |
-| `TryGetNumber("score", out int score)` | `false` | `false` | managed value | optional or external data |
-| `GetNumberOrNil("score")` | `null` | throws | nullable managed value | absent or `nil` is valid |
-| `TryGetNumberOrNil("score", out int? score)` | `true` with `null` | `false` | nullable managed value | optional fields with validation |
-| `GetLuauTable("nested")` | throws | throws | owned `LuauTable` | nested table access |
-| `TryGetLuauTable("nested", out LuauTable nested)` | `false` | `false` | owned `LuauTable` | nested table access without exceptions |
+| `Get<int>("score")`, `Get<string>("name")` | throws | throws | managed value | required fields |
+| `Get<int?>("score")`, `GetOrNull<string>("name")` | `null` | throws | nullable managed value | absent or `nil` is valid |
+| `TryGet("score", out int score)`, `TryGet("name", out string? name)` | `false` | `false` | managed value | optional or external data |
+| `TryGet("score", out int? score)`, `TryGetOrNull("name", out string? name)` | `true` with `null` | `false` | nullable managed value | optional fields with validation |
+| `Get<LuauTable>("nested")` | throws | throws | owned `LuauTable` | nested table access |
 
-The same split exists across booleans, strings, buffers, functions, userdata, and the other `GetLuau*` wrapper APIs.
+`T` is a number type, an enum, `bool`, `string`, `byte[]`, a managed userdata class, an owned wrapper such as `LuauTable` or `LuauFunction`, or `LuauValue`.
+
+A value type says through its nullable form that `nil` is fine: `Get<int?>` and `TryGet(..., out int? score)`. A reference type such as `string`, `byte[]` or a managed userdata class uses `GetOrNull<T>` and `TryGetOrNull<T>` instead, because `string` and `string?` are the same type at run time.
 
 ```csharp
-using LuauTable config = lua.Globals.GetLuauTable("config");
+using LuauTable config = lua.Globals.Get<LuauTable>("config");
 
-string name = config.GetUtf8String("name");
+string name = config.Get<string>("name");
 
-if (config.TryGetNumber("score", out int score))
+if (config.TryGet("score", out int score))
 {
     // use score
 }
 
-bool? enabled = config.GetBooleanOrNil("enabled");
+bool? enabled = config.Get<bool?>("enabled");
 ```
 
-Normal table lookup returns `nil` for both missing keys and keys explicitly set to `nil`, so the `*OrNil` methods treat both cases the same.
+Normal table lookup returns `nil` for both missing keys and keys explicitly set to `nil`, so every read treats both cases the same.
 
-Reads use `__index` like a script does. When the metamethod raises an error, `Get*` throws and `TryGet*` returns `false`; the overloads with an `out string? error` carry the message.
+A failed `Get<T>` throws `LuaGetException` with a message such as `table value: number expected, got string`.
 
-The table getters copy strings and buffers into managed memory. To read them in place, use `LuauMarshal.TryGetUtf8StringSpan(...)`, `LuauMarshal.TryGetBufferSpan(...)`, or their `OrNil` variants, whose `isNil` tells you whether the lookup resolved to `nil`. See [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed) for what that requires of you.
+Reads use `__index` like a script does. When the metamethod raises an error, `Get<T>` and `GetOrNull<T>` throw `LuaGetException` with the error of the script as its message, and `TryGet<T>` and `TryGetOrNull<T>` return `false`.
+
+`Get<string>` and `Get<byte[]>` copy strings and buffers into managed memory. To read them in place, use `LuauMarshal.TryGetUtf8StringSpan(...)`, `LuauMarshal.TryGetBufferSpan(...)`, or their `OrNil` variants, whose `isNil` tells you whether the lookup resolved to `nil`. See [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed) for what that requires of you.
 
 ## Raw and nested values
 
-When you want another Luau wrapper instead of an immediate managed copy, use `GetLuau*` or `TryGetLuau*`:
+When you want an owned reference instead of an immediate managed copy, read the value as its owned wrapper:
 
 ```csharp
-using LuauTable root = lua.Globals.GetLuauTable("config");
-using LuauTable graphics = root.GetLuauTable("graphics");
-using LuauFunction save = root.GetLuauFunction("save");
+using LuauTable root = lua.Globals.Get<LuauTable>("config");
+using LuauTable graphics = root.Get<LuauTable>("graphics");
+using LuauFunction save = root.Get<LuauFunction>("save");
 ```
 
-These methods return owned references. Keep them in `using` blocks like any other `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata`.
+`Get<T>` and `TryGet<T>` return an owned reference when `T` is `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, or `LuauCoroutine`. The caller disposes it, so keep it in a `using` block.
 
-For string-specific guidance around managed text, borrowed UTF-8 bytes, and `GetLuauString(...)`, see [Strings](strings.md).
+For string-specific guidance around managed text, borrowed UTF-8 bytes, and `LuauString`, see [Strings](strings.md).
 
 For the buffer-specific API split between `byte[]`, `ReadOnlySpan<byte>`, `LuauBuffer`, and `LuauBufferView`, see [Buffers](buffers.md).
 
-For fully dynamic code, use one of these raw-value options:
+For fully dynamic code, read a `LuauValue`:
 
 - `table[key]` returns a `LuauValue`; missing keys come back as `LuauValueType.Nil`.
-- `GetLuauValue(...)` returns a non-`nil` `LuauValue` or throws.
-- `TryGetLuauValue(...)` returns `false` when the resolved value is `nil`.
+- `Get<LuauValue>(key)` also returns a nil value for a missing key. It throws `LuaGetException` when `__index` raises an error.
+- `TryGet(key, out LuauValue value)` returns `true` with a nil value for a missing key, and `false` when `__index` raises an error.
 
 If the `LuauValue` may be reference-backed, dispose it when you are done with it.
 
-The `TryGet<T>(...)` table extension is a convenient wrapper over raw `LuauValue` conversion, but the explicit `Get*` and `TryGet*` methods usually make your API contract clearer.
+A typed read such as `TryGet("score", out int score)` usually makes your API contract clearer than reading a `LuauValue` and converting it afterwards.
 
 ## Presence checks
 
@@ -121,26 +124,30 @@ You can also enumerate the whole table with `foreach`, but key order is not guar
 
 ## Borrowed table views
 
-`LuauTableView` shows up in callbacks, where a table argument is read as one:
+`LuauTableView` shows up in callbacks, where a table argument is read as one. It has the same API as `LuauTable`: `Get<T>`, `GetOrNull<T>`, `TryGet<T>`, `TryGetOrNull<T>`, the indexer, `Set`, `ContainsKey`, and `ListCount`. A callback reads and writes a table argument through the view:
 
 ```csharp
 using LuauFunction readValue = lua.CreateFunctionManual(static args =>
 {
     LuauTableView table = args[1].Get<LuauTableView>();
 
-    using LuauTable owned = table.ToOwned();
-    return LuauReturn.Ok(owned.GetNumber("value"));
+    return LuauReturn.Ok(table.Get<double>("value"));
 });
 ```
 
-`LuauTableView` does not own a registry reference. It is valid only while the current callback frame is active, so call `ToOwned()` before storing it or using it after the callback returns.
+`LuauTableView` does not own a registry reference. It is valid only while the current callback frame is active. Call `ToOwned()` in two cases:
+
+- to keep the table: before storing it or using it after the callback returns,
+- to enumerate the table with `foreach` or `IPairs()`, which only `LuauTable` offers.
+
+`ToOwned()` returns an owned reference, which the caller disposes.
 
 ## Lifetime notes
 
-- `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
+- `Get<string>(...)` and `Get<byte[]>(...)` return managed copies.
 - `LuauMarshal` exposes Luau-owned memory of a table value. Consume it immediately and copy it if you need a longer lifetime.
 - Enumerating a table with `foreach` hands you an owned key and value per step. Dispose both when they may be reference-backed. The table may change while you enumerate it; like in Luau, entries added on the way may or may not be visited.
-- Owned wrappers returned by `GetLuau*` need disposal.
+- Owned wrappers returned by a read such as `Get<LuauTable>(...)` need disposal.
 - `LuauTableView` follows the same callback-scoped lifetime rules as the other `*View` types.
 
 ## String representation

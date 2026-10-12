@@ -23,7 +23,7 @@ public class TableBenchmarks : IDisposable
     public void SetNumber() => _table.Set("key", 42);
 
     [Benchmark]
-    public double GetNumber() => _table.GetNumber("key");
+    public double GetNumber() => _table.Get<double>("key");
 
     [GlobalCleanup]
     public void Dispose()

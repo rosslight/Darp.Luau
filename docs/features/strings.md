@@ -13,9 +13,9 @@ If the data is arbitrary bytes rather than text, see [Buffers](buffers.md).
 
 | Shape | Ownership | Common APIs | Use when |
 | --- | --- | --- | --- |
-| `string` | managed copy | passing `string` into Luau, `GetUtf8String(...)`, `args[1].Get<string>()`, `CreateFunction((string x) => ...)` | normal text interop |
-| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.TryGet(...)`, `LuauMarshal.TryGetUtf8StringSpan(...)` | immediate inspection without allocating |
-| `LuauString` | owned Luau reference | `CreateString(...)`, `GetLuauString(...)` | keeping or reusing the same Luau string value |
+| `string` | managed copy | passing `string` into Luau, `Get<string>(...)`, `args[1].Get<string>()`, `CreateFunction((string x) => ...)` | normal text interop |
+| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.AsSpan()`, `LuauMarshal.TryGetUtf8StringSpan(...)` | immediate inspection without allocating |
+| `LuauString` | owned Luau reference | `CreateString(...)`, `Get<LuauString>(...)` | keeping or reusing the same Luau string value |
 | `LuauStringView` | borrowed callback view | `args[1].Get<LuauStringView>()` | callback code that stays inside the current frame |
 
 The main choice is whether you want managed text or the Luau value itself.
@@ -27,7 +27,7 @@ Most code just passes `string`:
 ```csharp
 lua.Globals.Set("name", "Ada");
 
-using LuauFunction greet = lua.Globals.GetLuauFunction("greet");
+using LuauFunction greet = lua.Globals.Get<LuauFunction>("greet");
 greet.Invoke("Ada");
 ```
 
@@ -44,21 +44,19 @@ lua.Globals.Set("nameRef", name);
 ## Read strings from tables and globals
 
 ```csharp
-string name = lua.Globals.GetUtf8String("name");
+string name = lua.Globals.Get<string>("name");
 
-using LuauString owned = lua.Globals.GetLuauString("name");
-if (owned.TryGet(out ReadOnlySpan<byte> utf8))
-{
-    Console.WriteLine(System.Text.Encoding.UTF8.GetString(utf8));
-}
+using LuauString owned = lua.Globals.Get<LuauString>("name");
+ReadOnlySpan<byte> utf8 = owned.AsSpan();
+Console.WriteLine(System.Text.Encoding.UTF8.GetString(utf8));
 ```
 
-- `GetUtf8String(...)` and `TryGetUtf8String(..., out string?)` return managed copies.
-- `GetLuauString(...)` and `TryGetLuauString(...)` return owned wrappers that need disposal. Their spans stay valid until you dispose the wrapper.
-- `GetUtf8StringOrNil(...)` and `TryGetUtf8StringOrNil(...)` handle the usual missing-key-or-`nil` case.
+- `Get<string>(...)` and `TryGet(..., out string?)` return managed copies.
+- `Get<LuauString>(...)` and `TryGet(..., out LuauString)` return owned wrappers that need disposal. `AsSpan()` borrows the UTF-8 bytes and `ToString()` returns a managed copy. The spans stay valid until you dispose the wrapper.
+- `GetOrNull<string>(...)` and `TryGetOrNull(..., out string?)` handle the usual missing-key-or-`nil` case.
 - `LuauMarshal.TryGetUtf8StringSpan(table, key, out ReadOnlySpan<byte>)` reads the bytes in place, without a copy and without a wrapper. Nothing keeps that memory alive; see [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed).
 
-If you only need text, use the managed copy. Use `GetLuauString(...)` when you need the Luau string as a first-class value or want its bytes without copying.
+If you only need text, use the managed copy. Use `Get<LuauString>(...)` when you need the Luau string as a first-class value or want its bytes without copying.
 
 ## Read strings in callbacks
 

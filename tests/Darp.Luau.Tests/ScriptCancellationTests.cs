@@ -69,7 +69,7 @@ public sealed class ScriptCancellationTests : IDisposable
             """
         );
 
-        _state.Globals.GetBoolean("entered").ShouldBeTrue();
+        _state.Globals.Get<bool>("entered").ShouldBeTrue();
         _state.Globals.ContainsKey("returned").ShouldBeFalse();
     }
 
@@ -142,7 +142,7 @@ public sealed class ScriptCancellationTests : IDisposable
                 .AsTask()
         );
 
-        state.Globals.GetBoolean("module_loaded").ShouldBeFalse();
+        state.Globals.Get<bool>("module_loaded").ShouldBeFalse();
     }
 
     /// <summary> Without a pcall, the failed <c>require</c> ends the script. The call is cancelled all the same. </summary>
@@ -223,9 +223,9 @@ public sealed class ScriptCancellationTests : IDisposable
             """
         );
 
-        _state.Globals.GetUtf8String("caught").ShouldContain("script was interrupted");
+        _state.Globals.Get<string>("caught").ShouldContain("script was interrupted");
         // What follows runs up to the next safepoint, the end of the first iteration.
-        _state.Globals.GetNumber("iterations").ShouldBe(1);
+        _state.Globals.Get<double>("iterations").ShouldBe(1);
     }
 
     /// <summary> A sync host call takes no token: it runs under the token of the async call that runs the callback. </summary>
@@ -415,8 +415,8 @@ public sealed class ScriptCancellationTests : IDisposable
     [Fact]
     public async Task YieldOutOfACancelledInvocation_ShouldBeReportedAsCancellation()
     {
-        using LuauTable coroutineLibrary = _state.Globals.GetLuauTable("coroutine");
-        using LuauFunction yield = coroutineLibrary.GetLuauFunction("yield");
+        using LuauTable coroutineLibrary = _state.Globals.Get<LuauTable>("coroutine");
+        using LuauFunction yield = coroutineLibrary.Get<LuauFunction>("yield");
         await _cts.CancelAsync();
 
         await Should.ThrowAsync<OperationCanceledException>(() => yield.InvokeAsync([], _cts.Token).AsTask());

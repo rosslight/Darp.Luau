@@ -26,7 +26,7 @@ public sealed class SandboxTests
 
         state.IsSandboxed.ShouldBeFalse();
         state.Load("math.pi = 3; answer = 42").Execute();
-        state.Globals.GetNumber("answer").ShouldBe(42);
+        state.Globals.Get<double>("answer").ShouldBe(42);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class SandboxTests
         int doubled = state.Load("counter = counter + 1; return double(counter)").WithEnvironment(first).Execute<int>();
 
         doubled.ShouldBe(4);
-        first.GetNumber("counter").ShouldBe(2);
+        first.Get<double>("counter").ShouldBe(2);
         state.Load("return counter == nil and double == nil").WithEnvironment(second).Execute<bool>().ShouldBeTrue();
         state.Globals.ContainsKey("counter").ShouldBeFalse();
     }
@@ -205,7 +205,7 @@ public sealed class SandboxTests
         foreach (LuauTable environment in new[] { before, after })
         {
             state.Load("_G.answer = 42; return answer").WithEnvironment(environment).Execute<int>().ShouldBe(42);
-            environment.GetNumber("answer").ShouldBe(42);
+            environment.Get<double>("answer").ShouldBe(42);
         }
         state.Globals.ContainsKey("answer").ShouldBeFalse();
     }
@@ -237,7 +237,7 @@ public sealed class SandboxTests
     {
         using var state = new LuauState();
         using LuauFunction floor = state.CreateFunctionManual(static _ => LuauReturn.Ok(42));
-        using (LuauTable math = state.Globals.GetLuauTable("math"))
+        using (LuauTable math = state.Globals.Get<LuauTable>("math"))
             math.Set("floor", floor);
         state.EnableSandbox();
 
@@ -270,7 +270,7 @@ public sealed class SandboxTests
     {
         using var state = new LuauState();
         using LuauFunction floor = state.CreateFunctionManual(static _ => LuauReturn.Ok(42));
-        using (LuauTable math = state.Globals.GetLuauTable("math"))
+        using (LuauTable math = state.Globals.Get<LuauTable>("math"))
             math.Set("floor", floor);
         state.Load("rawset = nil").Execute();
         using LuauFunction callFloor = state.Load("return math.floor(1.5)").ToFunction();
@@ -372,14 +372,14 @@ public sealed class SandboxTests
         using LuauUserdata liveUserdata = state.GetOrCreateUserdata(live);
         state.Globals.Set("live", liveUserdata);
         using LuauFunction floor = state.CreateFunctionManual(static _ => LuauReturn.Ok(42));
-        using (LuauTable math = state.Globals.GetLuauTable("math"))
+        using (LuauTable math = state.Globals.Get<LuauTable>("math"))
             math.Set("floor", floor);
         if (sandboxed)
             state.EnableSandbox();
 
         using LuauTable reader = state.LoadFile("./main.luau").Execute<LuauTable>();
-        using LuauFunction read = reader.GetLuauFunction("read");
-        using LuauFunction moduleFloor = reader.GetLuauFunction("floor");
+        using LuauFunction read = reader.Get<LuauFunction>("read");
+        using LuauFunction moduleFloor = reader.Get<LuauFunction>("floor");
 
         live.Reads.ShouldBe(0);
         read.Invoke<int>().ShouldBe(1);
@@ -548,7 +548,7 @@ public sealed class SandboxTests
         using LuauUserdata liveUserdata = state.GetOrCreateUserdata(live);
         state.Globals.Set("live", liveUserdata);
         using LuauFunction floor = state.CreateFunctionManual(static _ => LuauReturn.Ok(42));
-        using (LuauTable math = state.Globals.GetLuauTable("math"))
+        using (LuauTable math = state.Globals.Get<LuauTable>("math"))
             math.Set("floor", floor);
         state.Load("rawset = nil").Execute();
         state.EnableSandbox();

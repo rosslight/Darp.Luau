@@ -18,7 +18,7 @@ public sealed class MemoryManagementTests
 
         ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
 
         value.Dispose();
@@ -32,16 +32,14 @@ public sealed class MemoryManagementTests
         byte[] expected = [0x01, 0x02, 0x03, 0x04];
         state.Globals.Set("payload", expected);
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         value.TryGet(out LuauBuffer buffer).ShouldBeTrue();
 
         value.Dispose();
 
         using (buffer)
         {
-            buffer.TryGet(out byte[]? bytes).ShouldBeTrue();
-            bytes.ShouldNotBeNull();
-            bytes.ShouldBe(expected);
+            buffer.ToArray().ShouldBe(expected);
         }
     }
 
@@ -72,7 +70,7 @@ public sealed class MemoryManagementTests
 
         for (int i = 0; i < 2000; i++)
         {
-            state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+            state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
             value.TryGet(out LuauTable roundtrip).ShouldBeTrue();
 
             roundtrip.Dispose();
@@ -134,7 +132,7 @@ public sealed class MemoryManagementTests
         value.TryGet(out LuauTable transferredTable).ShouldBeTrue();
         using (transferredTable)
         {
-            transferredTable.GetNumber("value").ShouldBe(123);
+            transferredTable.Get<double>("value").ShouldBe(123);
         }
 
         value.Dispose();
@@ -151,7 +149,7 @@ public sealed class MemoryManagementTests
             state.Globals.Set("payload", table);
         }
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         ulong referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
 
         value.TryGet(out LuauTable tableAlias).ShouldBeTrue();
@@ -248,7 +246,7 @@ public sealed class MemoryManagementTests
         using var state = new LuauState();
         state.Globals.Set("payload", "hello");
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         try
         {
             value.TryGet(out string? first).ShouldBeTrue();
@@ -270,7 +268,7 @@ public sealed class MemoryManagementTests
         state.Globals.Set("payload", "hello");
 
         ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         ulong referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
         referencesAfterValue.ShouldBe(baselineActiveReferences + 1);
 
@@ -288,7 +286,7 @@ public sealed class MemoryManagementTests
         using var state = new LuauState();
         state.Globals.Set("payload", "hello");
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         try
         {
             value.ToString().ShouldBe("hello");
@@ -308,7 +306,7 @@ public sealed class MemoryManagementTests
         byte[] expected = [0x01, 0x02, 0x03, 0x04];
         state.Globals.Set("payload", expected);
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         try
         {
             value.TryGet(out byte[]? first).ShouldBeTrue();
@@ -332,7 +330,7 @@ public sealed class MemoryManagementTests
         byte[] expected = [0x01, 0x02, 0x03];
         state.Globals.Set("payload", expected);
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         try
         {
             value.ToString().ShouldBe(Convert.ToHexString(expected));
@@ -353,7 +351,7 @@ public sealed class MemoryManagementTests
         var payload = new ValueUserdata { Value = 123 };
         state.Globals.Set("payload", payload);
 
-        state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
+        state.Globals.TryGet("payload", out LuauValue value).ShouldBeTrue();
         try
         {
             _ = value.ToString();
@@ -361,8 +359,7 @@ public sealed class MemoryManagementTests
             value.TryGet(out LuauUserdata userdata).ShouldBeTrue();
             using (userdata)
             {
-                userdata.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
-                ReferenceEquals(payload, resolved).ShouldBeTrue();
+                userdata.Get<ValueUserdata>().ShouldBeSameAs(payload);
             }
         }
         finally

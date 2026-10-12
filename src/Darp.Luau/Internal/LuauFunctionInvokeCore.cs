@@ -10,10 +10,9 @@ internal static unsafe class LuauFunctionInvokeCore
     private const int LuaMultRet = -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Invoke<T>(scoped in T? source, scoped in RefEnumerable<IntoLuau> args)
-        where T : IReferenceSource, allows ref struct
+    public static void Invoke(scoped in LuauSlot source, scoped in RefEnumerable<IntoLuau> args)
     {
-        LuauState state = source.Validate();
+        LuauState state = source.State;
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -21,7 +20,7 @@ internal static unsafe class LuauFunctionInvokeCore
         int topBeforeInvoke = lua_gettop(L);
         try
         {
-            source.PushToTop();
+            source.Push(state);
             int length = args.Length;
             for (int i = 0; i < length; i++)
                 args[i].Push(state);
@@ -36,10 +35,13 @@ internal static unsafe class LuauFunctionInvokeCore
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static TR Invoke<T, TR>(scoped in T? source, scoped in RefEnumerable<IntoLuau> args, Func<LuauArgs, TR> func)
-        where T : IReferenceSource, allows ref struct
+    public static TR Invoke<TR>(
+        scoped in LuauSlot source,
+        scoped in RefEnumerable<IntoLuau> args,
+        Func<LuauArgs, TR> func
+    )
     {
-        LuauState state = source.Validate();
+        LuauState state = source.State;
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -47,7 +49,7 @@ internal static unsafe class LuauFunctionInvokeCore
         int topBeforeInvoke = lua_gettop(L);
         try
         {
-            source.PushToTop();
+            source.Push(state);
             int nArgs = args.Length;
             for (int i = 0; i < nArgs; i++)
                 args[i].Push(state);
@@ -76,17 +78,13 @@ internal static unsafe class LuauFunctionInvokeCore
         CancellationToken cancellationToken
     )
     {
-        LuauSynchronizationContext context = state
-            .GetTrackedReferenceOrThrow(functionHandle)
-            .ValidateInternal()
-            .AsyncContext;
+        LuauSynchronizationContext context = state.GetSlotOrThrow(functionHandle).State.AsyncContext;
         if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
         {
             using (turn)
             {
                 // Resolved again inside the turn: until it began, another turn may have run.
-                RegistryReferenceTracker.TrackedReference function = state.GetTrackedReferenceOrThrow(functionHandle);
-                return InvokeInTurn(function, args, resultSelector, cancellationToken);
+                return InvokeInTurn(state.GetSlotOrThrow(functionHandle), args, resultSelector, cancellationToken);
             }
         }
 
@@ -110,10 +108,9 @@ internal static unsafe class LuauFunctionInvokeCore
         state.AsyncContext.Queue(() =>
         {
             RegistryReferenceTracker.TrackedReference queuedFunction = state.GetTrackedReferenceOrThrow(functionHandle);
-            LuauState validState = queuedFunction.ValidateInternal();
-#pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
-            _ = queuedFunction.PushToTop();
-#pragma warning restore CA2000
+            LuauState validState = queuedFunction.State;
+            // The function is moved onto the coroutine by StartInvocation.
+            queuedFunction.Push(validState.L);
             return CoroutineDriver
                 .StartInvocation(validState, copiedArgs, minResultCount: 0, cancellationToken)
                 .RunAsync(resultSelector, yieldIsError: true);
@@ -123,36 +120,33 @@ internal static unsafe class LuauFunctionInvokeCore
     /// <exception cref="InvalidOperationException">
     /// Thrown when another thread executes the state: a borrowed view is only valid inside its callback's turn.
     /// </exception>
-    public static ValueTask<TR> InvokeAsync<T, TR>(
-        scoped in T? source,
+    public static ValueTask<TR> InvokeAsync<TR>(
+        scoped in LuauSlot source,
         scoped in RefEnumerable<IntoLuau> args,
         Func<LuauArgs, TR> resultSelector,
         CancellationToken cancellationToken
     )
-        where T : IReferenceSource, allows ref struct
     {
-        LuauState state = source.Validate();
+        LuauState state = source.State;
         if (!state.AsyncContext.TryEnter(out LuauSynchronizationContext.Turn turn))
             throw new InvalidOperationException("A borrowed function can only be invoked during its callback.");
         using (turn)
             return InvokeInTurn(source, args, resultSelector, cancellationToken);
     }
 
-    private static ValueTask<TR> InvokeInTurn<T, TR>(
-        scoped in T? source,
+    private static ValueTask<TR> InvokeInTurn<TR>(
+        scoped in LuauSlot source,
         scoped in RefEnumerable<IntoLuau> args,
         Func<LuauArgs, TR> resultSelector,
         CancellationToken cancellationToken
     )
-        where T : IReferenceSource, allows ref struct
     {
-        LuauState state = source.Validate();
+        LuauState state = source.State;
 #if DEBUG
         using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
-#pragma warning disable CA2000 // The function is moved onto the coroutine by StartInvocation.
-        _ = source.PushToTop();
-#pragma warning restore CA2000
+        // The function is moved onto the coroutine by StartInvocation.
+        source.Push(state);
         return LuauSynchronizationContext.Detach(
             CoroutineDriver
                 .StartInvocation(state, args, minResultCount: 0, cancellationToken)

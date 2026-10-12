@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using Darp.Luau.Internal;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -20,12 +19,12 @@ internal struct LuauUserdataNative
     "CA1815:Override equals and operator equals on value types",
     Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
 )]
-public readonly struct LuauUserdata : ILuauReference
+public readonly struct LuauUserdata : IDisposable
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
-    /// <inheritdoc/>
+    /// <summary> Gets whether this reference was disposed, or its state was. </summary>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary>
@@ -40,24 +39,15 @@ public readonly struct LuauUserdata : ILuauReference
         _handle = handle;
     }
 
-    /// <summary>
-    /// Attempts to resolve this userdata reference back to the managed userdata instance.
-    /// </summary>
-    /// <typeparam name="T">Managed userdata type.</typeparam>
-    /// <param name="value">Receives the managed instance when successful.</param>
-    /// <param name="error">Receives a descriptive error when resolution fails.</param>
-    /// <returns>
-    /// <c>true</c> when this reference points to managed userdata of type <typeparamref name="T"/>;
-    /// otherwise <c>false</c>.
-    /// </returns>
-    public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserdata<T>
-    {
-        value = null;
-        error = null;
-        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
-            && LuauUserdataAccessCore.TryGetManaged(reference, out value, out error);
-    }
+    /// <inheritdoc cref="LuauUserdataView.Get{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public T Get<T>()
+        where T : class => AsView().Get<T>();
+
+    /// <inheritdoc cref="LuauUserdataView.TryGet{T}"/>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference was disposed.</exception>
+    public bool TryGet<T>([NotNullWhen(true)] out T? value)
+        where T : class => AsView().TryGet(out value);
 
     /// <summary>
     /// Converts this userdata reference to an <see cref="IntoLuau"/> value.
@@ -66,12 +56,16 @@ public readonly struct LuauUserdata : ILuauReference
     /// <returns>A temporary Luau argument that borrows the same underlying userdata.</returns>
     public static implicit operator IntoLuau(LuauUserdata value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <inheritdoc/>
+    /// <summary> Hands this reference over to a <see cref="LuauValue"/>, which then holds it. </summary>
+    /// <returns>A value that keeps the userdata alive until it is disposed.</returns>
+    /// <remarks> This wrapper must not be used afterwards. </remarks>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Userdata);
 
     /// <inheritdoc />
     public override string ToString() => Helpers.HandleToString(_state, _handle);
 
-    /// <inheritdoc />
+    /// <summary> Releases this userdata reference from the state registry. </summary>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
+
+    internal LuauUserdataView AsView() => new(_state.GetSlotOrThrow(_handle));
 }

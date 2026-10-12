@@ -3,36 +3,27 @@ using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
-/// <summary>
-/// Represents a borrowed, stack-bound Luau coroutine value read from callback arguments.
-/// </summary>
+/// <summary> A borrowed view of a Luau coroutine, such as a coroutine argument of a managed callback. </summary>
 /// <remarks>
-/// This view does not own a registry reference.
-/// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
-/// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
-/// Promote it with <see cref="ToOwned"/> to resume the coroutine.
+/// The view does not own a registry reference. It is valid only while the callback that received it runs. Resuming
+/// needs an owned reference: call <see cref="ToOwned"/>.
 /// </remarks>
-public readonly ref struct LuauCoroutineView : ILuauView<LuauCoroutine>
+public readonly ref struct LuauCoroutineView
 {
-    private readonly StackReference _reference;
+    private readonly LuauSlot _slot;
 
     internal unsafe LuauCoroutineView(LuauState state, lua_State* luaState, int stackIndex) =>
-        _reference = new StackReference(state, luaState, stackIndex);
+        _slot = new LuauSlot(state, luaState, stackIndex);
 
-    /// <inheritdoc/>
-    public LuauCoroutine ToOwned()
-    {
-        LuauState state = _reference.ValidateInternal();
-        return new LuauCoroutine(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
-    }
+    /// <summary> Creates an owned reference to the coroutine, which stays valid after the callback. </summary>
+    /// <returns>The owned reference, which the caller disposes.</returns>
+    public LuauCoroutine ToOwned() => new(_slot.State, _slot.ToOwnedHandle());
 
-    /// <summary>
-    /// Converts this borrowed coroutine view to an <see cref="IntoLuau"/> value without creating an owned reference.
-    /// </summary>
-    /// <param name="value">The borrowed coroutine view.</param>
-    /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauCoroutineView value) => IntoLuau.FromRefSource(value._reference);
+    /// <summary> Passes the coroutine on to Luau without creating an owned reference. </summary>
+    /// <param name="value">The borrowed coroutine.</param>
+    /// <returns>A temporary representation that is valid as long as the view.</returns>
+    public static implicit operator IntoLuau(LuauCoroutineView value) => IntoLuau.FromSlot(value._slot);
 
     /// <inheritdoc />
-    public override string ToString() => _reference.ToString();
+    public override string ToString() => _slot.ToString();
 }

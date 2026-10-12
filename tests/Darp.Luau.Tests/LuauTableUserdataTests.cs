@@ -15,7 +15,7 @@ public sealed class LuauTableUserdataTests : IDisposable
 
         table.Set("value", value);
 
-        ValueUserdata resolved = table.GetUserdata<ValueUserdata>("value");
+        ValueUserdata resolved = table.Get<ValueUserdata>("value");
         ReferenceEquals(value, resolved).ShouldBeTrue();
     }
 
@@ -27,10 +27,9 @@ public sealed class LuauTableUserdataTests : IDisposable
 
         table.Set("value", value);
 
-        using LuauUserdata userdata = table.GetLuauUserdata("value");
+        using LuauUserdata userdata = table.Get<LuauUserdata>("value");
 
-        userdata.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
-        ReferenceEquals(value, resolved).ShouldBeTrue();
+        userdata.Get<ValueUserdata>().ShouldBeSameAs(value);
     }
 
     [Fact]
@@ -39,7 +38,7 @@ public sealed class LuauTableUserdataTests : IDisposable
         using LuauTable table = _state.CreateTable();
         table.Set("value", new OtherValueUserdata());
 
-        table.TryGetUserdata<ValueUserdata>("value", out _).ShouldBeFalse();
+        table.TryGet<ValueUserdata>("value", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -47,7 +46,7 @@ public sealed class LuauTableUserdataTests : IDisposable
     {
         using LuauTable table = _state.CreateTable();
 
-        table.TryGetUserdata<ValueUserdata>("missing", out _).ShouldBeFalse();
+        table.TryGet<ValueUserdata>("missing", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -56,7 +55,7 @@ public sealed class LuauTableUserdataTests : IDisposable
         using LuauTable table = _state.CreateTable();
         table.Set("value", 42);
 
-        table.TryGetUserdata<ValueUserdata>("value", out _).ShouldBeFalse();
+        table.TryGet<ValueUserdata>("value", out _).ShouldBeFalse();
     }
 
     public void Dispose()

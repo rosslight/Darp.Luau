@@ -13,9 +13,9 @@ If the data is UTF-8 text, see [Strings](strings.md).
 
 | Shape | Ownership | Common APIs | Use when |
 | --- | --- | --- | --- |
-| `byte[]` | managed copy | `GetBuffer(...)`, `args[1].Get<byte[]>()`, passing `byte[]` into Luau | simple data transfer |
-| `ReadOnlySpan<byte>` | borrowed bytes | `LuauBufferView.TryGet(...)`, `LuauBuffer.TryGet(...)`, `LuauMarshal.TryGetBufferSpan(...)` | immediate inspection without allocating |
-| `LuauBuffer` | owned Luau reference | `CreateBuffer(...)`, `GetLuauBuffer(...)` | keeping or reusing the same Luau buffer value |
+| `byte[]` | managed copy | `Get<byte[]>(...)`, `args[1].Get<byte[]>()`, passing `byte[]` into Luau | simple data transfer |
+| `ReadOnlySpan<byte>` | borrowed bytes | `LuauBufferView.AsSpan()`, `LuauBuffer.AsSpan()`, `LuauMarshal.TryGetBufferSpan(...)` | immediate inspection without allocating |
+| `LuauBuffer` | owned Luau reference | `CreateBuffer(...)`, `Get<LuauBuffer>(...)` | keeping or reusing the same Luau buffer value |
 | `LuauBufferView` | borrowed callback view | `args[1].Get<LuauBufferView>()` | callback code that stays inside the current frame |
 
 The main choice is whether you want a managed copy or the Luau value itself.
@@ -29,7 +29,7 @@ byte[] payload = [0x01, 0x02, 0x03];
 
 lua.Globals.Set("payload", payload);
 
-using LuauFunction send = lua.Globals.GetLuauFunction("send");
+using LuauFunction send = lua.Globals.Get<LuauFunction>("send");
 send.Invoke(payload);
 ```
 
@@ -46,21 +46,19 @@ lua.Globals.Set("payloadRef", payload);
 ## Read buffers from tables and globals
 
 ```csharp
-byte[] bytes = lua.Globals.GetBuffer("payload");
+byte[] bytes = lua.Globals.Get<byte[]>("payload");
 
-using LuauBuffer owned = lua.Globals.GetLuauBuffer("payload");
-if (owned.TryGet(out ReadOnlySpan<byte> borrowed))
-{
-    Console.WriteLine(Convert.ToHexString(borrowed));
-}
+using LuauBuffer owned = lua.Globals.Get<LuauBuffer>("payload");
+ReadOnlySpan<byte> borrowed = owned.AsSpan();
+Console.WriteLine(Convert.ToHexString(borrowed));
 ```
 
-- `GetBuffer(...)` and `TryGetBuffer(..., out byte[]?)` copy into managed memory.
-- `GetLuauBuffer(...)` and `TryGetLuauBuffer(...)` return owned wrappers that need disposal. Their spans stay valid until you dispose the wrapper.
+- `Get<byte[]>(...)` and `TryGet(..., out byte[]?)` copy into managed memory.
+- `Get<LuauBuffer>(...)` and `TryGet(..., out LuauBuffer)` return owned wrappers that need disposal. `AsSpan()` borrows the bytes and `ToArray()` copies them. The spans stay valid until you dispose the wrapper.
 - `LuauMarshal.TryGetBufferSpan(table, key, out ReadOnlySpan<byte>)` reads the bytes in place, without a copy and without a wrapper. Nothing keeps that memory alive; see [Lifetimes](../concepts/lifetimes.md#borrowed-spans-are-still-borrowed).
-- `GetBufferOrNil(...)` and `TryGetBufferOrNil(...)` handle the usual missing-key-or-`nil` case.
+- `GetOrNull<byte[]>(...)` and `TryGetOrNull(..., out byte[]?)` handle the usual missing-key-or-`nil` case.
 
-If you only need bytes, use the copy or span APIs. Use `GetLuauBuffer(...)` when you need the Luau buffer as a first-class value.
+If you only need bytes, use the copy or span APIs. Use `Get<LuauBuffer>(...)` when you need the Luau buffer as a first-class value.
 
 ## Read buffers in callbacks
 
@@ -79,8 +77,7 @@ For manual callbacks, read exactly the shape you want:
 using LuauFunction measure = lua.CreateFunctionManual(static args =>
 {
     LuauBufferView buffer = args[1].Get<LuauBufferView>();
-    if (!buffer.TryGet(out ReadOnlySpan<byte> bytes))
-        return LuauReturn.Error("The buffer could not be read.");
+    ReadOnlySpan<byte> bytes = buffer.AsSpan();
 
     return LuauReturn.Ok(bytes.Length);
 });
@@ -88,7 +85,7 @@ using LuauFunction measure = lua.CreateFunctionManual(static args =>
 
 - `CreateFunction(Size)` is the shortest fixed-signature form.
 - `args[1].Get<byte[]>()` copies into managed memory.
-- `args[1].Get<LuauBufferView>()` borrows the Luau value itself, and its `TryGet(out ReadOnlySpan<byte> bytes)` borrows the bytes.
+- `args[1].Get<LuauBufferView>()` borrows the Luau value itself, and its `AsSpan()` borrows the bytes.
 - `args[1].Get<LuauBuffer>()` gives you an owned reference to keep.
 
 ## Lifetime rules
@@ -108,7 +105,7 @@ The same promotion rule applies to the other callback `*View` types. For the bro
 using var lua = new LuauState(LuauLibraries.Buffer);
 ```
 
-You do not need that flag for host-side buffer interop such as `CreateBuffer(...)`, passing `byte[]`, `GetBuffer(...)`, `GetLuauBuffer(...)`, or reading a buffer argument.
+You do not need that flag for host-side buffer interop such as `CreateBuffer(...)`, passing `byte[]`, `Get<byte[]>(...)`, `Get<LuauBuffer>(...)`, or reading a buffer argument.
 
 Enable the library only when your Luau code needs `buffer.*` helpers.
 

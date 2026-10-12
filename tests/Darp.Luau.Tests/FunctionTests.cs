@@ -55,7 +55,7 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        using LuauFunction luaFunc = _state.Globals.GetLuauFunction("add");
+        using LuauFunction luaFunc = _state.Globals.Get<LuauFunction>("add");
 
         luaFunc.Invoke<int>(1, 2).ShouldBe(3);
     }
@@ -286,7 +286,7 @@ public sealed class FunctionTests : IDisposable
         using (table)
         {
             count.ShouldBe(5);
-            table.GetNumber("value").ShouldBe(42);
+            table.Get<double>("value").ShouldBe(42);
         }
 
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
@@ -776,8 +776,7 @@ public sealed class FunctionTests : IDisposable
 
         using (bufferResult)
         {
-            bufferResult.TryGet(out byte[]? bufferBytes);
-            Convert.ToHexString(bufferBytes!).ShouldBe(expectedValue);
+            Convert.ToHexString(bufferResult.AsSpan()).ShouldBe(expectedValue);
         }
     }
 
@@ -814,7 +813,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("result = f(input)").Execute();
-        _state.Globals.GetUtf8String("result").ShouldBe(expectedValue);
+        _state.Globals.Get<string>("result").ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -831,7 +830,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("result = f(input)").Execute();
-        _state.Globals.GetNumber("result").ShouldBe(42);
+        _state.Globals.Get<double>("result").ShouldBe(42);
     }
 
     [Fact]
@@ -868,8 +867,8 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        _state.Globals.GetBoolean("ok").ShouldBeFalse();
-        _state.Globals.GetUtf8String("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
+        _state.Globals.Get<bool>("ok").ShouldBeFalse();
+        _state.Globals.Get<string>("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
     }
 
     [Fact]
@@ -889,8 +888,8 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        _state.Globals.GetBoolean("ok").ShouldBeFalse();
-        _state.Globals.GetUtf8String("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
+        _state.Globals.Get<bool>("ok").ShouldBeFalse();
+        _state.Globals.Get<string>("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
     }
 
     [Fact]
@@ -941,7 +940,7 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
         isSame.ShouldBeTrue();
-        _state.Globals.TryGetUserdata("result", out GeneratedReturnUserdata? result).ShouldBeTrue();
+        _state.Globals.TryGet("result", out GeneratedReturnUserdata? result).ShouldBeTrue();
         ReferenceEquals(input, result).ShouldBeTrue();
     }
 
@@ -953,7 +952,7 @@ public sealed class FunctionTests : IDisposable
 
         _state.Load("isNil = f() == nil").Execute();
 
-        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.Get<bool>("isNil").ShouldBeTrue();
     }
 
     [Fact]
@@ -983,11 +982,11 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("isNil = f() == nil").Execute();
-        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.Get<bool>("isNil").ShouldBeTrue();
 
         returnNil = false;
         _state.Load("result = f()").Execute();
-        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("result");
+        GeneratedReturnUserdata result = _state.Globals.Get<GeneratedReturnUserdata>("result");
         ReferenceEquals(instance, result).ShouldBeTrue();
     }
 
@@ -1005,14 +1004,14 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
-        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
-        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+        _state.Globals.Get<bool>("isNil").ShouldBeTrue();
+        _state.Globals.Get<double>("resultNumber").ShouldBe(7);
 
         returnNil = false;
         _state.Load("resultUserdata, resultNumber = f()").Execute();
-        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
+        GeneratedReturnUserdata result = _state.Globals.Get<GeneratedReturnUserdata>("resultUserdata");
         ReferenceEquals(instance, result).ShouldBeTrue();
-        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+        _state.Globals.Get<double>("resultNumber").ShouldBe(7);
     }
 
     [Fact]
@@ -1039,9 +1038,9 @@ public sealed class FunctionTests : IDisposable
 
         _state.Load("resultUserdata, resultNumber = f(); isSame = resultUserdata == input").Execute();
 
-        _state.Globals.GetBoolean("isSame").ShouldBeTrue();
-        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
-        GeneratedReturnUserdata resultUserdata = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
+        _state.Globals.Get<bool>("isSame").ShouldBeTrue();
+        _state.Globals.Get<double>("resultNumber").ShouldBe(7);
+        GeneratedReturnUserdata resultUserdata = _state.Globals.Get<GeneratedReturnUserdata>("resultUserdata");
         ReferenceEquals(input, resultUserdata).ShouldBeTrue();
     }
 
@@ -1053,8 +1052,8 @@ public sealed class FunctionTests : IDisposable
 
         _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
 
-        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
-        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+        _state.Globals.Get<bool>("isNil").ShouldBeTrue();
+        _state.Globals.Get<double>("resultNumber").ShouldBe(7);
     }
 
     [Fact]
@@ -1091,7 +1090,7 @@ public sealed class FunctionTests : IDisposable
         using (mkTable)
         {
             using LuauTable table = mkTable.Invoke<LuauTable>();
-            table.GetNumber("value").ShouldBe(7);
+            table.Get<double>("value").ShouldBe(7);
         }
     }
 
@@ -1116,7 +1115,7 @@ public sealed class FunctionTests : IDisposable
             using (LuauTable table = mkTable.Invoke<LuauTable>())
             {
                 _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
-                table.GetNumber("value").ShouldBe(11);
+                table.Get<double>("value").ShouldBe(11);
             }
 
             _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
@@ -1150,7 +1149,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("call_and_read", callAndRead);
         _state.Load("result = call_and_read(make_table)").Execute();
 
-        _state.Globals.GetNumber("result").ShouldBe(99);
+        _state.Globals.Get<double>("result").ShouldBe(99);
     }
 
     [Fact]
@@ -1386,7 +1385,7 @@ public sealed class FunctionTests : IDisposable
         _state.Load("capture(inputTable, 'hello', inputFunction, inputBuffer, inputUserdata)").Execute();
 
         using (ownedTable)
-            ownedTable.GetNumber("value").ShouldBe(7);
+            ownedTable.Get<double>("value").ShouldBe(7);
 
         using (ownedString)
             ownedString.ToString().ShouldBe("hello");
@@ -1396,14 +1395,12 @@ public sealed class FunctionTests : IDisposable
 
         using (ownedBuffer)
         {
-            ownedBuffer.TryGet(out byte[]? bytes).ShouldBeTrue();
-            bytes.ShouldBe(inputBuffer);
+            ownedBuffer.ToArray().ShouldBe(inputBuffer);
         }
 
         using (ownedUserdata)
         {
-            ownedUserdata.TryGetManaged(out Fixtures.ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
-            ReferenceEquals(inputUserdata, resolved).ShouldBeTrue();
+            ownedUserdata.Get<Fixtures.ValueUserdata>().ShouldBeSameAs(inputUserdata);
         }
     }
 
@@ -1420,7 +1417,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("make_table", func);
         _state.Load("result = make_table().value").Execute();
 
-        _state.Globals.GetNumber("result").ShouldBe(99);
+        _state.Globals.Get<double>("result").ShouldBe(99);
     }
 
     [Fact]
@@ -1468,8 +1465,8 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("make_table", func);
         _state.Load("result = make_table().value").Execute();
 
-        _state.Globals.GetNumber("result").ShouldBe(99);
-        x.GetNumber("value").ShouldBe(99);
+        _state.Globals.Get<double>("result").ShouldBe(99);
+        x.Get<double>("value").ShouldBe(99);
     }
 
     [Fact]
@@ -1484,7 +1481,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("make_buffer", func);
         _state.Load("result = make_buffer()").Execute();
 
-        _state.Globals.TryGetLuauValue("result", out LuauValue result).ShouldBeTrue();
+        _state.Globals.TryGet("result", out LuauValue result).ShouldBeTrue();
         using (result)
         {
             result.TryGet(out byte[]? bytes).ShouldBeTrue();

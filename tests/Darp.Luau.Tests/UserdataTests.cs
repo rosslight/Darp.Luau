@@ -24,9 +24,9 @@ public sealed class UserdataTests
             )
             .Execute();
 
-        state.Globals.GetNumber("before").ShouldBe(0);
-        state.Globals.GetNumber("after").ShouldBe(41);
-        state.Globals.GetNumber("methodResult").ShouldBe(42);
+        state.Globals.Get<double>("before").ShouldBe(0);
+        state.Globals.Get<double>("after").ShouldBe(41);
+        state.Globals.Get<double>("methodResult").ShouldBe(42);
         CounterUserdata.LastMethodName.ShouldBe("add");
         CounterUserdata.LastParameterCount.ShouldBe(1);
     }
@@ -128,7 +128,7 @@ public sealed class UserdataTests
             )
             .Execute();
 
-        state.Globals.GetNumber("before").ShouldBe(0);
+        state.Globals.Get<double>("before").ShouldBe(0);
 
         state.Globals.TryGet("after", out int after).ShouldBeTrue();
         after.ShouldBe(41);
@@ -211,7 +211,7 @@ public sealed class UserdataTests
         var counter = new CounterUserdata();
 
         using LuauUserdata userdata = state.GetOrCreateUserdata(counter);
-        userdata.TryGetManaged(out CounterUserdata? resolved, out string? error).ShouldBeTrue(error);
+        userdata.TryGet(out CounterUserdata? resolved).ShouldBeTrue();
 
         ReferenceEquals(counter, resolved).ShouldBeTrue();
     }
@@ -225,12 +225,11 @@ public sealed class UserdataTests
 
         table.Set("counter", counter);
 
-        CounterUserdata resolved = table.GetUserdata<CounterUserdata>("counter");
+        CounterUserdata resolved = table.Get<CounterUserdata>("counter");
         ReferenceEquals(counter, resolved).ShouldBeTrue();
 
-        using LuauUserdata reference = table.GetLuauUserdata("counter");
-        reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out string? error).ShouldBeTrue(error);
-        ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
+        using LuauUserdata reference = table.Get<LuauUserdata>("counter");
+        reference.Get<CounterUserdata>().ShouldBeSameAs(counter);
     }
 
     [Fact]
@@ -240,7 +239,7 @@ public sealed class UserdataTests
         LuauTable table = state.CreateTable();
         table.Set("failing", new FailingUserdata());
 
-        table.TryGetUserdata<CounterUserdata>("failing", out _).ShouldBeFalse();
+        table.TryGet<CounterUserdata>("failing", out _).ShouldBeFalse();
     }
 
     [Fact]

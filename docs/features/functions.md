@@ -12,10 +12,10 @@ You usually work in two directions:
 Get an owned `LuauFunction` from globals or a table, keep it for as long as needed, and invoke it with typed arguments:
 
 ```csharp
-using LuauFunction add = lua.Globals.GetLuauFunction("add");
+using LuauFunction add = lua.Globals.Get<LuauFunction>("add");
 double result = add.Invoke<double>(1, 2);
 
-using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
+using LuauFunction pair = lua.Globals.Get<LuauFunction>("pair");
 (int sum, int difference) = pair.Invoke<int, int>(20, 4);
 ```
 

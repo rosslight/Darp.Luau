@@ -11,7 +11,7 @@ public sealed class NumberConversionTests : IDisposable
         where T : struct, System.Numerics.INumber<T>
     {
         _state.Load($"value = {luauNumber}").Execute();
-        return _state.Globals.TryGetNumber("value", out value);
+        return _state.Globals.TryGet("value", out value);
     }
 
     [Theory]
@@ -128,11 +128,11 @@ public sealed class NumberConversionTests : IDisposable
     {
         _state.Load("fraction = 1.5 whole = 7").Execute();
 
-        _state.Globals.TryGetNumberOrNil("missing", out int? missing).ShouldBeTrue();
+        _state.Globals.TryGet("missing", out int? missing).ShouldBeTrue();
         missing.ShouldBeNull();
-        _state.Globals.TryGetNumberOrNil("whole", out int? whole).ShouldBeTrue();
+        _state.Globals.TryGet("whole", out int? whole).ShouldBeTrue();
         whole.ShouldBe(7);
-        _state.Globals.TryGetNumberOrNil("fraction", out int? fraction).ShouldBeFalse();
+        _state.Globals.TryGet("fraction", out int? fraction).ShouldBeFalse();
         fraction.ShouldBeNull();
     }
 

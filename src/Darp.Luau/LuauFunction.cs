@@ -12,7 +12,7 @@ namespace Darp.Luau;
     "CA1815:Override equals and operator equals on value types",
     Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
 )]
-public readonly struct LuauFunction : ILuauReference
+public readonly struct LuauFunction : IDisposable
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
@@ -45,7 +45,7 @@ public readonly struct LuauFunction : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     public void Invoke(params RefEnumerable<IntoLuau> args) =>
-        LuauFunctionInvokeCore.Invoke(_state.GetTrackedReferenceOrThrow(_handle), args);
+        LuauFunctionInvokeCore.Invoke(_state.GetSlotOrThrow(_handle), args);
 
     /// <summary> Invokes the referenced function and converts the first return value. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
@@ -59,7 +59,7 @@ public readonly struct LuauFunction : ILuauReference
     public TR Invoke<TR>(params RefEnumerable<IntoLuau> args)
     {
         return LuauFunctionInvokeCore.Invoke(
-            _state.GetTrackedReferenceOrThrow(_handle),
+            _state.GetSlotOrThrow(_handle),
             args,
             LuauFunctionInvokeCore.ResultSelector<TR>
         );
@@ -78,7 +78,7 @@ public readonly struct LuauFunction : ILuauReference
     public (TR1, TR2) Invoke<TR1, TR2>(params RefEnumerable<IntoLuau> args)
     {
         return LuauFunctionInvokeCore.Invoke(
-            _state.GetTrackedReferenceOrThrow(_handle),
+            _state.GetSlotOrThrow(_handle),
             args,
             LuauFunctionInvokeCore.ResultSelector<TR1, TR2>
         );
@@ -98,7 +98,7 @@ public readonly struct LuauFunction : ILuauReference
     public (TR1, TR2, TR3) Invoke<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args)
     {
         return LuauFunctionInvokeCore.Invoke(
-            _state.GetTrackedReferenceOrThrow(_handle),
+            _state.GetSlotOrThrow(_handle),
             args,
             LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>
         );
@@ -119,7 +119,7 @@ public readonly struct LuauFunction : ILuauReference
     public (TR1, TR2, TR3, TR4) Invoke<TR1, TR2, TR3, TR4>(params RefEnumerable<IntoLuau> args)
     {
         return LuauFunctionInvokeCore.Invoke(
-            _state.GetTrackedReferenceOrThrow(_handle),
+            _state.GetSlotOrThrow(_handle),
             args,
             LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>
         );
@@ -133,7 +133,7 @@ public readonly struct LuauFunction : ILuauReference
     public LuauValue[] InvokeMulti(params RefEnumerable<IntoLuau> args)
     {
         return LuauFunctionInvokeCore.Invoke(
-            _state.GetTrackedReferenceOrThrow(_handle),
+            _state.GetSlotOrThrow(_handle),
             args,
             LuauFunctionInvokeCore.ResultSelectorMulti
         );
@@ -360,7 +360,9 @@ public readonly struct LuauFunction : ILuauReference
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked.</exception>
     public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <inheritdoc/>
+    /// <summary> Hands this reference over to a <see cref="LuauValue"/>, which then holds it. </summary>
+    /// <returns>A value that keeps the function alive until it is disposed.</returns>
+    /// <remarks> This wrapper must not be used afterwards. </remarks>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Function);
 
     /// <inheritdoc />

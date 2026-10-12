@@ -41,7 +41,7 @@ Use `Execute()` when you only care about side effects:
 ```csharp
 lua.Load("result = 42").Execute();
 
-double result = lua.Globals.GetNumber("result");
+double result = lua.Globals.Get<double>("result");
 ```
 
 Chunk execution can also accept arguments through `...`:

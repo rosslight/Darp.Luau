@@ -345,10 +345,10 @@ lua.Load(
     """
 ).Execute();
 
-PlayerUserdata samePlayer = lua.Globals.GetUserdata<PlayerUserdata>("player");
+PlayerUserdata samePlayer = lua.Globals.Get<PlayerUserdata>("player");
 
-using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
-_ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
+using LuauUserdata playerRef = lua.Globals.Get<LuauUserdata>("player");
+PlayerUserdata resolvedPlayer = playerRef.Get<PlayerUserdata>();
 ```
 
 The implicit conversion operator is optional but convenient for manual userdata. If you do not define it on your managed type, use `IntoLuau.FromUserdata(player)` at the call site instead.
@@ -359,12 +359,12 @@ Choose the read API that matches what you need:
 
 | Need | API |
 | --- | --- |
-| Resolve directly to a managed userdata instance | `GetUserdata<T>`, `TryGetUserdata<T>` |
-| Accept missing or `nil` | `GetUserdataOrNil<T>`, `TryGetUserdataOrNil<T>` |
-| Keep a generic owned userdata wrapper | `GetLuauUserdata`, `TryGetLuauUserdata` |
-| Resolve an owned or borrowed userdata wrapper back to a managed instance | `LuauUserdata.TryGetManaged<T>`, `LuauUserdataView.TryGetManaged<T>` |
+| Resolve directly to a managed userdata instance | `Get<T>(key)`, `TryGet(key, out T? value)` |
+| Accept missing or `nil` | `GetOrNull<T>(key)`, `TryGetOrNull(key, out T? value)` |
+| Keep a generic owned userdata wrapper | `Get<LuauUserdata>(key)`, `TryGet(key, out LuauUserdata userdata)` |
+| Resolve an owned or borrowed userdata wrapper back to a managed instance | `Get<T>()` and `TryGet(out T? value)` of `LuauUserdata` and `LuauUserdataView` |
 
-`GetUserdata<T>` and `TryGetManaged<T>` only succeed for managed userdata created by this library and matching `T`. Generic `LuauUserdata` wrappers can still represent other userdata values, but they will not resolve back to your managed type.
+These reads only succeed for managed userdata created by this library and matching `T`. For another value, `Get<T>` throws `LuaGetException` and `TryGet<T>` returns `false`. Generic `LuauUserdata` wrappers can still represent other userdata values, but they will not resolve back to your managed type.
 
 The same split exists inside callbacks:
 

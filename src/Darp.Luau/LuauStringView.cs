@@ -1,67 +1,50 @@
-using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary>
-/// Represents a borrowed, stack-bound Luau string value read from callback arguments.
-/// </summary>
+/// <summary> A borrowed view of a Luau string, such as a string argument of a managed callback. </summary>
 /// <remarks>
-/// This view does not own a registry reference.
-/// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
-/// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
+/// The view does not own a registry reference. It is valid only while the callback that received it runs; call
+/// <see cref="ToOwned"/> to keep the string.
 /// </remarks>
-public readonly ref struct LuauStringView : ILuauView<LuauString>
+public readonly unsafe ref struct LuauStringView
 {
-    private readonly StackReference _reference;
+    private readonly LuauSlot _slot;
 
-    internal unsafe LuauStringView(LuauState state, lua_State* luaState, int stackIndex) =>
-        _reference = new StackReference(state, luaState, stackIndex);
+    internal LuauStringView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _slot = new LuauSlot(state, luaState, stackIndex);
 
-    /// <summary>
-    /// Attempts to get the underlying string bytes as a UTF-8 span.
-    /// </summary>
-    /// <param name="value">Receives a span over Luau-owned memory when successful.</param>
-    /// <returns><c>true</c> when the string is still valid; otherwise <c>false</c>.</returns>
+    internal LuauStringView(LuauSlot slot) => _slot = slot;
+
+    /// <summary> Gets the UTF-8 bytes of the string without copying them. </summary>
+    /// <returns>A span over memory that Luau owns.</returns>
     /// <remarks>
-    /// The returned span aliases Luau memory and should be consumed immediately.
-    /// Copy the data if it must outlive the callback frame.
+    /// The span is valid as long as the view. Use <see cref="ToString"/> for text with a normal .NET lifetime.
     /// </remarks>
-    public bool TryGet(out ReadOnlySpan<byte> value) => LuauStringAccessCore.TryGet(_reference, out value);
-
-    /// <summary>
-    /// Attempts to decode the underlying UTF-8 bytes into a managed <see cref="string"/>.
-    /// </summary>
-    /// <param name="value">Receives the decoded string when successful.</param>
-    /// <returns><c>true</c> when decoding succeeded; otherwise <c>false</c>.</returns>
-    public bool TryGet([NotNullWhen(true)] out string? value) => LuauStringAccessCore.TryGet(_reference, out value);
-
-    /// <inheritdoc/>
-    public LuauString ToOwned()
+    public ReadOnlySpan<byte> AsSpan()
     {
-        LuauState state = _reference.ValidateInternal();
-        return new LuauString(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
+        LuauState state = _slot.State;
+        lua_State* L = state.L;
+        _slot.Push(state);
+        // What the view borrows keeps the string alive after its copy is popped.
+        ReadOnlySpan<byte> bytes = LuauReader.StringBytes(L, -1);
+        lua_pop(L, 1);
+        return bytes;
     }
 
-    /// <summary>
-    /// Converts this borrowed string view to an <see cref="IntoLuau"/> value without creating an owned reference.
-    /// </summary>
-    /// <param name="value">The borrowed string view.</param>
-    /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauStringView value) => IntoLuau.FromRefSource(value._reference);
+    /// <summary> Creates an owned reference to the string, which stays valid after the callback. </summary>
+    /// <returns>The owned reference, which the caller disposes.</returns>
+    public LuauString ToOwned() => new(_slot.State, _slot.ToOwnedHandle());
 
-    /// <inheritdoc />
-    public override string ToString()
-    {
-        try
-        {
-            return TryGet(out string? value) ? value : "<nil>";
-        }
-        catch (ObjectDisposedException)
-        {
-            return "<nil>";
-        }
-    }
+    /// <summary> Passes the string on to Luau without creating an owned reference. </summary>
+    /// <param name="value">The borrowed string.</param>
+    /// <returns>A temporary representation that is valid as long as the view.</returns>
+    public static implicit operator IntoLuau(LuauStringView value) => IntoLuau.FromSlot(value._slot);
+
+    /// <summary> Gets the string as managed text. </summary>
+    public override string ToString() => Encoding.UTF8.GetString(AsSpan());
 }

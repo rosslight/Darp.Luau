@@ -106,7 +106,7 @@ public sealed class CoroutineTests : IDisposable
             )
             .Execute();
 
-        using LuauCoroutine coroutine = _state.Globals.GetLuauCoroutine("co");
+        using LuauCoroutine coroutine = _state.Globals.Get<LuauCoroutine>("co");
 
         coroutine.Resume<int>(5).ShouldBe(5);
         coroutine.Resume<string>().ShouldBe("done");
@@ -144,7 +144,7 @@ public sealed class CoroutineTests : IDisposable
     {
         _state.Load("co = coroutine.create(function() return 7 end)").Execute();
 
-        using LuauValue value = _state.Globals.GetLuauValue("co");
+        using LuauValue value = _state.Globals.Get<LuauValue>("co");
         value.Type.ShouldBe(LuauValueType.Thread);
         value.TryGet(out LuauCoroutine coroutine).ShouldBeTrue();
         using (coroutine)
