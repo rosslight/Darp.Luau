@@ -68,19 +68,13 @@ internal readonly struct IntoLuauCopied
                 {
                     Span<byte> utf8 = new byte[Encoding.UTF8.GetByteCount(text)];
                     int length = Encoding.UTF8.GetBytes(text, utf8);
-                    fixed (byte* pStr = utf8[..length])
-                    {
-                        lua_pushlstring(L, pStr, (nuint)length);
-                    }
+                    LuauStateMarshal.PushString(L, utf8[..length]);
                 }
                 else
                 {
                     Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetByteCount(text)];
                     int length = Encoding.UTF8.GetBytes(text, utf8);
-                    fixed (byte* pStr = utf8[..length])
-                    {
-                        lua_pushlstring(L, pStr, (nuint)length);
-                    }
+                    LuauStateMarshal.PushString(L, utf8[..length]);
                 }
                 break;
             case Kind.Buffer:

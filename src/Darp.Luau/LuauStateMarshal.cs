@@ -141,6 +141,14 @@ internal static class LuauStateMarshal
 
     public static unsafe void PushString(lua_State* state, ReadOnlySpan<byte> message)
     {
+        if (message.IsEmpty)
+        {
+            // An empty span has no address, and Luau must not get a null pointer, also for no bytes.
+            byte empty = 0;
+            lua_pushlstring(state, &empty, 0);
+            return;
+        }
+
         fixed (byte* pMessage = message)
         {
             lua_pushlstring(state, pMessage, (nuint)message.Length);

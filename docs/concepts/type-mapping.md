@@ -47,9 +47,8 @@ You see it most often when:
 
 ### Common write-side rules
 
-- `string` uses `null` to mean `nil`.
-- `string.Empty` pushes an empty Luau string.
-- `ReadOnlySpan<char>` currently treats an empty span as `nil`, so prefer `string` when empty string and `nil` need to stay distinct.
+- Only `null` means `nil`: a `null` `string`, `byte[]` or nullable value.
+- An empty `string`, `ReadOnlySpan<char>` or `byte[]` pushes an empty Luau string or buffer.
 - Passing `byte[]` copies managed data into a Luau buffer.
 - Passing owned wrappers such as `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata` reuses the existing Luau-backed value without creating a second owned wrapper.
 - A reference-backed `LuauValue` does the same when you pass it back into Luau.
