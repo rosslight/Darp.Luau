@@ -113,6 +113,29 @@ public sealed class LuauValueTests : IDisposable
         Should.Throw<LuaGetException>(() => table.Get<string>()).Message.ShouldBe("value: string expected, got table");
     }
 
+    [Theory]
+    [InlineData("function() end", "function")]
+    [InlineData("buffer.create(1)", "buffer")]
+    [InlineData("coroutine.create(function() end)", "thread")]
+    [InlineData("'text'", "string")]
+    public void ReferenceValue_ShouldNameEveryLuauType(string expression, string typeName)
+    {
+        using LuauValue value = Value(expression);
+
+        Should
+            .Throw<LuaGetException>(() => value.Get<int>())
+            .Message.ShouldBe($"value: number expected, got {typeName}");
+    }
+
+    [Fact]
+    public void UserdataValue_ShouldNameItsLuauTypeWhenItIsNotWhatWasAskedFor()
+    {
+        using LuauUserdata userdata = _state.GetOrCreateUserdata(new Fixtures.ValueUserdata());
+        using LuauValue value = userdata.DisposeAndToLuauValue();
+
+        Should.Throw<LuaGetException>(() => value.Get<int>()).Message.ShouldBe("value: number expected, got userdata");
+    }
+
     [Fact]
     public void Read_ShouldLeaveTheStackAsItFoundIt()
     {
