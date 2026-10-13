@@ -48,10 +48,12 @@ public readonly unsafe ref struct LuauArgs
     }
 
     /// <summary>
-    /// Gets the cancellation token of the async host call that runs this callback, such as
+    /// Gets the cancellation token of the async host call this callback is part of, such as
     /// <c>InvokeAsync</c>, <c>ExecuteAsync</c> or <c>ResumeAsync</c>.
     /// </summary>
     /// <remarks>
+    /// It is the token that stops the script that called the callback. That script may run in a coroutine it
+    /// created itself, or in a sync host call that another callback made: both are part of the async host call.
     /// <see cref="CancellationToken.None"/> outside an async host call. Pass it to the work a callback awaits through
     /// its <see cref="LuauAwaiter"/> and to the async host calls it makes: cancelling it stops the script, but not
     /// the callback, its work, or other host calls.
@@ -61,7 +63,7 @@ public readonly unsafe ref struct LuauArgs
         get
         {
             _state.ThrowIfDisposed();
-            return _state.AsyncDrives.GetCancellationToken(_luaState);
+            return _state.InterruptToken;
         }
     }
 

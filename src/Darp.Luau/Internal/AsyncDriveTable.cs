@@ -85,10 +85,6 @@ internal sealed class AsyncDriveTable
     public unsafe bool IsAwaiting(lua_State* coroutine) =>
         TryGetSlot(coroutine, out int slot) && !_slots[slot].Pending.IsNone;
 
-    /// <summary> The token of the async host call driving <paramref name="coroutine"/>, if any. </summary>
-    public unsafe CancellationToken GetCancellationToken(lua_State* coroutine) =>
-        TryGetSlot(coroutine, out int slot) ? _slots[slot].CancellationToken : CancellationToken.None;
-
     private static unsafe bool TryGetSlot(lua_State* coroutine, out int slot)
     {
         slot = (int)(nint)lua_getthreaddata(coroutine) - 1;

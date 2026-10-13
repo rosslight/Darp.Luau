@@ -265,6 +265,51 @@ public sealed class ScriptCancellationTests : IDisposable
         coroutine.Status.ShouldBe(LuauCoroutineStatus.Finished);
     }
 
+    /// <summary> A callback gets the token that stops the script that called it, also where no async call drives that script directly. </summary>
+    [Theory]
+    [InlineData("invoke_read_token()")]
+    [InlineData("coroutine.wrap(function() read_token() end)()")]
+    public async Task Callback_ShouldGetTheTokenOfTheAsyncCallItIsPartOf(string script)
+    {
+        CancellationToken observed = default;
+        using LuauFunction readToken = _state.CreateFunctionManual(args =>
+        {
+            observed = args.CancellationToken;
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("read_token", readToken);
+        using LuauFunction invokeReadToken = _state.CreateFunctionManual(_ =>
+        {
+            readToken.Invoke();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("invoke_read_token", invokeReadToken);
+
+        await ShouldBeCancelledAsync($"{script} cancel() while true do end");
+
+        observed.ShouldBe(_cts.Token);
+    }
+
+    /// <summary> A script module runs in a coroutine of its own, which no async call drives either. </summary>
+    [Fact]
+    public async Task CallbackInAScriptModule_ShouldGetTheTokenOfTheCallThatRequiresIt()
+    {
+        var fileSystem = new FakeFileSystem([("./module.luau", "read_token() return {}")]);
+        using var state = new LuauState(LuauLibraries.All, fileSystem);
+        state.EnableScriptModules();
+        CancellationToken observed = default;
+        using LuauFunction readToken = state.CreateFunctionManual(args =>
+        {
+            observed = args.CancellationToken;
+            return LuauReturn.Ok();
+        });
+        state.Globals.Set("read_token", readToken);
+
+        await state.Load("""require("./module")""").ExecuteAsync([], _cts.Token);
+
+        observed.ShouldBe(_cts.Token);
+    }
+
     /// <summary> The conversion of an awaited result runs after the script was suspended. It is part of the call all the same. </summary>
     [Fact]
     public async Task SyncInvokeFromTheConversionOfAnAwaitedResult_ShouldBeStopped()
