@@ -107,7 +107,7 @@ int length = await lua.Load("return #fetch('https://example.com')").ExecuteAsync
 
 For the script, `fetch(url)` is a normal call. A `CancellationToken` parameter is not a Luau argument; it receives the token of the async call.
 
-Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. A `CreateFunctionManual(...)` callback uses the `LuauAwaiter` from `args.GetAwaiter()`.
+Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. A `CreateFunctionManual(...)` callback uses the `LuauAwaiter` from `args.CreateAwaiter()`.
 
 ## Work with tables
 

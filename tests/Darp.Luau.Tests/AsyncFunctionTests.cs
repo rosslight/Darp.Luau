@@ -18,7 +18,7 @@ public sealed class AsyncFunctionTests : IDisposable
         LuauFunction function = _state.CreateFunctionManual(args =>
         {
             double value = args[1].TryGet(out double number) ? number : 0;
-            LuauAwaiter awaiter = args.GetAwaiter();
+            LuauAwaiter awaiter = args.CreateAwaiter();
             _startedWorkCount++;
             return awaiter.Await(work(value, args.CancellationToken));
         });
@@ -262,7 +262,7 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public void GetAwaiter_UnderSyncExecute_ShouldBeRefusedBeforeAnyWorkStarts()
+    public void CreateAwaiter_UnderSyncExecute_ShouldBeRefusedBeforeAnyWorkStarts()
     {
         using LuauFunction wait = SetAsyncGlobal("wait", (_, _) => ValueTask.FromResult(LuauReturn.Ok()));
 
@@ -281,7 +281,7 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAwaiter_WhereLuauCannotYield_ShouldBeRefusedBeforeAnyWorkStarts()
+    public async Task CreateAwaiter_WhereLuauCannotYield_ShouldBeRefusedBeforeAnyWorkStarts()
     {
         using LuauFunction compare = SetAsyncGlobal("compare", (_, _) => ValueTask.FromResult(LuauReturn.Ok(true)));
 
@@ -300,7 +300,7 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAwaiter_InACallbackInvokedSynchronouslyByACallback_ShouldBeRefused()
+    public async Task CreateAwaiter_InACallbackInvokedSynchronouslyByACallback_ShouldBeRefused()
     {
         using LuauFunction inner = SetAsyncGlobal("inner", (_, _) => ValueTask.FromResult(LuauReturn.Ok()));
         using LuauFunction callInner = _state.Load("local ok, err = pcall(inner) return tostring(err)").ToFunction();
@@ -325,7 +325,7 @@ public sealed class AsyncFunctionTests : IDisposable
         LuauReturn pendingElsewhere = default;
         using LuauFunction grant = _state.CreateFunctionManual(args =>
         {
-            LuauAwaiter awaiter = args.GetAwaiter();
+            LuauAwaiter awaiter = args.CreateAwaiter();
             pendingElsewhere = awaiter.Await(new ValueTask<LuauReturn>(_never.Task));
             return LuauReturn.Ok();
         });
@@ -369,7 +369,7 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         using LuauFunction nested = _state.CreateFunctionManual(args =>
         {
-            LuauAwaiter awaiter = args.GetAwaiter();
+            LuauAwaiter awaiter = args.CreateAwaiter();
             LuauReturn inner = awaiter.Await(new ValueTask<LuauReturn>(_never.Task));
             return awaiter.Await(YieldThen(inner));
         });
@@ -395,7 +395,7 @@ public sealed class AsyncFunctionTests : IDisposable
         using LuauFunction callLater = _state.CreateFunctionManual(args =>
         {
             LuauFunctionView callbackView = args[1].Get<LuauFunctionView>();
-            LuauAwaiter awaiter = args.GetAwaiter();
+            LuauAwaiter awaiter = args.CreateAwaiter();
             return awaiter.Await(CallLater(state, callbackView.ToOwned(), gate.Task));
 
             static async ValueTask<LuauReturn> CallLater(LuauState state, LuauFunction callback, Task gate)
@@ -539,7 +539,7 @@ public sealed class AsyncFunctionTests : IDisposable
         using var cts = new CancellationTokenSource();
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction convert = _state.CreateFunctionManual(args =>
-            args.GetAwaiter()
+            args.CreateAwaiter()
                 .Await(
                     new ValueTask<int>(gate.Task),
                     static _ => throw new OperationCanceledException("conversion gave up")
@@ -600,7 +600,7 @@ public sealed class AsyncFunctionTests : IDisposable
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         bool converted = false;
         using LuauFunction wait = state.CreateFunctionManual(args =>
-            args.GetAwaiter()
+            args.CreateAwaiter()
                 .Await(
                     new ValueTask<int>(gate.Task),
                     value =>
@@ -856,7 +856,7 @@ public sealed class AsyncFunctionTests : IDisposable
                 static (self, args) =>
                 {
                     double value = args[1].TryGet(out double number) ? number : 0;
-                    LuauAwaiter awaiter = args.GetAwaiter();
+                    LuauAwaiter awaiter = args.CreateAwaiter();
                     return awaiter.Await(self._work(value, args.CancellationToken));
                 }
             );
@@ -919,7 +919,8 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction add = _state.CreateFunctionManual(args =>
-            args.GetAwaiter().Await(new ValueTask<int>(gate.Task), static value => LuauReturn.Ok(value + 40, "added"))
+            args.CreateAwaiter()
+                .Await(new ValueTask<int>(gate.Task), static value => LuauReturn.Ok(value + 40, "added"))
         );
         _state.Globals.Set("add", add);
 
@@ -934,7 +935,7 @@ public sealed class AsyncFunctionTests : IDisposable
     public async Task Await_WithAConversionOfCompletedWork_ShouldNotSuspend()
     {
         using LuauFunction add = _state.CreateFunctionManual(args =>
-            args.GetAwaiter().Await(new ValueTask<int>(2), static value => LuauReturn.Ok(value + 40))
+            args.CreateAwaiter().Await(new ValueTask<int>(2), static value => LuauReturn.Ok(value + 40))
         );
         _state.Globals.Set("add", add);
 
@@ -948,7 +949,7 @@ public sealed class AsyncFunctionTests : IDisposable
     public async Task Await_WithAThrowingConversion_ShouldBeALuaErrorCatchableByPcall()
     {
         using LuauFunction fail = _state.CreateFunctionManual(args =>
-            args.GetAwaiter()
+            args.CreateAwaiter()
                 .Await(
                     new ValueTask<int>(Task.Run(static () => 1, TestToken)),
                     static _ => throw new InvalidOperationException("boom from conversion")
@@ -974,7 +975,7 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction wait = _state.CreateFunctionManual(args =>
-            args.GetAwaiter().Await(new ValueTask(gate.Task))
+            args.CreateAwaiter().Await(new ValueTask(gate.Task))
         );
         _state.Globals.Set("wait", wait);
 

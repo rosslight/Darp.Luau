@@ -33,7 +33,7 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
                 global::Vec2 a1 = args[1].Get<global::Vec2>();
                 double a2 = args[2].Get<double>();
                 string? a3 = args[3].GetOrNull<string>();
-                global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
+                global::Darp.Luau.LuauAwaiter awaiter = args.CreateAwaiter();
                 return awaiter.Await(
                     new global::System.Threading.Tasks.ValueTask<double>(a1.ScaledSumAsync(a2, a3, args.CancellationToken)),
                     static returns => global::Darp.Luau.LuauReturn.Ok(returns)

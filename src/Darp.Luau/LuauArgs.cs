@@ -67,16 +67,16 @@ public readonly unsafe ref struct LuauArgs
         }
     }
 
-    /// <summary> Gets the means to finish this callback later. </summary>
+    /// <summary> Creates the means to finish this callback later. </summary>
     /// <returns>Turns work into a pending result.</returns>
     /// <remarks>
     /// A callback can only suspend a coroutine that an async host call drives (<c>InvokeAsync</c>,
     /// <c>ExecuteAsync</c> or <c>ResumeAsync</c>), and only where Luau can yield: not inside a metamethod, a
-    /// <c>table.sort</c> comparator, or a synchronous <c>Invoke</c> of another callback. Get the awaiter before you
-    /// start the work, so that no work is started that cannot be awaited.
+    /// <c>table.sort</c> comparator, or a synchronous <c>Invoke</c> of another callback. Create the awaiter before
+    /// you start the work, so that no work is started that cannot be awaited.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown when the callback cannot suspend its coroutine here.</exception>
-    public LuauAwaiter GetAwaiter()
+    public LuauAwaiter CreateAwaiter()
     {
         _state.ThrowIfDisposed();
         if (!AsyncDriveTable.IsDriving(_luaState))

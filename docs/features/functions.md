@@ -197,7 +197,7 @@ A callback built with `CreateFunctionManual(...)` gets an awaiter before it star
 using LuauFunction delay = lua.CreateFunctionManual(static args =>
 {
     int milliseconds = args[1].Get<int>();
-    LuauAwaiter awaiter = args.GetAwaiter();
+    LuauAwaiter awaiter = args.CreateAwaiter();
     return awaiter.Await(new ValueTask(Task.Delay(milliseconds, args.CancellationToken)));
 });
 lua.Globals.Set("delay", delay);
@@ -205,7 +205,7 @@ lua.Globals.Set("delay", delay);
 await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
 ```
 
-Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Under a sync call `GetAwaiter()` throws, so the callback fails without starting its work. Read all arguments before you await. See [Coroutines](coroutines.md).
+Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Under a sync call `CreateAwaiter()` throws, so the callback fails without starting its work. Read all arguments before you await. See [Coroutines](coroutines.md).
 
 ## Error behavior
 
