@@ -662,7 +662,10 @@ public class InterceptorTests
             {
                 private delegate int OnlyInThisClass(int value);
 
-                private sealed class Hidden { }
+                private sealed class Hidden : ILuauUserdata<Hidden>
+                {
+                    public static void Register(LuauUserdataRegistry<Hidden> registry) { }
+                }
 
                 public static void DoSomething(LuauState state)
                 {
