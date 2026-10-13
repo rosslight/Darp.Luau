@@ -1,3 +1,4 @@
+using System.Text;
 using Darp.Luau.Tests.Fixtures;
 using Shouldly;
 
@@ -265,6 +266,78 @@ public sealed class LuauTableReadTests : IDisposable
             .Load("local co = coroutine.wrap(function() local t = { value = 41 } return f(t) + t.seen end) return co()")
             .Execute<int>()
             .ShouldBe(84);
+    }
+
+    [Fact]
+    public void ContainsKey_WithANilKey_ShouldThrow()
+    {
+        using LuauTable table = Table("{}");
+
+        Should.Throw<ArgumentNullException>(() => table.ContainsKey((string?)null));
+    }
+
+    [Fact]
+    public void TableArgument_ShouldDescribeItselfLikeItsOwnedReference()
+    {
+        using LuauTable table = Table("{}");
+        using LuauFunction function = _state.CreateFunctionManual(static args =>
+            LuauReturn.Ok(args[1].Get<LuauTableView>().ToString())
+        );
+
+        function.Invoke<string>(table).ShouldBe(table.ToString());
+        table.ToString().ShouldStartWith("table: 0x");
+    }
+
+    [Fact]
+    public void Marshal_ShouldGiveTheBytesOfAStringAndOfABufferInPlace()
+    {
+        using LuauTable table = Table("{ text = 'héllo', bytes = buffer.fromstring('abc') }");
+
+        LuauMarshal.TryGetUtf8StringSpan(table, "text", out ReadOnlySpan<byte> text).ShouldBeTrue();
+        Encoding.UTF8.GetString(text).ShouldBe("héllo");
+        LuauMarshal.TryGetBufferSpan(table, "bytes", out ReadOnlySpan<byte> bytes).ShouldBeTrue();
+        bytes.ToArray().ShouldBe("abc"u8.ToArray());
+
+        // Another type, or a missing key, has no bytes.
+        LuauMarshal.TryGetUtf8StringSpan(table, "bytes", out _).ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpan(table, "text", out _).ShouldBeFalse();
+        LuauMarshal.TryGetUtf8StringSpan(table, "missing", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Marshal_OrNil_ShouldTellAMissingValueFromAnotherType()
+    {
+        using LuauTable table = Table("{ text = 'text', bytes = buffer.fromstring('abc') }");
+
+        LuauMarshal
+            .TryGetUtf8StringSpanOrNil(table, "text", out ReadOnlySpan<byte> text, out bool isNil)
+            .ShouldBeTrue();
+        text.Length.ShouldBe(4);
+        isNil.ShouldBeFalse();
+
+        LuauMarshal.TryGetUtf8StringSpanOrNil(table, "missing", out _, out isNil).ShouldBeTrue();
+        isNil.ShouldBeTrue();
+        LuauMarshal.TryGetBufferSpanOrNil(table, "missing", out _, out isNil).ShouldBeTrue();
+        isNil.ShouldBeTrue();
+
+        LuauMarshal.TryGetUtf8StringSpanOrNil(table, "bytes", out _, out isNil).ShouldBeFalse();
+        isNil.ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpanOrNil(table, "text", out _, out isNil).ShouldBeFalse();
+        isNil.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Marshal_WhenIndexRaisesAnError_ShouldFailAndLeaveTheStack()
+    {
+        using LuauTable failing = Table("setmetatable({}, { __index = function() error('no such key', 0) end })");
+        using LuauTable table = Table("{ number = 42 }");
+
+        LuauMarshal.TryGetUtf8StringSpan(failing, "key", out _).ShouldBeFalse();
+        LuauMarshal.TryGetBufferSpanOrNil(failing, "key", out _, out bool isNil).ShouldBeFalse();
+        isNil.ShouldBeFalse();
+
+        // The stack is as it was: the next read finds its value.
+        table.Get<int>("number").ShouldBe(42);
     }
 
     public void Dispose() => _state.Dispose();

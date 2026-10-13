@@ -113,15 +113,13 @@ public readonly unsafe ref struct LuauTableView
     public bool TryGetOrNull<T>(IntoLuau key, out T? value)
         where T : class
     {
-        if (TryRead<T>(key, isProbe: true, out var read, out ReadFailure failure, out bool isNil))
+        if (TryRead<T>(key, isProbe: true, out var read, out _, out bool isNil))
         {
             value = read;
             return true;
         }
 
         value = null;
-        if (failure.IsNotSupported)
-            throw ToException(failure);
         return isNil;
     }
 
