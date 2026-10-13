@@ -218,6 +218,8 @@ public readonly unsafe ref struct LuauTableView
     /// <param name="pair">The key and the value, each with a reference of its own when it is reference-backed.</param>
     /// <returns><c>false</c> at the end of the table.</returns>
     /// <exception cref="NotSupportedException">Thrown when the key or the value has no managed form, like a vector.</exception>
+    // Not inlined, like TryGetItem: see there.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static bool TryGetNextPair(
         scoped in LuauSlot slot,
         ref int iterator,
@@ -260,6 +262,10 @@ public readonly unsafe ref struct LuauTableView
     /// <summary> Reads the value at <paramref name="index"/> of the table of <paramref name="slot"/> as <typeparamref name="T"/>. </summary>
     /// <returns><c>false</c> when the value is nil or not a <typeparamref name="T"/>: the list part ends there.</returns>
     /// <exception cref="NotSupportedException">Thrown when the value cannot be read as <typeparamref name="T"/> at all.</exception>
+    // Not inlined into the loop of the caller. There the JIT clears the enumerator with a 256-bit register and does
+    // not reset it before the native calls of this method, which makes each of them several times slower on Intel
+    // performance cores. As a method of its own, it resets the register when it is entered.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static bool TryGetItem<T>(scoped in LuauSlot slot, int index, [MaybeNullWhen(false)] out T value)
     {
         LuauState state = slot.State;
@@ -268,20 +274,17 @@ public readonly unsafe ref struct LuauTableView
         var type = (lua_Type)lua_rawgeti(L, -1, index); // [table, value]
 
         // Nil ends the list also for a type that reads nil.
-        ReadFailure failure = default;
-        bool isRead;
         if (type is lua_Type.LUA_TNIL)
         {
+            lua_pop(L, 2);
             value = default;
-            isRead = false;
-        }
-        else
-        {
-            isRead = LuauReader.TryRead(ReadSource.FromStack(state, L, -1, type).AsProbe(), out value, out failure);
+            return false;
         }
 
+        ReadSource source = ReadSource.FromStack(state, L, -1, type);
+        bool isRead = LuauReader.TryRead(source.AsProbe(), out value, out ReadFailure failure);
         lua_pop(L, 2);
-        if (failure.IsNotSupported)
+        if (!isRead && failure.IsNotSupported)
             throw failure.ToException("table value");
         return isRead;
     }

@@ -321,7 +321,8 @@ public readonly struct LuauValue : IDisposable
     /// <summary> Reads <paramref name="source"/> as a value, with a reference of its own when it is reference-backed. </summary>
     internal static bool TryRead(scoped in ReadSource source, out LuauValue value, out ReadFailure failure)
     {
-        failure = default;
+        // Written by a read that fails only. See ReadFailure.
+        Unsafe.SkipInit(out failure);
         if (source.IsNil)
         {
             value = default;

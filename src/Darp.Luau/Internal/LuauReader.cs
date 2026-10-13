@@ -105,6 +105,11 @@ internal readonly unsafe ref struct ReadSource
 /// <remarks>
 /// A read that only asks whether a value has a type, like <c>TryGet</c>, fails often and never looks at the reason.
 /// The text is therefore built when it is asked for, and a failure allocates nothing.
+/// <para>
+/// A read that succeeds does not write its failure, and nobody reads it then. Clearing it would be the only use of a
+/// 256-bit register in some reads, in between their native calls. The JIT does not reset that register before the
+/// next native call, which made each of them several times slower on Intel performance cores.
+/// </para>
 /// </remarks>
 internal readonly struct ReadFailure
 {
@@ -485,7 +490,7 @@ internal static unsafe class LuauReader
             if (native is not null && native->UserdataHandle is { IsAllocated: true, Target: T userdata })
             {
                 value = userdata;
-                failure = default;
+                Unsafe.SkipInit(out failure);
                 return true;
             }
         }
@@ -503,7 +508,7 @@ internal static unsafe class LuauReader
     {
         Unsafe.SkipInit(out value);
         Unsafe.As<T, TValue>(ref value) = read;
-        failure = default;
+        Unsafe.SkipInit(out failure);
         return true;
     }
 
@@ -522,7 +527,7 @@ internal static unsafe class LuauReader
             Unsafe.As<T, TValue?>(ref value) = read;
         else
             Unsafe.As<T, TValue>(ref value) = read;
-        failure = default;
+        Unsafe.SkipInit(out failure);
         return true;
     }
 
@@ -551,7 +556,7 @@ internal static unsafe class LuauReader
 
         Unsafe.SkipInit(out value);
         Unsafe.As<T, TValue?>(ref value) = null;
-        failure = default;
+        Unsafe.SkipInit(out failure);
         return true;
     }
 
