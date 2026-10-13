@@ -1,0 +1,42 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction<Counter>(() => ref _hits);
+                                            ^^^^^^^^^
+        state.CreateFunction(ref readonly int () => ref _hits);
+*/
+ : (10,44)-(10,53),
+      Message: Type 'int' used for the return value, which is returned by reference is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Counter>(() => ref _hits);
+        state.CreateFunction(ref readonly int () => ref _hits);
+                                                    ^^^^^^^^^
+    }
+*/
+ : (11,52)-(11,61),
+      Message: Type 'int' used for the return value, which is returned by reference is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

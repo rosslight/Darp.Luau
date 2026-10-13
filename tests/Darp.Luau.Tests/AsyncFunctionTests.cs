@@ -49,6 +49,27 @@ public sealed class AsyncFunctionTests : IDisposable
             )
             .Execute();
 
+    /// <summary> The compiler makes the delegate type of this lambda, and its result is nullable by what it returns. </summary>
+    [Fact]
+    public async Task GeneratedAsyncCallback_OfALambdaWithADefaultValue_ShouldUseIt()
+    {
+        using LuauFunction later = _state.CreateFunction(
+            async (int value = 5, CancellationToken token = default) =>
+            {
+                await Task.Yield();
+                return value > 0 ? "positive" : null;
+            }
+        );
+        _state.Globals.Set("later", later);
+
+        (string? defaulted, string? passed) = await _state
+            .Load("return later(), later(0)")
+            .ExecuteAsync<string, string>([], TestToken);
+
+        defaulted.ShouldBe("positive");
+        passed.ShouldBeNull();
+    }
+
     private static async ValueTask<LuauReturn> AddLater(Task<int> increment, double value) =>
         LuauReturn.Ok(value + await increment);
 

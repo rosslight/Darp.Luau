@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Darp.Luau.Generator.Helpers;
 
-internal readonly record struct LambdaReturnOverride(bool IsNullable, string? TupleElementName);
+internal readonly record struct LambdaReturnOverride(bool IsNullable);
 
 internal static class LambdaReturnNullabilityResolver
 {
@@ -47,13 +47,7 @@ internal static class LambdaReturnNullabilityResolver
                 for (int i = 0; i < tupleType.TupleElements.Length; i++)
                 {
                     bool isNullable = tupleType.TupleElements[i].NullableAnnotation is NullableAnnotation.Annotated;
-                    string? tupleElementName = returnExpression is TupleExpressionSyntax tupleExpression
-                        ? GetTupleElementName(tupleExpression.Arguments[i])
-                        : null;
-                    overrides[i] = new LambdaReturnOverride(
-                        overrides[i].IsNullable || isNullable,
-                        overrides[i].TupleElementName ?? tupleElementName
-                    );
+                    overrides[i] = new LambdaReturnOverride(overrides[i].IsNullable || isNullable);
                 }
 
                 continue;
@@ -69,22 +63,12 @@ internal static class LambdaReturnNullabilityResolver
             overrides[0] = new LambdaReturnOverride(
                 overrides[0].IsNullable
                     || annotation is NullableAnnotation.Annotated
-                    || returnExpression.IsKind(SyntaxKind.NullLiteralExpression),
-                overrides[0].TupleElementName
+                    || returnExpression.IsKind(SyntaxKind.NullLiteralExpression)
             );
         }
 
         return overrides?.ToImmutableArray() ?? [];
     }
-
-    private static string? GetTupleElementName(ArgumentSyntax argumentSyntax) =>
-        argumentSyntax switch
-        {
-            { NameColon.Name.Identifier.ValueText: var explicitName } => explicitName,
-            { Expression: IdentifierNameSyntax { Identifier.ValueText: var identifierName } } => identifierName,
-            { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var memberName } } => memberName,
-            _ => null,
-        };
 
     /// <summary>
     /// Returns the lambda's top-level return expressions without descending into nested lambdas.

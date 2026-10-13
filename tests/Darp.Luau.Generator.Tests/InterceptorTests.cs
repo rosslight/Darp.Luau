@@ -599,7 +599,7 @@ public class InterceptorTests
     }
 
     [Fact]
-    public async Task CustomDelegate_ShouldBeTheParameterOfTheInterceptor()
+    public async Task CustomDelegate_ShouldBeCastToByItsName()
     {
         const string code = """
             using Darp.Luau;
@@ -673,6 +673,59 @@ public class InterceptorTests
         await VerifyHelper.VerifyGeneratorWithErrors(code);
     }
 
+    /// <summary> The compiler makes the delegate type of these callbacks, and generated code gets it by example. </summary>
+    [Fact]
+    public async Task DelegateTypeOfTheCompiler_ShouldBeRecoveredByExample()
+    {
+        const string code = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                private static int ScaleBy(int value, int factor = 2) => value * factor;
+
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((LuauTableView table, int value, uint factor = 2U, DayOfWeek day = DayOfWeek.Friday, string? unit = null) => value);
+                    state.CreateFunction(ScaleBy);
+                    state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => { });
+                    state.CreateFunction(async (int delay = 3, CancellationToken token = default) =>
+                    {
+                        await Task.Delay(delay, token);
+                        return (string?)null;
+                    });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    /// <summary> Luau gets a copy of what a callback returns, so a reference to a variable has nothing to give it. </summary>
+    [Fact]
+    public async Task ReturnByReference_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public delegate ref int Counter();
+
+            public static class Hi
+            {
+                private static int _hits;
+
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Counter>(() => ref _hits);
+                    state.CreateFunction(ref readonly int () => ref _hits);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
     [Fact]
     public async Task DelegateTypeThatGeneratedCodeCannotName_ShouldFail()
     {
@@ -694,10 +747,18 @@ public class InterceptorTests
                     public static void Register(LuauUserdataRegistry<Hidden> registry) { }
                 }
 
+                private enum HiddenMode
+                {
+                    On = 1,
+                }
+
+                private static int Count<T>(T value = default!) => 0;
+
                 public static void DoSomething(LuauState state)
                 {
-                    state.CreateFunction((int value = 5) => value);
-                    state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+                    state.CreateFunction((scoped System.ReadOnlySpan<char> text) => text.Length);
+                    state.CreateFunction(Count<int>);
+                    state.CreateFunction((HiddenMode mode = HiddenMode.On) => 1);
                     state.CreateFunction<OnlyInThisClass>(value => value);
                     state.CreateFunction<OnlyInThisFile>(value => value);
                     state.CreateFunction<Tagged<LocalTag>>(value => value);
