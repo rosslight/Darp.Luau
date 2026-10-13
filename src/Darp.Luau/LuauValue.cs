@@ -222,6 +222,8 @@ public readonly struct LuauValue : IDisposable
         }
     }
 
+    // Not inlined, so that the reader is compiled into one place for a type and not into every case above.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool Read<T>(
         scoped in ReadSource source,
         bool isProbe,

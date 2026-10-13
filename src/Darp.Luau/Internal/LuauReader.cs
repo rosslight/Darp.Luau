@@ -201,6 +201,9 @@ internal static unsafe class LuauReader
     /// Nil is only read by a <typeparamref name="T"/> that has a value for it: a nullable value type, or
     /// <see cref="LuauValue"/>.
     /// </remarks>
+    // Inlined into each read site. One branch remains for a value type, and it then shares the frame of its caller:
+    // on its own, the read of a number is a call with a P/Invoke frame of its own, which a table read notices.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool TryRead<T>(
         scoped in ReadSource source,
         [MaybeNullWhen(false)] out T value,
