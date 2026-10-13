@@ -75,6 +75,16 @@ public sealed class FunctionTests : IDisposable
         int Add(int p1, int p2) => p1 + p2;
     }
 
+    /// <summary> A call that passes a delegate type of its own is intercepted like one that passes a Func. </summary>
+    [Fact]
+    public void CSharpFunction_OfACustomDelegateType_ShouldBeCalled()
+    {
+        using LuauFunction func = _state.CreateFunction<Scale>(value => value * 2);
+        _state.Globals.Set("scale", func);
+
+        _state.Load("return scale(21)").Execute<int>().ShouldBe(42);
+    }
+
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchableByPCall()
     {
@@ -1527,6 +1537,8 @@ public sealed class FunctionTests : IDisposable
         _state.Dispose();
     }
 }
+
+internal delegate int Scale(int value);
 
 internal sealed class ArgsUserdataA : ILuauUserdata<ArgsUserdataA>
 {

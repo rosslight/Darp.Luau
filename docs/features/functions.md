@@ -49,6 +49,16 @@ lua.Globals.Set("pair", pair);
 
 This is the normal callback API when your callback shape is simple and static.
 
+The callback can be a lambda, a method, or a delegate type of your own:
+
+```csharp
+public delegate int Scale(int value);
+
+using LuauFunction scale = lua.CreateFunction<Scale>(value => value * 2);
+```
+
+Generated code has to name the delegate type. A delegate type of your own, and its type arguments, must be `internal` or `public`. A lambda with default parameter values, `params`, or more than 16 parameters has a delegate type that only the compiler can name: convert it to a delegate type of your own.
+
 ### Direct-call requirement
 
 `CreateFunction(...)` is generator-backed. The direct method call is intercepted at compile time and replaced with a generated marshalling adapter.

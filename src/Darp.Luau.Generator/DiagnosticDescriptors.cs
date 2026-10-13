@@ -25,7 +25,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor InvalidDelegateTypeDescriptor = new(
         id: "DLUAU0003",
         title: "Invalid delegate type",
-        messageFormat: "Type '{0}' cannot be used as a delegate type. Expected a concrete delegate type (e.g., Action, Func<string>, or a custom delegate).",
+        messageFormat: "Type '{0}' cannot be the delegate type of CreateFunction: {1}",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
