@@ -198,7 +198,7 @@ print(ok, message) -- false   not enough money
 - The script sees the message and nothing else. An exception without a message is reported by the name of its type.
 - An argument that cannot be read throws for you. Its message names the argument, what was expected and what was passed.
 - A nullable parameter of a `CreateFunction(...)` delegate may be omitted by the script and is then `null`.
-- When the script does not catch the error, the host call that ran it (`Execute`, `Invoke`, ...) throws `LuaException` with that message.
+- When the script does not catch the error, the host call that ran it (`Execute`, `Invoke`, ...) throws `LuaException`. Its message contains the error, behind the name and the status of the call that failed.
 
 An exception you did not intend reaches the script in the same way, for example `Object reference not set to an instance of an object.` A script cannot tell it from an error you raised on purpose. Messages that .NET builds for you name C# parameters: `ArgumentOutOfRangeException.ThrowIfNegative(value)` gives `value ('-1') must be a non-negative value. (Parameter 'value')`. Pass your own text when the message is meant for the script author.
 

@@ -71,7 +71,7 @@ internal static class LuauStateMarshal
     public static string FormatCallbackException(Exception exception)
     {
         string message = MessageOf(exception);
-        return string.IsNullOrWhiteSpace(message) ? exception.GetType().Name : message;
+        return string.IsNullOrEmpty(message) ? exception.GetType().Name : message;
     }
 
     /// <summary> Finishes a native callback of the library itself, like <c>require</c>, whose managed code threw. </summary>

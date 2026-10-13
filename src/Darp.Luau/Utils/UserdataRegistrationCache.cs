@@ -117,7 +117,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             );
         }
         if (type.TypeTableReference == LUA_NOREF)
-            BuildTypeTable(type, typeof(T));
+            BuildTypeTable(type);
 
         lua_State* L = _state.L;
         lua_getref(L, type.TypeTableReference);
@@ -206,7 +206,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         }
     }
 
-    private unsafe void BuildTypeTable(UserdataType type, Type managedType)
+    private unsafe void BuildTypeTable(UserdataType type)
     {
         lua_State* L = _state.L;
         UserdataDescription description = type.Description;

@@ -67,6 +67,53 @@ public sealed class CallbackErrorTests : IDisposable
     }
 
     [Fact]
+    public void Exception_WithAMessageOfWhitespace_ShouldRaiseThatMessage()
+    {
+        using LuauFunction function = _state.CreateFunctionManual(static _ =>
+            throw new InvalidOperationException(" \t")
+        );
+        _state.Globals.Set("f", function);
+
+        ErrorOf("f()").ShouldBe(" \t");
+    }
+
+    [Fact]
+    public void ModuleFunction_ThatThrows_ShouldRaiseTheMessageOfItsException()
+    {
+        _state.RegisterModule(VaultModule.ModuleName, VaultModule.OnLoad);
+
+        _state.Load("return require('vault').open('sesame')").Execute<string>().ShouldBe("open");
+        ErrorOf("require('vault').open('please')").ShouldBe("wrong password");
+    }
+
+    [Fact]
+    public void Callback_ThatLetsAFailedInvokeThrough_ShouldRaiseTheMessageOfThatLuaException()
+    {
+        using LuauFunction function = _state.CreateFunctionManual(static args =>
+        {
+            args[1].Get<LuauFunctionView>().Invoke();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("call", function);
+
+        // The exception of the failed call names the call and its status in front of the error of the script.
+        string error = ErrorOf("call(function() error('inner', 0) end)");
+        error.ShouldStartWith("Lua invocation");
+        error.ShouldEndWith(": inner");
+    }
+
+    [Fact]
+    public void Callback_ThatThrowsOperationCanceled_ShouldRaiseItsMessageUnderASyncCall()
+    {
+        using LuauFunction function = _state.CreateFunctionManual(static _ =>
+            throw new OperationCanceledException("gave up")
+        );
+        _state.Globals.Set("f", function);
+
+        ErrorOf("f()").ShouldBe("gave up");
+    }
+
+    [Fact]
     public void UserdataMembers_ThatThrow_ShouldRaiseTheMessageOfTheirException()
     {
         _state.Globals.Set("account", new Account());
@@ -135,4 +182,12 @@ public sealed class CallbackErrorTests : IDisposable
 
         public static implicit operator IntoLuau(Account value) => IntoLuau.FromUserdata(value);
     }
+}
+
+[LuauModule("vault")]
+public static partial class VaultModule
+{
+    [LuauMember("open")]
+    public static string Open(string password) =>
+        password == "sesame" ? "open" : throw new ArgumentException("wrong password");
 }

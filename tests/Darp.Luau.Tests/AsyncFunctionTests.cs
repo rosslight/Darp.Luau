@@ -218,7 +218,7 @@ public sealed class AsyncFunctionTests : IDisposable
             .ExecuteAsync<bool, string>([], TestToken);
 
         ok.ShouldBeFalse();
-        error.ShouldContain("boom from async callback");
+        error.ShouldBe("boom from async callback");
     }
 
     [Fact]
@@ -803,7 +803,7 @@ public sealed class AsyncFunctionTests : IDisposable
             .ExecuteAsync<bool, string>([], TestToken);
 
         ok.ShouldBeFalse();
-        error.ShouldContain("boom from async method");
+        error.ShouldBe("boom from async method");
     }
 
     [Fact]
@@ -945,7 +945,7 @@ public sealed class AsyncFunctionTests : IDisposable
             .ExecuteAsync<bool, string>([], TestToken);
 
         ok.ShouldBeFalse();
-        error.ShouldContain("boom from conversion");
+        error.ShouldBe("boom from conversion");
     }
 
     [Fact]
