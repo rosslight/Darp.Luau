@@ -685,7 +685,7 @@ public class InterceptorTests
                 public void Register(LuauState state)
                 {
                     state.CreateFunction<Scale>(value => value);
-                    state.CreateFunction<Tagged<TSettings>>(value => value);
+                    state.CreateFunction<Tagged<TSettings[]>>(value => value);
                 }
             }
             """;
