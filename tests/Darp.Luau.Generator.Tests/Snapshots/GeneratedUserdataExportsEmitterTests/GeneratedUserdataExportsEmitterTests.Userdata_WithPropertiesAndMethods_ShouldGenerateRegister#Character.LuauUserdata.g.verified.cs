@@ -9,17 +9,9 @@ public sealed partial class Character : global::Darp.Luau.ILuauUserdata<global::
     {
         registry.TypeName = "Character";
         registry.AddGetter("kind", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok((double)self.Kind));
-        registry.AddSetter("kind", static (self, value) =>
-        {
-            self.Kind = value.Get<global::CharacterKind>();
-            return global::Darp.Luau.LuauOutcome.Ok();
-        });
+        registry.AddSetter("kind", static (self, value) => self.Kind = value.Get<global::CharacterKind>());
         registry.AddGetter("name", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Name));
-        registry.AddSetter("name", static (self, value) =>
-        {
-            self.Name = value.Get<string>();
-            return global::Darp.Luau.LuauOutcome.Ok();
-        });
+        registry.AddSetter("name", static (self, value) => self.Name = value.Get<string>());
         registry.AddMethod("rename", static (self, args) =>
         {
             string a1 = args[1].Get<string>();
@@ -33,10 +25,6 @@ public sealed partial class Character : global::Darp.Luau.ILuauUserdata<global::
             return global::Darp.Luau.LuauReturn.Ok();
         });
         registry.AddGetter("score", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Score));
-        registry.AddSetter("secret", static (self, value) =>
-        {
-            self.Secret = value.GetOrNull<string>();
-            return global::Darp.Luau.LuauOutcome.Ok();
-        });
+        registry.AddSetter("secret", static (self, value) => self.Secret = value.GetOrNull<string>());
     }
 }

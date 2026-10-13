@@ -17,7 +17,7 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
                 var returns = (a1 + a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (add) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (add) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Call, static args =>
         {
@@ -33,14 +33,13 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
                 global::Vec2 a1 = args[1].Get<global::Vec2>();
                 double a2 = args[2].Get<double>();
                 string? a3 = args[3].GetOrNull<string>();
-                if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
                 return awaiter.Await(
                     new global::System.Threading.Tasks.ValueTask<double>(a1.ScaledSumAsync(a2, a3, args.CancellationToken)),
                     static returns => global::Darp.Luau.LuauReturn.Ok(returns)
                 );
             }
-            return global::Darp.Luau.LuauReturn.Error("no overload of the metamethod accepts these arguments");
+            throw new global::System.ArgumentException("no overload of the metamethod accepts these arguments");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Eq, static args =>
         {
@@ -82,7 +81,7 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
                 var returns = global::Vec2.Scale(a1, a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.NewIndex, static args =>
         {

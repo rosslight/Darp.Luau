@@ -77,7 +77,7 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
         catch (Exception exception)
         {
             lua_settop(L, topBeforeCallback);
-            return LuauStateMarshal.ReturnCallbackException(L, "require", exception);
+            return LuauStateMarshal.ReturnLibraryException(L, "require", exception);
         }
     }
 

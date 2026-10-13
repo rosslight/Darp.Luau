@@ -56,7 +56,9 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     public void CreateFunctionManual_Error_ShouldThrowUnderNone()
     {
         LuauState state = CreateState(LuauLibraries.None);
-        using LuauFunction fail = state.CreateFunctionManual(static _ => LuauReturn.Error("boom from callback"));
+        using LuauFunction fail = state.CreateFunctionManual(static _ =>
+            throw new InvalidOperationException("boom from callback")
+        );
         state.Globals.Set("fail", fail);
 
         LuaException exception = Should.Throw<LuaException>(() => state.Load("return fail()").Execute());

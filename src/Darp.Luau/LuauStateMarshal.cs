@@ -58,31 +58,43 @@ internal static class LuauStateMarshal
         return -1;
     }
 
+    /// <summary> Finishes a native callback whose managed code threw: raises <paramref name="exception"/> as a Luau error. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe int ReturnCallbackException(lua_State* state, string callbackName, Exception exception) =>
-        ReturnError(state, FormatCallbackException(exception, callbackName));
+    public static unsafe int ReturnCallbackException(lua_State* state, Exception exception) =>
+        ReturnError(state, FormatCallbackException(exception));
 
-    /// <summary> Formats an exception thrown by a managed callback as the Luau error message the script receives. </summary>
+    /// <summary> Gets the Luau error an exception stands for when managed code that Luau called throws it: its message. </summary>
     /// <remarks>
-    /// A value the callback could not read is an error of the script, not of the callback: its message is the Luau
-    /// error as it is, such as <c>invalid argument #1 (number expected, got string)</c>.
+    /// Throwing is how a callback fails, so the message is what the host wants the script to see. The type of the
+    /// exception stands in for a message that is empty.
     /// </remarks>
-    public static string FormatCallbackException(Exception exception, string callbackName = "managed function")
+    public static string FormatCallbackException(Exception exception)
     {
-        if (exception is LuaGetException)
-            return exception.Message;
+        string message = MessageOf(exception);
+        return string.IsNullOrEmpty(message) ? exception.GetType().Name : message;
+    }
 
-        string message;
+    /// <summary> Finishes a native callback of the library itself, like <c>require</c>, whose managed code threw. </summary>
+    /// <param name="state">The stack the error is raised on.</param>
+    /// <param name="what">What failed, such as <c>require</c>.</param>
+    /// <param name="exception">The exception.</param>
+    /// <remarks>
+    /// Nothing throws there to tell the script something, so the error names what failed and the exception.
+    /// </remarks>
+    public static unsafe int ReturnLibraryException(lua_State* state, string what, Exception exception) =>
+        ReturnError(state, $"{what} callback failed: {exception.GetType().Name}: {MessageOf(exception)}");
+
+    private static string MessageOf(Exception exception)
+    {
         try
         {
-            message = exception.Message;
+            return exception.Message;
         }
         catch (Exception)
         {
             // The message of an exception is code of its author. It must not fail the report of the exception.
-            message = "<the exception message is not available>";
+            return string.Empty;
         }
-        return $"{callbackName} callback failed: {exception.GetType().Name}: {message}";
     }
 
     public static unsafe int ReturnSuccess(lua_State* state, int outputCount)

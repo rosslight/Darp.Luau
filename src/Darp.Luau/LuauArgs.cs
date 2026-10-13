@@ -65,35 +65,23 @@ public readonly unsafe ref struct LuauArgs
         }
     }
 
-    /// <summary> Asks whether this callback may finish later, and gets the means to do so. </summary>
-    /// <param name="awaiter">Turns work into a pending result when the callback may suspend its coroutine.</param>
-    /// <param name="error">Why the callback cannot suspend its coroutine here.</param>
-    /// <returns><c>true</c> when the callback may suspend its coroutine; otherwise <c>false</c>.</returns>
+    /// <summary> Gets the means to finish this callback later. </summary>
+    /// <returns>Turns work into a pending result.</returns>
     /// <remarks>
     /// A callback can only suspend a coroutine that an async host call drives (<c>InvokeAsync</c>,
     /// <c>ExecuteAsync</c> or <c>ResumeAsync</c>), and only where Luau can yield: not inside a metamethod, a
-    /// <c>table.sort</c> comparator, or a synchronous <c>Invoke</c> of another callback. Ask before you start the
-    /// work, and return <paramref name="error"/> with <see cref="LuauReturn.Error(string)"/> when it is refused.
+    /// <c>table.sort</c> comparator, or a synchronous <c>Invoke</c> of another callback. Get the awaiter before you
+    /// start the work, so that no work is started that cannot be awaited.
     /// </remarks>
-    public bool TryGetAwaiter(out LuauAwaiter awaiter, [NotNullWhen(false)] out string? error)
+    /// <exception cref="InvalidOperationException">Thrown when the callback cannot suspend its coroutine here.</exception>
+    public LuauAwaiter GetAwaiter()
     {
         _state.ThrowIfDisposed();
-        awaiter = default;
         if (!AsyncDriveTable.IsDriving(_luaState))
-        {
-            error = CoroutineDriver.AwaitRejectedError;
-            return false;
-        }
-
+            throw new InvalidOperationException(CoroutineDriver.AwaitRejectedError);
         if (lua_isyieldable(_luaState) == 0)
-        {
-            error = CoroutineDriver.AwaitNotYieldableError;
-            return false;
-        }
-
-        awaiter = new LuauAwaiter(isGranted: true);
-        error = null;
-        return true;
+            throw new InvalidOperationException(CoroutineDriver.AwaitNotYieldableError);
+        return new LuauAwaiter(isGranted: true);
     }
 
     /// <summary>

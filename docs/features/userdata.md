@@ -245,17 +245,14 @@ internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
         registry.TypeName = "Player";
         registry.AddGetter("name", static (self, _) => LuauReturnSingle.Ok(self.Name));
         registry.AddGetter("score", static (self, _) => LuauReturnSingle.Ok(self.Score));
-        registry.AddSetter("score", static (self, value) =>
-        {
-            self.Score = value.Get<int>();
-            return LuauOutcome.Ok();
-        });
+        registry.AddSetter("score", static (self, value) => self.Score = value.Get<int>());
         registry.AddMethod("add", static (self, args) =>
         {
-            if (args.Count != 1)
-                return LuauReturn.Error("Expected exactly 1 argument.");
+            int points = args[1].Get<int>();
+            if (points < 0)
+                throw new ArgumentException("points must not be negative");
 
-            self.Score += args[1].Get<int>();
+            self.Score += points;
             return LuauReturn.Ok(self.Score);
         });
     }
@@ -275,7 +272,7 @@ internal sealed class PlayerUserdata : ILuauUserdata<PlayerUserdata>
 
 `TypeName` is optional here. Without it, `typeof(value)` is `userdata`.
 
-The callbacks are manual callback surfaces, like `CreateFunctionManual(...)`: you read arguments yourself and return `LuauReturn*` or `LuauOutcome` values explicitly. `LuauArgs.State` gives a callback the state it runs in.
+The callbacks are manual callback surfaces, like `CreateFunctionManual(...)`: you read arguments yourself. A getter returns `LuauReturnSingle.Ok(...)`, a setter returns nothing, and a method returns `LuauReturn.Ok(...)`. `LuauArgs.State` gives a callback the state it runs in.
 
 `Register` is called once per process, before the first instance reaches a state, and every state shares what it describes. It must therefore not capture a state. A name can have one getter and one setter, or be one method; declaring a name twice throws. An exception from `Register` is thrown again by every use of the type.
 
@@ -292,7 +289,7 @@ registry.AddMetamethod(LuauMetamethod.Mul, static args =>
     {
         // 2 * vec
     }
-    return LuauReturn.Error($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
+    throw new ArgumentException($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
 });
 ```
 
@@ -321,8 +318,7 @@ A method can finish later through the awaiter of its `LuauArgs`, like a callback
 ```csharp
 registry.AddMethod("save", static (self, args) =>
 {
-    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
-        return LuauReturn.Error(error);
+    LuauAwaiter awaiter = args.GetAwaiter();
     return awaiter.Await(
         new ValueTask(File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), args.CancellationToken))
     );
@@ -373,12 +369,18 @@ The same split exists inside callbacks:
 
 ## Error behavior
 
-Userdata callbacks participate in normal Luau error handling:
+A member of a userdata type fails by throwing, like every callback. The message of the exception becomes the Luau error, which a script can catch with `pcall(...)`:
 
-- return `LuauReturn.Error(...)` or `LuauOutcome.Error(...)` for expected user-facing failures,
-- let exceptions bubble only for truly exceptional failures.
+```csharp
+[LuauMember("health")]
+public int Health
+{
+    get => _health;
+    set => _health = value >= 0 ? value : throw new ArgumentException("health must not be negative");
+}
+```
 
-Thrown exceptions become Luau errors too, including inside `pcall(...)`. The message names the member that threw.
+This holds for generated members and for the callbacks of a manual `Register`. See [Error behavior](functions.md#error-behavior) for what the script sees.
 
 Methods can return zero, one, or many values through `LuauReturn.Ok(...)`.
 

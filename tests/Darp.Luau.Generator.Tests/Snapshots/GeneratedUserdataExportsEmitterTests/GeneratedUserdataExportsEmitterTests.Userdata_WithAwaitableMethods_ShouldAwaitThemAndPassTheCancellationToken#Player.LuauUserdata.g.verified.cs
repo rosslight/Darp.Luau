@@ -11,8 +11,7 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserdata<global::Pla
         registry.AddMethod("load", static (self, args) =>
         {
             string a1 = args[1].Get<string>();
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(
                 new global::System.Threading.Tasks.ValueTask<string?>(self.LoadAsync(args.CancellationToken, a1)),
                 static returns => global::Darp.Luau.LuauReturn.Ok(returns)
@@ -20,15 +19,13 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserdata<global::Pla
         });
         registry.AddMethod("save", static (self, args) =>
         {
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(new global::System.Threading.Tasks.ValueTask(self.SaveAsync(args.CancellationToken)));
         });
         registry.AddMethod("stats", static (self, args) =>
         {
             int a1 = args[1].Get<int>();
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(
                 self.GetStatsAsync(a1),
                 static returns => global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2 is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata(returns.Item2))

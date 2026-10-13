@@ -504,7 +504,7 @@ public sealed unsafe class LuauState : IDisposable
         catch (Exception exception)
         {
             lua_settop(luaState, topBeforeCallback);
-            return LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
+            return LuauStateMarshal.ReturnCallbackException(luaState, exception);
         }
     }
 
@@ -549,7 +549,7 @@ public sealed unsafe class LuauState : IDisposable
             catch (Exception exception)
             {
                 lua_settop(luaState, topBeforeInvoke);
-                int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
+                int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, exception);
 #if DEBUG
                 nestedGuard.OverwriteExpectedDelta(1);
 #endif

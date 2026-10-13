@@ -9,7 +9,7 @@ internal static class UserdataEmitter
 {
     private const string LuauReturn = "global::Darp.Luau.LuauReturn";
     private const string LuauReturnSingle = "global::Darp.Luau.LuauReturnSingle";
-    private const string LuauOutcome = "global::Darp.Luau.LuauOutcome";
+    private const string ArgumentException = "global::System.ArgumentException";
 
     public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
     {
@@ -97,7 +97,7 @@ internal static class UserdataEmitter
 
         // Operands of the wrong type are no error of the method but of the script: it is told what it combined,
         // and an index that is not a member reads as nil like any other.
-        string? mismatch = GetOperandMismatchResult(metamethod);
+        string? mismatch = GetOperandMismatchStatement(metamethod);
         if (mismatch is null)
         {
             WriteMetamethodCall(writer, metamethod.Overloads[0]);
@@ -114,7 +114,7 @@ internal static class UserdataEmitter
                 writer.Indent--;
                 writer.WriteLine("}");
             }
-            writer.WriteLine($"return {mismatch};");
+            writer.WriteLine(mismatch);
         }
 
         writer.Indent--;
@@ -122,10 +122,10 @@ internal static class UserdataEmitter
     }
 
     /// <summary>
-    /// Gets what a metamethod returns when no overload takes the operands. Null when Luau only calls the metamethod
+    /// Gets what a metamethod does when no overload takes the operands. Null when Luau only calls the metamethod
     /// with the operands its one method takes.
     /// </summary>
-    private static string? GetOperandMismatchResult(GeneratedMetamethodIr metamethod)
+    private static string? GetOperandMismatchStatement(GeneratedMetamethodIr metamethod)
     {
         const string firstType = "{args[1].TypeName}";
         const string secondType = "{args[2].TypeName}";
@@ -142,17 +142,17 @@ internal static class UserdataEmitter
         };
         if (operation is not null)
         {
-            return $"{LuauReturn}.Error($\"attempt to perform arithmetic ({operation}) on {firstType} and {secondType}\")";
+            return $"throw new {ArgumentException}($\"attempt to perform arithmetic ({operation}) on {firstType} and {secondType}\");";
         }
 
         return metamethod.Name switch
         {
-            "Concat" => $"{LuauReturn}.Error($\"attempt to concatenate {firstType} with {secondType}\")",
-            "Index" => $"{LuauReturn}.Ok()",
+            "Concat" => $"throw new {ArgumentException}($\"attempt to concatenate {firstType} with {secondType}\");",
+            "Index" => $"return {LuauReturn}.Ok();",
             "NewIndex" when metamethod.Overloads.Length > 1 =>
-                $"{LuauReturn}.Error($\"attempt to set a userdata member with a {secondType} key and a {{args[3].TypeName}} value\")",
+                $"throw new {ArgumentException}($\"attempt to set a userdata member with a {secondType} key and a {{args[3].TypeName}} value\");",
             _ when metamethod.Overloads.Length > 1 =>
-                $"{LuauReturn}.Error(\"no overload of the metamethod accepts these arguments\")",
+                $"throw new {ArgumentException}(\"no overload of the metamethod accepts these arguments\");",
             _ => null,
         };
     }
@@ -229,15 +229,9 @@ internal static class UserdataEmitter
         if (property.Setter is null)
             return;
 
-        writer.WriteLine($"registry.AddSetter({keyLiteral}, static (self, value) =>");
-        writer.WriteLine("{");
-        writer.Indent++;
         writer.WriteLine(
-            $"self.{property.ManagedName} = {LuauMarshalEmitter.FormatRead("value", property.Setter.Type)};"
+            $"registry.AddSetter({keyLiteral}, static (self, value) => self.{property.ManagedName} = {LuauMarshalEmitter.FormatRead("value", property.Setter.Type)});"
         );
-        writer.WriteLine($"return {LuauOutcome}.Ok();");
-        writer.Indent--;
-        writer.WriteLine("});");
     }
 
     private static void WriteStaticValue(IndentedTextWriter writer, GeneratedExportPropertyIr property)

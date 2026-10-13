@@ -39,7 +39,6 @@ public sealed class UserdataTests
 
         LuaException exception = Should.Throw<LuaException>(() => state.Load("return failing.explode").Execute());
 
-        exception.Message.ShouldContain("userdata member 'explode' callback failed");
         exception.Message.ShouldContain("Boom from getter");
     }
 
@@ -75,18 +74,10 @@ public sealed class UserdataTests
     }
 
     [Theory]
-    [InlineData("return failing.explode", "userdata member 'explode' callback failed", "Boom from getter")]
-    [InlineData("failing.explodeSet = 1", "userdata member 'explodeSet' callback failed", "Boom from setter")]
-    [InlineData(
-        "return failing:explodeMethod()",
-        "userdata method 'explodeMethod' callback failed",
-        "Boom from method"
-    )]
-    public void Userdata_CallbackErrorsFromCoroutine_ShouldBeLuaErrors(
-        string callbackSource,
-        string expectedCallback,
-        string expectedMessage
-    )
+    [InlineData("return failing.explode", "Boom from getter")]
+    [InlineData("failing.explodeSet = 1", "Boom from setter")]
+    [InlineData("return failing:explodeMethod()", "Boom from method")]
+    public void Userdata_CallbackErrorsFromCoroutine_ShouldBeLuaErrors(string callbackSource, string expectedMessage)
     {
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
@@ -104,7 +95,6 @@ public sealed class UserdataTests
             .Execute<bool, string>();
 
         ok.ShouldBeFalse();
-        error.ShouldContain(expectedCallback);
         error.ShouldContain(expectedMessage);
     }
 
@@ -431,7 +421,6 @@ public sealed class UserdataTests
             chunk.Execute();
         });
 
-        exception.Message.ShouldContain("userdata member 'explode' callback failed");
         exception.Message.ShouldContain("Boom from getter");
     }
 
@@ -455,7 +444,6 @@ public sealed class UserdataTests
         ok.ShouldBeFalse();
 
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("userdata member 'explode' callback failed");
         err.ShouldContain("Boom from getter");
     }
 
@@ -480,7 +468,6 @@ public sealed class UserdataTests
 
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("error from getter");
-        err.ShouldNotContain("callback failed");
     }
 
     [Fact]
@@ -495,7 +482,6 @@ public sealed class UserdataTests
             chunk.Execute();
         });
 
-        exception.Message.ShouldContain("userdata member 'explodeSet' callback failed");
         exception.Message.ShouldContain("Boom from setter");
     }
 
@@ -519,7 +505,6 @@ public sealed class UserdataTests
         ok.ShouldBeFalse();
 
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("userdata member 'explodeSet' callback failed");
         err.ShouldContain("Boom from setter");
     }
 
@@ -544,7 +529,6 @@ public sealed class UserdataTests
 
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("error from setter");
-        err.ShouldNotContain("callback failed");
     }
 
     [Fact]
@@ -555,7 +539,6 @@ public sealed class UserdataTests
 
         LuaException exception = Should.Throw<LuaException>(() => state.Load("x = failing:explodeMethod()").Execute());
 
-        exception.Message.ShouldContain("userdata method 'explodeMethod' callback failed");
         exception.Message.ShouldContain("Boom from method");
     }
 
@@ -579,7 +562,6 @@ public sealed class UserdataTests
         ok.ShouldBeFalse();
 
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("userdata method 'explodeMethod' callback failed");
         err.ShouldContain("Boom from method");
     }
 
@@ -670,7 +652,6 @@ public sealed class UserdataTests
                 {
                     int number = value.Get<int>();
                     self.Value = number;
-                    return LuauOutcome.Ok();
                 }
             );
             registry.AddMethod(
@@ -679,7 +660,7 @@ public sealed class UserdataTests
                 {
                     RecordCall("add", args);
                     if (args.Count != 1)
-                        return LuauReturn.Error($"expected 1 arguments, got {args.Count}");
+                        throw new InvalidOperationException($"expected 1 arguments, got {args.Count}");
                     int offset = args[1].Get<int>();
 
                     return LuauReturn.Ok(self.Value + offset);
@@ -691,7 +672,7 @@ public sealed class UserdataTests
                 {
                     RecordCall("pair", args);
                     if (args.Count != 0)
-                        return LuauReturn.Error($"expected 0 arguments, got {args.Count}");
+                        throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
 
                     return LuauReturn.Ok(self.Value, self.Value + 1);
                 }
@@ -702,7 +683,7 @@ public sealed class UserdataTests
                 {
                     RecordCall("touch", args);
                     if (args.Count != 0)
-                        return LuauReturn.Error($"expected 0 arguments, got {args.Count}");
+                        throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
 
                     self.Value++;
                     return LuauReturn.Ok();
@@ -724,9 +705,9 @@ public sealed class UserdataTests
         public static void Register(LuauUserdataRegistry<FailingUserdata> registry)
         {
             registry.AddGetter("explode", static (_, _) => throw new InvalidOperationException("Boom from getter"));
-            registry.AddGetter("errorIndex", static (_, _) => LuauReturnSingle.Error("error from getter"));
+            registry.AddGetter("errorIndex", static (_, _) => throw new InvalidOperationException("error from getter"));
             registry.AddSetter("explodeSet", static (_, _) => throw new InvalidOperationException("Boom from setter"));
-            registry.AddSetter("errorSet", static (_, _) => LuauOutcome.Error("error from setter"));
+            registry.AddSetter("errorSet", static (_, _) => throw new InvalidOperationException("error from setter"));
             registry.AddMethod(
                 "explodeMethod",
                 static (_, _) => throw new InvalidOperationException("Boom from method")

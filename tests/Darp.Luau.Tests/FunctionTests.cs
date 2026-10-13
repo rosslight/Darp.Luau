@@ -89,7 +89,6 @@ public sealed class FunctionTests : IDisposable
         ok.ShouldBeFalse();
 
         _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("managed function callback failed");
         err.ShouldContain("Boom from managed function");
     }
 
@@ -106,7 +105,6 @@ public sealed class FunctionTests : IDisposable
             LuauChunk chunk = _state.Load("explode();");
             chunk.Execute();
         });
-        exception.Message.ShouldContain("managed function callback failed");
         exception.Message.ShouldContain("Boom from managed function");
     }
 
@@ -127,7 +125,9 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnErrorString()
     {
-        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("user facing error"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ =>
+            throw new InvalidOperationException("user facing error")
+        );
         _state.Globals.Set("fail", func);
 
         _state.Load("ok, err = pcall(fail)").Execute();
@@ -167,7 +167,9 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ErrorFromCoroutine_ShouldBeLuaError()
     {
-        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("boom from coroutine"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ =>
+            throw new InvalidOperationException("boom from coroutine")
+        );
         _state.Globals.Set("fail", func);
 
         (bool ok, string error) = _state
@@ -201,7 +203,9 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void CSharpFunction_ResultObject_ImplicitString_ShouldBeAnError()
     {
-        using LuauFunction func = _state.CreateFunctionManual(static _ => LuauReturn.Error("error from callback"));
+        using LuauFunction func = _state.CreateFunctionManual(static _ =>
+            throw new InvalidOperationException("error from callback")
+        );
         _state.Globals.Set("fail", func);
 
         _state.Load("ok, err = pcall(fail)").Execute();
@@ -1141,7 +1145,7 @@ public sealed class FunctionTests : IDisposable
 
             using LuauTable table = function.Invoke<LuauTable>();
             if (!table.TryGet("value", out int value))
-                return LuauReturn.Error("Expected returned table to contain number key 'value'.");
+                throw new InvalidOperationException("Expected returned table to contain number key 'value'.");
 
             return LuauReturn.Ok(value);
         });
@@ -1321,18 +1325,18 @@ public sealed class FunctionTests : IDisposable
 
             LuauValue[] values = function.InvokeMulti();
             if (values.Length != 3)
-                return LuauReturn.Error($"Expected 3 values, got {values.Length}.");
+                throw new InvalidOperationException($"Expected 3 values, got {values.Length}.");
 
             using LuauValue value1 = values[0];
             using LuauValue value2 = values[1];
             using LuauValue value3 = values[2];
 
             if (!value1.TryGet(out int number))
-                return LuauReturn.Error("Expected first return value to be an int.");
+                throw new InvalidOperationException("Expected first return value to be an int.");
             if (!value2.TryGet(out string? text))
-                return LuauReturn.Error("Expected second return value to be a string.");
+                throw new InvalidOperationException("Expected second return value to be a string.");
             if (!value3.TryGet(out bool flag))
-                return LuauReturn.Error("Expected third return value to be a bool.");
+                throw new InvalidOperationException("Expected third return value to be a bool.");
 
             return LuauReturn.Ok($"{number}:{text}:{flag}");
         });
@@ -1498,14 +1502,13 @@ public sealed class FunctionTests : IDisposable
         LuaException exception = Should.Throw<LuaException>(() => _state.Load("fail()").Execute());
 
         exception.Message.ShouldContain(nameof(BrokenMessageException));
-        exception.Message.ShouldContain("the exception message is not available");
     }
 
     [Fact]
     public void CallbackError_WithAVeryLongMessage_ShouldReachTheScript()
     {
         string message = new('x', 1024 * 1024);
-        using LuauFunction fail = _state.CreateFunctionManual(_ => LuauReturn.Error(message));
+        using LuauFunction fail = _state.CreateFunctionManual(_ => throw new InvalidOperationException(message));
         _state.Globals.Set("fail", fail);
 
         int length = _state.Load("local _, err = pcall(fail) return #err").Execute<int>();

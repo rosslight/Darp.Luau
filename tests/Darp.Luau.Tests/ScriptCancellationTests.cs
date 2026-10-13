@@ -272,8 +272,8 @@ public sealed class ScriptCancellationTests : IDisposable
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction endless = _state.Load("while true do end").ToFunction();
         using LuauFunction convert = _state.CreateFunctionManual(args =>
-            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-                ? awaiter.Await(
+            args.GetAwaiter()
+                .Await(
                     new ValueTask<int>(gate.Task),
                     _ =>
                     {
@@ -281,7 +281,6 @@ public sealed class ScriptCancellationTests : IDisposable
                         return LuauReturn.Ok();
                     }
                 )
-                : LuauReturn.Error(error)
         );
         _state.Globals.Set("convert", convert);
 
@@ -342,16 +341,12 @@ public sealed class ScriptCancellationTests : IDisposable
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction wait = _state.CreateFunctionManual(args =>
-            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-                ? awaiter.Await(new ValueTask(gate.Task))
-                : LuauReturn.Error(error)
+            args.GetAwaiter().Await(new ValueTask(gate.Task))
         );
         _state.Globals.Set("wait", wait);
         using LuauFunction endless = _state.Load("wait() while true do end").ToFunction();
         using LuauFunction runNested = _state.CreateFunctionManual(args =>
-            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-                ? awaiter.Await(endless.InvokeAsync([], args.CancellationToken))
-                : LuauReturn.Error(error)
+            args.GetAwaiter().Await(endless.InvokeAsync([], args.CancellationToken))
         );
         _state.Globals.Set("run_nested", runNested);
 
@@ -390,9 +385,7 @@ public sealed class ScriptCancellationTests : IDisposable
         // Continuations run inline, inside the callback that completes the gate.
         var gate = new TaskCompletionSource();
         using LuauFunction wait = _state.CreateFunctionManual(args =>
-            args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-                ? awaiter.Await(new ValueTask(gate.Task))
-                : LuauReturn.Error(error)
+            args.GetAwaiter().Await(new ValueTask(gate.Task))
         );
         _state.Globals.Set("wait", wait);
         using LuauFunction open = _state.CreateFunctionManual(_ =>

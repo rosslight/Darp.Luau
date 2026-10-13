@@ -17,8 +17,7 @@ file static class CreateFunctionInterceptors
         {
             int a1 = args[1].Get<int>();
             int a2 = args[2].Get<int>();
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(
                 onLuaCall(a1, a2),
                 static returns => global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2)

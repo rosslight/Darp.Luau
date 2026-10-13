@@ -261,7 +261,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         catch (Exception exception)
         {
             lua_settop(L, topBeforeCallback);
-            return LuauStateMarshal.ReturnCallbackException(L, "script module loader", exception);
+            return LuauStateMarshal.ReturnLibraryException(L, "script module loader", exception);
         }
     }
 
