@@ -548,6 +548,38 @@ public class GeneratedExportsTests
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
     }
 
+    /// <summary> A struct is copied where a module and a userdata type are shared, so nothing is generated for it. </summary>
+    [Fact]
+    public async Task StructTypes_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("bank")]
+            public partial struct BankModule
+            {
+                [LuauMember("open")]
+                public static void Open() { }
+            }
+
+            [LuauUserdata("Account")]
+            public partial struct Account
+            {
+                [LuauMember("close")]
+                public void Close() { }
+            }
+
+            [LuauUserdata("Money")]
+            public partial record struct Money
+            {
+                [LuauMember("amount")]
+                public int Amount { get; set; }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSourceWithErrors(code);
+    }
+
     /// <summary> Reported once, and neither a module nor a userdata type is generated. </summary>
     [Fact]
     public async Task TypeThatIsBothAModuleAndAUserdataType_ShouldFail()
