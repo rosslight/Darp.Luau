@@ -85,6 +85,95 @@ public sealed class FunctionTests : IDisposable
         _state.Load("return scale(21)").Execute<int>().ShouldBe(42);
     }
 
+    /// <summary> A lambda with default values has a delegate type that only the compiler can name. </summary>
+    [Fact]
+    public void CSharpFunction_OfALambdaWithDefaultValues_ShouldUseThem()
+    {
+        using LuauFunction func = _state.CreateFunction(
+            (
+                int value,
+                uint factor = 2U,
+                DayOfWeek day = DayOfWeek.Friday,
+                string unit = "\"px\"",
+                float notANumber = float.NaN,
+                Half ratio = default,
+                decimal money = 1.5m
+            ) => FormattableString.Invariant($"{value * factor} {day} {unit} {float.IsNaN(notANumber)} {ratio} {money}")
+        );
+        _state.Globals.Set("scale", func);
+
+        _state.Load("return scale(21)").Execute<string>().ShouldBe("42 Friday \"px\" True 0 1.5");
+        _state.Load("return scale(21, 3, 1, 'em', 0, 2, 3)").Execute<string>().ShouldBe("63 Monday em False 2 3");
+    }
+
+    [Fact]
+    public void CSharpFunction_OfALambdaWithADefaultValueAndATupleReturn_ShouldReturnBoth()
+    {
+        using LuauFunction func = _state.CreateFunction(
+            (int a, int b = 1) => (sum: a + b, name: a > b ? "more" : null)
+        );
+        _state.Globals.Set("compare", func);
+
+        _state.Load("return compare(2)").Execute<int, string>().ShouldBe((3, "more"));
+        _state.Load("return compare(2, 5)").Execute<int, string>().ShouldBe((7, null));
+    }
+
+    [Fact]
+    public void CSharpFunction_OfAMethodGroupWithDefaultValues_ShouldUseThem()
+    {
+        using LuauFunction func = _state.CreateFunction(ScaleBy);
+        _state.Globals.Set("scale", func);
+
+        _state.Load("return scale(21)").Execute<int>().ShouldBe(42);
+        _state.Load("return scale(21, 3)").Execute<int>().ShouldBe(63);
+    }
+
+    private static int ScaleBy(int value, int factor = 2) => value * factor;
+
+    [Fact]
+    public void CSharpFunction_OfALambdaWithMoreParametersThanFuncHas_ShouldBeCalled()
+    {
+        using LuauFunction func = _state.CreateFunction(
+            (
+                int a1,
+                int a2,
+                int a3,
+                int a4,
+                int a5,
+                int a6,
+                int a7,
+                int a8,
+                int a9,
+                int a10,
+                int a11,
+                int a12,
+                int a13,
+                int a14,
+                int a15,
+                int a16,
+                int a17
+            ) => a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17
+        );
+        _state.Globals.Set("sum", func);
+
+        _state
+            .Load("return sum(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)")
+            .Execute<int>()
+            .ShouldBe(153);
+    }
+
+    [Fact]
+    public void CSharpFunction_OfALambdaWithABorrowedViewAndADefaultValue_ShouldBeCalled()
+    {
+        using LuauFunction func = _state.CreateFunction(
+            (LuauTableView table, string key = "name") => table.Get<string>(key)
+        );
+        _state.Globals.Set("read", func);
+
+        _state.Load("return read({ name = 'Ada', other = 'Bob' })").Execute<string>().ShouldBe("Ada");
+        _state.Load("return read({ name = 'Ada', other = 'Bob' }, 'other')").Execute<string>().ShouldBe("Bob");
+    }
+
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchableByPCall()
     {

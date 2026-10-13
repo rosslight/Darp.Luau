@@ -57,16 +57,14 @@ public delegate int Scale(int value);
 using LuauFunction scale = lua.CreateFunction<Scale>(value => value * 2);
 ```
 
-Generated code has to name the delegate type. A delegate type of your own, and its type arguments, must be `internal` or `public`. A lambda with default parameter values, `params`, or more than 16 parameters has a delegate type that only the compiler can name: convert it to a delegate type of your own.
+Generated code has to name a delegate type of your own, so the type and its type arguments must be `internal` or `public`. A lambda needs no delegate type of your own, also when it has default parameter values or more than 16 parameters. The exception is a lambda with a `scoped` parameter: give it a delegate type of your own.
 
 ### Default values
 
 A parameter with a default value takes it when the script passes `nil` or leaves the argument out:
 
 ```csharp
-public delegate int Scale(int value, int factor = 2);
-
-using LuauFunction scale = lua.CreateFunction<Scale>((value, factor) => value * factor);
+using LuauFunction scale = lua.CreateFunction((int value, int factor = 2) => value * factor);
 ```
 
 ```lua

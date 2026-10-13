@@ -3,12 +3,12 @@
     {
       Location: /*
     {
-        state.CreateFunction((int value = 5) => value);
-                             ^^^^^^^^^^^^^^^^^^^^^^^^
-        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+        state.CreateFunction((scoped System.ReadOnlySpan<char> text) => text.Length);
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        state.CreateFunction(Count<int>);
 */
- : (19,29)-(19,53),
-      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: only the compiler can name it, like the delegate type of a lambda with default values, params or more than 16 parameters. Use a delegate type of your own,
+ : (26,29)-(26,83),
+      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: it has a scoped parameter, so only the compiler can name it. Use a delegate type of your own,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0003,
@@ -21,13 +21,32 @@
     },
     {
       Location: /*
-        state.CreateFunction((int value = 5) => value);
-        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
-                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        state.CreateFunction((scoped System.ReadOnlySpan<char> text) => text.Length);
+        state.CreateFunction(Count<int>);
+                             ^^^^^^^^^^
+        state.CreateFunction((HiddenMode mode = HiddenMode.On) => 1);
+*/
+ : (27,29)-(27,39),
+      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: a default value of it is the default of a type parameter, so only the compiler can name it. Use a delegate type of your own,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction(Count<int>);
+        state.CreateFunction((HiddenMode mode = HiddenMode.On) => 1);
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         state.CreateFunction<OnlyInThisClass>(value => value);
 */
- : (20,29)-(20,179),
-      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: only the compiler can name it, like the delegate type of a lambda with default values, params or more than 16 parameters. Use a delegate type of your own,
+ : (28,29)-(28,67),
+      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: its signature has the type 'Hi.HiddenMode', and generated code cannot access it. Make the type and its type arguments internal or public,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0003,
@@ -40,12 +59,12 @@
     },
     {
       Location: /*
-        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+        state.CreateFunction((HiddenMode mode = HiddenMode.On) => 1);
         state.CreateFunction<OnlyInThisClass>(value => value);
                                               ^^^^^^^^^^^^^^
         state.CreateFunction<OnlyInThisFile>(value => value);
 */
- : (21,46)-(21,60),
+ : (29,46)-(29,60),
       Message: Type 'global::Hi.OnlyInThisClass' cannot be the delegate type of CreateFunction: generated code cannot access it. Make the type and its type arguments internal or public,
       Severity: Error,
       Descriptor: {
@@ -64,7 +83,7 @@
                                              ^^^^^^^^^^^^^^
         state.CreateFunction<Tagged<LocalTag>>(value => value);
 */
- : (22,45)-(22,59),
+ : (30,45)-(30,59),
       Message: Type 'global::OnlyInThisFile' cannot be the delegate type of CreateFunction: a file-local type is not visible to generated code,
       Severity: Error,
       Descriptor: {
@@ -83,7 +102,7 @@
                                                ^^^^^^^^^^^^^^
         state.CreateFunction<System.Func<Hidden?, int>>(value => 1);
 */
- : (23,47)-(23,61),
+ : (31,47)-(31,61),
       Message: Type 'global::Tagged<global::LocalTag>' cannot be the delegate type of CreateFunction: a file-local type is not visible to generated code,
       Severity: Error,
       Descriptor: {
@@ -102,7 +121,7 @@
                                                         ^^^^^^^^^^
     }
 */
- : (24,56)-(24,66),
+ : (32,56)-(32,66),
       Message: Type 'global::System.Func<global::Hi.Hidden, int>' cannot be the delegate type of CreateFunction: generated code cannot access it. Make the type and its type arguments internal or public,
       Severity: Error,
       Descriptor: {
@@ -121,7 +140,7 @@
                                     ^^^^^^^^^^^^^^
         state.CreateFunction<Tagged<TSettings[]>>(value => value);
 */
- : (34,36)-(34,50),
+ : (42,36)-(42,50),
       Message: Type 'global::Plugin<TSettings>.Scale' cannot be the delegate type of CreateFunction: it uses a type parameter of the code around the call, which generated code does not have,
       Severity: Error,
       Descriptor: {
@@ -140,7 +159,7 @@
                                                   ^^^^^^^^^^^^^^
     }
 */
- : (35,50)-(35,64),
+ : (43,50)-(43,64),
       Message: Type 'global::Tagged<TSettings[]>' cannot be the delegate type of CreateFunction: it uses a type parameter of the code around the call, which generated code does not have,
       Severity: Error,
       Descriptor: {

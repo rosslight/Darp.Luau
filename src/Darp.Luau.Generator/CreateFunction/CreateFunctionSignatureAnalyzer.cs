@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -84,7 +83,7 @@ internal static class CreateFunctionSignatureAnalyzer
         IInvocationOperation invocationOperation,
         Compilation compilation,
         LuauApiSymbols? apiSymbols,
-        [NotNullWhen(true)] out string? delegateTypeName,
+        out string? delegateTypeName,
         out InteropSignature signature,
         List<Diagnostic> diagnostics
     )
@@ -126,8 +125,26 @@ internal static class CreateFunctionSignatureAnalyzer
             return false;
         }
 
-        // The interceptor takes the delegate as the type the call passes, so the generated file has to name it.
-        if (GetReasonGeneratedCodeCannotName(namedDelegateType, compilation) is { } reason)
+        if (invokeMethod.ReturnsByRef || invokeMethod.ReturnsByRefReadonly)
+        {
+            // Luau gets a copy of what a callback returns, so a reference to a variable has nothing to give it.
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    GetReturnLocation(invocationOperation),
+                    invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    "the return value, which is returned by reference"
+                )
+            );
+            return false;
+        }
+
+        // Generated code casts the delegate to its type. A type with a name is written by it. A type the compiler
+        // made is the type of a lambda that generated code writes with the same signature.
+        string? reason = namedDelegateType.CanBeReferencedByName
+            ? GetReasonGeneratedCodeCannotName(namedDelegateType, compilation)
+            : GetReasonNoExampleGetsTheType(invokeMethod, compilation);
+        if (reason is not null)
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -293,9 +310,12 @@ internal static class CreateFunctionSignatureAnalyzer
         // The compiler infers Action or Func for a lambda, and the symbol of that type lacks the nullability of an
         // inferred return. The signature reads it from the body of the lambda and the interceptor is written from
         // the signature, so the type is too. A delegate type of its own declares its nullability and is taken as is.
-        delegateTypeName = IsActionOrFunc(namedDelegateType)
-            ? EmitterHelper.GetFunctionRepresentation(signature)
-            : delegateType.ToDisplayString(DelegateTypeFormat);
+        if (namedDelegateType.CanBeReferencedByName)
+        {
+            delegateTypeName = IsActionOrFunc(namedDelegateType)
+                ? EmitterHelper.GetFunctionRepresentation(signature)
+                : delegateType.ToDisplayString(DelegateTypeFormat);
+        }
         return true;
     }
 
@@ -307,14 +327,48 @@ internal static class CreateFunctionSignatureAnalyzer
                 ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true }
             };
 
-    /// <summary> Why the generated file cannot write <paramref name="delegateType"/>, or null when it can. </summary>
-    private static string? GetReasonGeneratedCodeCannotName(INamedTypeSymbol delegateType, Compilation compilation)
+    /// <summary>
+    /// Why no lambda that generated code writes gets the delegate type the compiler made for a callback, or null
+    /// when one does.
+    /// </summary>
+    private static string? GetReasonNoExampleGetsTheType(IMethodSymbol invokeMethod, Compilation compilation)
     {
-        if (GetReasonTypeHasNoName(delegateType) is { } reason)
+        foreach (IParameterSymbol parameter in invokeMethod.Parameters)
+        {
+            // With a scoped parameter the compiler tells its delegate types apart by more than a signature says.
+            // A params span is scoped too, and is rejected for being params.
+            if (parameter is { ScopedKind: not ScopedKind.None, IsParams: false })
+                return "it has a scoped parameter, so only the compiler can name it. Use a delegate type of your own";
+
+            // "T value = default" of a generic method that the call closes over a number. Its constant is not the
+            // one that "int value = default" has, so the compiler made another delegate type for it.
+            if (
+                parameter is { HasExplicitDefaultValue: true, ExplicitDefaultValue: null, Type.IsValueType: true }
+                && (parameter.Type.SpecialType is not SpecialType.None || parameter.Type.TypeKind is TypeKind.Enum)
+            )
+            {
+                return "a default value of it is the default of a type parameter, so only the compiler can name it. "
+                    + "Use a delegate type of your own";
+            }
+        }
+
+        foreach (ITypeSymbol type in invokeMethod.Parameters.Select(static x => x.Type).Append(invokeMethod.ReturnType))
+        {
+            if (GetReasonGeneratedCodeCannotName(type, compilation) is { } reason)
+                return $"its signature has the type '{type.ToDisplayString()}', and {reason}";
+        }
+
+        return null;
+    }
+
+    /// <summary> Why the generated file cannot write <paramref name="type"/>, or null when it can. </summary>
+    private static string? GetReasonGeneratedCodeCannotName(ITypeSymbol type, Compilation compilation)
+    {
+        if (GetReasonTypeHasNoName(type) is { } reason)
             return reason;
 
         // Covers the type arguments and the containing types, like the private userdata type in Func<Hidden, int>.
-        return compilation.IsSymbolAccessibleWithin(delegateType, compilation.Assembly)
+        return compilation.IsSymbolAccessibleWithin(type, compilation.Assembly)
             ? null
             : "generated code cannot access it. Make the type and its type arguments internal or public";
     }
@@ -329,13 +383,6 @@ internal static class CreateFunctionSignatureAnalyzer
             case IArrayTypeSymbol array:
                 return GetReasonTypeHasNoName(array.ElementType);
             case INamedTypeSymbol named:
-                // A lambda that no Action or Func fits gets a delegate type of the compiler, which has no name.
-                if (!named.CanBeReferencedByName)
-                {
-                    return "only the compiler can name it, like the delegate type of a lambda with default values, "
-                        + "params or more than 16 parameters. Use a delegate type of your own";
-                }
-
                 if (named.IsFileLocal)
                     return "a file-local type is not visible to generated code";
 

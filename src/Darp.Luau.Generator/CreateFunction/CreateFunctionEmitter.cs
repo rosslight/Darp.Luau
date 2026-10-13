@@ -12,7 +12,7 @@ internal static class CreateFunctionEmitter
 {
     public static string GetHintName(CreateFunctionModel model)
     {
-        string key = $"{model.Location.Version}:{model.Location.Data}:{model.DelegateType}";
+        string key = $"{model.Location.Version}:{model.Location.Data}";
         return $"Darp.Luau.LuauState.CreateFunctionInterceptors.{ComputeStableHash(key)}.g.cs";
     }
 
@@ -22,9 +22,10 @@ internal static class CreateFunctionEmitter
         using var writer = new IndentedTextWriter(stringWriter);
 
         InteropSignature signature = model.Signature;
-        string opt = string.Join("", signature.Parameters.Select((x, i) => x.Type.IsNullable ? $"Opt{i + 1}" : ""));
-        string optReturn = string.Join("", signature.ReturnTypes.Select((x, i) => x.IsNullable ? $"OptR{i + 1}" : ""));
         string locationData = SymbolDisplay.FormatLiteral(model.Location.Data, quote: true);
+        string callback = model.DelegateType is { } delegateType
+            ? $"({delegateType})(object)value"
+            : $"Cast(value, {GetExampleLambda(signature)})";
 
         writer.WriteMultiLine(
             $$"""
@@ -36,10 +37,12 @@ internal static class CreateFunctionEmitter
             file static class CreateFunctionInterceptors
             {
                 [global::System.Runtime.CompilerServices.InterceptsLocationAttribute({{model.Location.Version}}, {{locationData}})]
-                public static global::Darp.Luau.LuauFunction CreateMethod{{opt}}{{optReturn}}(this global::Darp.Luau.LuauState state, {{model.DelegateType}} onLuaCall)
+                public static global::Darp.Luau.LuauFunction Intercept<T>(this global::Darp.Luau.LuauState state, T value)
+                    where T : global::System.Delegate
                 {
                     global::System.ArgumentNullException.ThrowIfNull(state);
-                    global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
+                    global::System.ArgumentNullException.ThrowIfNull(value);
+                    var onLuaCall = {{callback}};
                     return state.CreateFunctionManual(F);
 
             """
@@ -48,6 +51,17 @@ internal static class CreateFunctionEmitter
         WriteFunctionBody(writer, signature);
         writer.Indent = 1;
         writer.WriteLine("}");
+        if (model.DelegateType is null)
+        {
+            writer.WriteLineNoTabs("");
+            writer.WriteMultiLine(
+                """
+                // The compiler gives the example the delegate type it gave the callback, which only it can name.
+                private static TDelegate Cast<TDelegate>(global::System.Delegate value, TDelegate example)
+                    where TDelegate : global::System.Delegate => (TDelegate)value;
+                """
+            );
+        }
         writer.Indent = 0;
         writer.WriteMultiLine(
             """
@@ -81,6 +95,16 @@ internal static class CreateFunctionEmitter
         CallbackBodyEmitter.Write(writer, signature, "onLuaCall");
         writer.Indent--;
         writer.WriteLine("}");
+    }
+
+    /// <summary> Writes a lambda that gets the delegate type the compiler made for a callback with <paramref name="signature"/>. </summary>
+    /// <remarks> The compiler tells these types apart by the types and the default values, not by the names. </remarks>
+    private static string GetExampleLambda(InteropSignature signature)
+    {
+        IEnumerable<string> parameters = signature.Parameters.Select(
+            static (x, i) => $"{GetDotnetType(x.Type)} arg{i + 1}{(x.Default is null ? "" : $" = {x.Default}")}"
+        );
+        return $"static {GetReturnType(signature) ?? "void"} ({string.Join(", ", parameters)}) => throw new global::System.NotSupportedException()";
     }
 
     private static string ComputeStableHash(string value)
