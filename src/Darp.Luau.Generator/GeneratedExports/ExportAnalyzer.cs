@@ -270,7 +270,7 @@ internal static class ExportAnalyzer
                 context,
                 location,
                 diagnostics,
-                out ImmutableEquatableArray<InteropType> parameters,
+                out ImmutableEquatableArray<InteropParameter> parameters,
                 out ImmutableEquatableArray<InteropType> returns,
                 out AwaitableReturnKind awaitable
             )
@@ -406,7 +406,7 @@ internal static class ExportAnalyzer
         LuauApiSymbols context,
         Location location,
         List<Diagnostic> diagnostics,
-        out ImmutableEquatableArray<InteropType> parameters,
+        out ImmutableEquatableArray<InteropParameter> parameters,
         out ImmutableEquatableArray<InteropType> returns,
         out AwaitableReturnKind awaitable
     )
@@ -421,7 +421,7 @@ internal static class ExportAnalyzer
                 diagnostics,
                 "generic methods are not supported"
             );
-            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
             returns = ImmutableEquatableArray<InteropType>.Empty;
             return false;
         }
@@ -438,7 +438,7 @@ internal static class ExportAnalyzer
                 diagnostics,
                 "a nullable task cannot be awaited; return a task that is never null"
             );
-            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
             returns = ImmutableEquatableArray<InteropType>.Empty;
             return false;
         }
@@ -452,7 +452,7 @@ internal static class ExportAnalyzer
                 diagnostics,
                 "async void methods are not supported; return Task or ValueTask so the script can wait for the work"
             );
-            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
             returns = ImmutableEquatableArray<InteropType>.Empty;
             return false;
         }
@@ -466,12 +466,12 @@ internal static class ExportAnalyzer
                 diagnostics,
                 "by-ref returns are not supported"
             );
-            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
             returns = ImmutableEquatableArray<InteropType>.Empty;
             return false;
         }
 
-        var parameterBuilder = new List<InteropType>();
+        var parameterBuilder = new List<InteropParameter>();
         LuauInteropTypeUsage parameterUsage =
             exportedTypeKind == LuauExportedTypeKind.Module
                 ? LuauInteropTypeUsage.ModuleFunctionParameter
@@ -487,25 +487,7 @@ internal static class ExportAnalyzer
                     diagnostics,
                     $"parameter '{parameter.Name}' cannot use ref, in, or out"
                 );
-                parameters = ImmutableEquatableArray<InteropType>.Empty;
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            // A cancellation token is never a Luau argument, so its default value is never used.
-            bool isCancellationToken =
-                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-                == "global::System.Threading.CancellationToken";
-            if ((parameter.IsOptional || parameter.HasExplicitDefaultValue) && !isCancellationToken)
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
-                    location,
-                    diagnostics,
-                    $"parameter '{parameter.Name}' is optional"
-                );
-                parameters = ImmutableEquatableArray<InteropType>.Empty;
+                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
                 returns = ImmutableEquatableArray<InteropType>.Empty;
                 return false;
             }
@@ -519,7 +501,7 @@ internal static class ExportAnalyzer
                     diagnostics,
                     $"parameter '{parameter.Name}' uses params"
                 );
-                parameters = ImmutableEquatableArray<InteropType>.Empty;
+                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
                 returns = ImmutableEquatableArray<InteropType>.Empty;
                 return false;
             }
@@ -533,18 +515,32 @@ internal static class ExportAnalyzer
                     diagnostics,
                     $"parameter '{parameter.Name}' has unsupported type '{parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}'"
                 );
-                parameters = ImmutableEquatableArray<InteropType>.Empty;
+                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
                 returns = ImmutableEquatableArray<InteropType>.Empty;
                 return false;
             }
 
-            parameterBuilder.Add(parameterMapping);
+            if (ParameterDefault.TryRead(parameter, parameterMapping, out InteropParameter read) is { } reason)
+            {
+                ReportUnsupportedMethodShape(
+                    exportedTypeKind,
+                    method,
+                    location,
+                    diagnostics,
+                    $"parameter '{parameter.Name}' {reason}"
+                );
+                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
+                returns = ImmutableEquatableArray<InteropType>.Empty;
+                return false;
+            }
+
+            parameterBuilder.Add(read);
         }
 
         ITypeSymbol? returnType = awaitable is AwaitableReturnKind.None ? method.ReturnType : awaitedType;
         if (!TryMapMethodReturns(method, returnType, exportedTypeKind, context, location, diagnostics, out returns))
         {
-            parameters = ImmutableEquatableArray<InteropType>.Empty;
+            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
             return false;
         }
 

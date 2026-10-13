@@ -218,7 +218,39 @@ public class GeneratedExportsTests
                 public static int Current { get; set; }
 
                 [LuauMember("create")]
-                public static int Create(int value = 0) => value;
+                public static int Create(ref int value) => value;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    /// <summary> A default needs a read that takes nil, and an operand is never left out. </summary>
+    [Fact]
+    public async Task DefaultValuesGeneratedCodeCannotUse_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            [LuauModule("game")]
+            public static partial class GameModule
+            {
+                [LuauMember("length")]
+                public static int Length(ReadOnlySpan<char> text = default) => text.Length;
+
+                [LuauMember("count")]
+                public static int Count(LuauTableView table = default) => 0;
+
+                [LuauMember("sum")]
+                public static int Sum(params int[] values) => values.Length;
+            }
+
+            [LuauUserdata("Counter")]
+            public sealed partial class Counter
+            {
+                [LuauMetamethod(LuauMetamethod.Add)]
+                public static Counter Add(Counter left, int right = 1) => left;
             }
             """;
 

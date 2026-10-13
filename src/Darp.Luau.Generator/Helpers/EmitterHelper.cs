@@ -60,7 +60,7 @@ internal static class EmitterHelper
 
     public static string GetFunctionRepresentation(InteropSignature signature)
     {
-        string parameters = string.Join(",", signature.Parameters.Select(GetDotnetType));
+        string parameters = string.Join(",", signature.Parameters.Select(static x => GetDotnetType(x.Type)));
         return (signature.Parameters.Length, GetReturnType(signature)) switch
         {
             (0, null) => "global::System.Action",

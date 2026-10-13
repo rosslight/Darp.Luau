@@ -374,6 +374,86 @@ public sealed class CallbackArgumentTests : IDisposable
         _state.Load("return add(1, 2, 3, 'four')").Execute<int>().ShouldBe(3);
     }
 
+    /// <summary> A parameter with a default value takes it when the argument is nil or was not passed. </summary>
+    [Fact]
+    public void GeneratedCallback_ShouldUseTheDefaultForANilOrOmittedArgument()
+    {
+        using LuauFunction numbers = _state.CreateFunction<NumberDefaults>(
+            (small, number, unsigned, big, huge, single, real, money) =>
+                FormattableString.Invariant($"{small} {number} {unsigned} {big} {huge} {single} {real} {money}")
+        );
+        using LuauFunction others = _state.CreateFunction<OtherDefaults>(
+            (flag, text, mode, limit, ratio, notANumber, infinity) =>
+                FormattableString.Invariant(
+                    $"{flag} {text} {mode} {limit} {ratio} {float.IsNaN(notANumber)} {infinity}"
+                )
+        );
+        _state.Globals.Set("numbers", numbers);
+        _state.Globals.Set("others", others);
+
+        const string defaultNumbers = "5 -2 3 -9223372036854775808 18446744073709551615 1.5 0.1 1.25";
+        _state.Load("return numbers()").Execute<string>().ShouldBe(defaultNumbers);
+        _state
+            .Load("return numbers(nil, nil, nil, nil, nil, nil, nil, nil)")
+            .Execute<string>()
+            .ShouldBe(defaultNumbers);
+        _state
+            .Load("return numbers(1, nil, 2, 3, 4, 2.5, 6.5, 7.5)")
+            .Execute<string>()
+            .ShouldBe("1 -2 2 3 4 2.5 6.5 7.5");
+
+        const string defaultOthers = "True a \"quoted\"\ttext Fast 5 0 True -Infinity";
+        _state.Load("return others()").Execute<string>().ShouldBe(defaultOthers);
+        _state.Load("return others(nil, nil, nil, nil, nil, nil, nil)").Execute<string>().ShouldBe(defaultOthers);
+        _state.Load("return others(false, 'x', 1, 9, 2, 0, 1)").Execute<string>().ShouldBe("False x Slow 9 2 False 1");
+    }
+
+    /// <summary> A default does not make another type fit: the read fails as it does without one. </summary>
+    [Fact]
+    public void GeneratedCallback_ShouldRaiseALuauErrorForAnotherTypeThanTheDefaultHas()
+    {
+        using LuauFunction numbers = _state.CreateFunction<NumberDefaults>((_, _, _, _, _, _, _, _) => "called");
+        _state.Globals.Set("numbers", numbers);
+
+        string? error = _state.Load("local ok, err = pcall(numbers, 1, 'two') return tostring(err)").Execute<string>();
+
+        error.ShouldBe("invalid argument #2 (number expected, got string)");
+    }
+
+    /// <summary> A default of null is what the parameter gets for nil. </summary>
+    [Fact]
+    public void GeneratedCallback_ShouldPassNullForADefaultOfNull()
+    {
+        using LuauFunction nulls = _state.CreateFunction<NullDefaults>(
+            (number, text, userdata, forced) => $"{number is null} {text is null} {userdata is null} {forced is null}"
+        );
+        _state.Globals.Set("nulls", nulls);
+
+        _state.Load("return nulls()").Execute<string>().ShouldBe("True True True True");
+        _state.Load("return nulls(1, 'a', nil, 'b')").Execute<string>().ShouldBe("False False True False");
+    }
+
+    /// <summary> A LuauValue reads nil itself and a cancellation token is never an argument: a default changes neither. </summary>
+    [Fact]
+    public async Task GeneratedCallback_ShouldReadALuauValueAndPassTheTokenAsWithoutADefault()
+    {
+        using var cts = new CancellationTokenSource();
+        CancellationToken observed = default;
+        using LuauFunction typeOf = _state.CreateFunction<ValueAndToken>(
+            (value, token) =>
+            {
+                observed = token;
+                return value.Type.ToString();
+            }
+        );
+        _state.Globals.Set("type_of", typeOf);
+
+        string? types = await _state.Load("return type_of() .. type_of(1)").ExecuteAsync<string>([], cts.Token);
+
+        types.ShouldBe("NilNumber");
+        observed.ShouldBe(cts.Token);
+    }
+
     public void Dispose() => _state.Dispose();
 
     private sealed class SetterUserdata : ILuauUserdata<SetterUserdata>
@@ -392,3 +472,39 @@ public sealed class CallbackArgumentTests : IDisposable
         public static implicit operator IntoLuau(SetterUserdata value) => IntoLuau.FromUserdata(value);
     }
 }
+
+internal enum DefaultMode
+{
+    Slow = 1,
+    Fast = 2,
+}
+
+internal delegate string NumberDefaults(
+    byte small = 5,
+    int number = -2,
+    uint unsigned = 3,
+    long big = long.MinValue,
+    ulong huge = ulong.MaxValue,
+    float single = 1.5f,
+    double real = 0.1,
+    decimal money = 1.25m
+);
+
+internal delegate string OtherDefaults(
+    bool flag = true,
+    string text = "a \"quoted\"\ttext",
+    DefaultMode mode = DefaultMode.Fast,
+    int? limit = 5,
+    Half ratio = default,
+    float notANumber = float.NaN,
+    double infinity = double.NegativeInfinity
+);
+
+internal delegate string NullDefaults(
+    int? number = null,
+    string? text = null,
+    ValueUserdata? userdata = null,
+    string forced = null!
+);
+
+internal delegate string ValueAndToken(LuauValue value = default, CancellationToken token = default);

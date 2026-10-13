@@ -1,0 +1,80 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+{
+    [LuauMember("length")]
+     ^^^^^^^^^^^^^^^^^^^^
+    public static int Length(ReadOnlySpan<char> text = default) => text.Length;
+*/
+ : (6,5)-(6,25),
+      Message: Generated module function 'Length' uses an unsupported parameter or return shape: parameter 'text' has a default value that its type cannot have,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("count")]
+     ^^^^^^^^^^^^^^^^^^^
+    public static int Count(LuauTableView table = default) => 0;
+*/
+ : (9,5)-(9,24),
+      Message: Generated module function 'Count' uses an unsupported parameter or return shape: parameter 'table' has a default value that its type cannot have,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("sum")]
+     ^^^^^^^^^^^^^^^^^
+    public static int Sum(params int[] values) => values.Length;
+*/
+ : (12,5)-(12,22),
+      Message: Generated module function 'Sum' uses an unsupported parameter or return shape: parameter 'values' uses params,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    [LuauMetamethod(LuauMetamethod.Add)]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static Counter Add(Counter left, int right = 1) => left;
+*/
+ : (19,5)-(19,39),
+      Message: Invalid generated export shape: metamethod 'Add' on 'Add' has a default value for operand 'right', which an operand cannot have,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -101,7 +101,7 @@ internal static class MetamethodAnalyzer
                 context,
                 location,
                 diagnostics,
-                out ImmutableEquatableArray<InteropType> parameters,
+                out ImmutableEquatableArray<InteropParameter> parameters,
                 out ImmutableEquatableArray<InteropType> returns,
                 out AwaitableReturnKind awaitable
             )
@@ -110,14 +110,28 @@ internal static class MetamethodAnalyzer
             return null;
         }
 
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            // Luau passes the operands it has, and the overloads are told apart by them.
+            if (parameters[i] is { Default: not null, Type.Type: not LuauInteropKind.CancellationToken })
+            {
+                Report(
+                    diagnostics,
+                    location,
+                    $"metamethod '{metamethod}' on '{method.Name}' has a default value for operand '{method.Parameters[i].Name}', which an operand cannot have"
+                );
+                return null;
+            }
+        }
+
         // An instance method takes the instance as its first operand.
-        var operands = new List<InteropType>();
+        var operands = new List<InteropParameter>();
         var operandTypes = new List<ITypeSymbol>();
         if (!method.IsStatic)
         {
             if (!InteropTypeMapper.TryMapGeneratedUserdataType(discoveredType.Symbol, context, out InteropType self))
                 return null;
-            operands.Add(self with { IsNullable = false });
+            operands.Add(new InteropParameter(self with { IsNullable = false }));
             operandTypes.Add(discoveredType.Symbol);
         }
         operands.AddRange(parameters);
@@ -155,7 +169,8 @@ internal static class MetamethodAnalyzer
     private static string? GetShapeError(string metamethod, InteropSignature signature, string ownTypeName)
     {
         InteropType[] operands = signature
-            .Parameters.Where(static x => x.Type is not LuauInteropKind.CancellationToken)
+            .Parameters.Select(static x => x.Type)
+            .Where(static x => x.Type is not LuauInteropKind.CancellationToken)
             .ToArray();
         bool IsOwn(InteropType type) =>
             type is { Type: LuauInteropKind.ManagedUserdata, IsNullable: false }
@@ -287,8 +302,11 @@ internal static class MetamethodAnalyzer
 
     private static (InteropType Type, ITypeSymbol Symbol)[] GetLuauOperands(Candidate candidate) =>
         candidate
-            .Overload.Signature.Parameters.Zip(candidate.OperandTypes, static (type, symbol) => (type, symbol))
-            .Where(static x => x.type.Type is not LuauInteropKind.CancellationToken)
+            .Overload.Signature.Parameters.Zip(
+                candidate.OperandTypes,
+                static (parameter, symbol) => (parameter.Type, symbol)
+            )
+            .Where(static x => x.Type.Type is not LuauInteropKind.CancellationToken)
             .ToArray();
 
     private static bool CanReceiveTheSameValue(

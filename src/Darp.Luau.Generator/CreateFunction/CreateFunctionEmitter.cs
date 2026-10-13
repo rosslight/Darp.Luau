@@ -22,7 +22,7 @@ internal static class CreateFunctionEmitter
         using var writer = new IndentedTextWriter(stringWriter);
 
         InteropSignature signature = model.Signature;
-        string opt = string.Join("", signature.Parameters.Select((x, i) => x.IsNullable ? $"Opt{i + 1}" : ""));
+        string opt = string.Join("", signature.Parameters.Select((x, i) => x.Type.IsNullable ? $"Opt{i + 1}" : ""));
         string optReturn = string.Join("", signature.ReturnTypes.Select((x, i) => x.IsNullable ? $"OptR{i + 1}" : ""));
         string locationData = SymbolDisplay.FormatLiteral(model.Location.Data, quote: true);
 

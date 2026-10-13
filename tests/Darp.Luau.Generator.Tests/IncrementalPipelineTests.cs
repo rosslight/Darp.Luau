@@ -74,6 +74,42 @@ public sealed class IncrementalPipelineTests
         AssertCacheableStep(firstRun, secondRun, "CreateFunctionModels");
     }
 
+    /// <summary> The default value is part of the model, so a change of it in another file reaches the interceptor. </summary>
+    [Fact]
+    public void CreateFunction_ShouldFollowAChangedDefaultOfADelegateInAnotherFile()
+    {
+        const string call = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state) => state.CreateFunction<Scale>(value => value);
+            }
+            """;
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        CSharpParseOptions parseOptions = CreateParseOptions();
+        CSharpCompilation compilation = CreateCompilation(call, parseOptions);
+        SyntaxTree before = CSharpSyntaxTree.ParseText(
+            "public delegate int Scale(int value = 2);",
+            parseOptions,
+            cancellationToken: cancellationToken
+        );
+        SyntaxTree after = CSharpSyntaxTree.ParseText(
+            "public delegate int Scale(int value = 3);",
+            parseOptions,
+            cancellationToken: cancellationToken
+        );
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new CreateFunctionGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions
+        );
+
+        driver = driver.RunGenerators(compilation.AddSyntaxTrees(before), cancellationToken);
+        driver = driver.RunGenerators(compilation.AddSyntaxTrees(after), cancellationToken);
+
+        driver.GetRunResult().GeneratedTrees.ShouldHaveSingleItem().ToString().ShouldContain("?? 3;");
+    }
+
     [Fact]
     public void GeneratedExportsModelStages_ShouldBeCacheable()
     {

@@ -88,16 +88,16 @@ internal static class CallbackBodyEmitter
     {
         var arguments = new List<string>(signature.Parameters.Length);
         int luauIndex = 0;
-        foreach (InteropType parameter in signature.Parameters)
+        foreach (InteropParameter parameter in signature.Parameters)
         {
-            if (parameter.Type is LuauInteropKind.CancellationToken)
+            if (parameter.Type.Type is LuauInteropKind.CancellationToken)
             {
                 arguments.Add("args.CancellationToken");
                 continue;
             }
 
             luauIndex++;
-            if (parameter.Type is LuauInteropKind.LuauValue)
+            if (parameter.Type.Type is LuauInteropKind.LuauValue)
             {
                 // Declared before the try that releases it.
                 writer.WriteLine($"a{luauIndex} = {LuauMarshalEmitter.FormatRead($"args[{luauIndex}]", parameter)};");
@@ -232,12 +232,12 @@ internal static class CallbackBodyEmitter
     {
         var ownedArguments = new List<string>();
         int luauIndex = 0;
-        foreach (InteropType parameter in signature.Parameters)
+        foreach (InteropParameter parameter in signature.Parameters)
         {
-            if (parameter.Type is LuauInteropKind.CancellationToken)
+            if (parameter.Type.Type is LuauInteropKind.CancellationToken)
                 continue;
             luauIndex++;
-            if (parameter.Type is LuauInteropKind.LuauValue)
+            if (parameter.Type.Type is LuauInteropKind.LuauValue)
                 ownedArguments.Add($"a{luauIndex}");
         }
         return ownedArguments;
