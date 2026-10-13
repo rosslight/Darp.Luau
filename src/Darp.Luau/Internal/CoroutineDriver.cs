@@ -18,8 +18,8 @@ namespace Darp.Luau.Internal;
 /// </para>
 /// <para>
 /// An async drive is registered in the <see cref="AsyncDriveTable"/> of its state. A managed callback running on
-/// the coroutine finds it there to hand over its pending work (<see cref="TryAwait"/>) and to read the cancellation
-/// token. A sync drive is not registered: its callbacks cannot suspend the coroutine.
+/// the coroutine finds it there to hand over its pending work (<see cref="TryAwait"/>). A sync drive is not
+/// registered: its callbacks cannot suspend the coroutine.
 /// </para>
 /// <para>
 /// A cancelled token stops the script at its next safepoint (<see cref="ScriptInterrupt"/>) and finishes the
