@@ -12,7 +12,7 @@ internal static class CreateFunctionEmitter
 {
     public static string GetHintName(CreateFunctionModel model)
     {
-        string key = $"{model.Location.Version}:{model.Location.Data}:{GetFunctionRepresentation(model.Signature)}";
+        string key = $"{model.Location.Version}:{model.Location.Data}:{model.DelegateType}";
         return $"Darp.Luau.LuauState.CreateFunctionInterceptors.{ComputeStableHash(key)}.g.cs";
     }
 
@@ -22,7 +22,6 @@ internal static class CreateFunctionEmitter
         using var writer = new IndentedTextWriter(stringWriter);
 
         InteropSignature signature = model.Signature;
-        string callFunction = GetFunctionRepresentation(signature);
         string opt = string.Join("", signature.Parameters.Select((x, i) => x.IsNullable ? $"Opt{i + 1}" : ""));
         string optReturn = string.Join("", signature.ReturnTypes.Select((x, i) => x.IsNullable ? $"OptR{i + 1}" : ""));
         string locationData = SymbolDisplay.FormatLiteral(model.Location.Data, quote: true);
@@ -37,7 +36,7 @@ internal static class CreateFunctionEmitter
             file static class CreateFunctionInterceptors
             {
                 [global::System.Runtime.CompilerServices.InterceptsLocationAttribute({{model.Location.Version}}, {{locationData}})]
-                public static global::Darp.Luau.LuauFunction CreateMethod{{opt}}{{optReturn}}(this global::Darp.Luau.LuauState state, {{callFunction}} onLuaCall)
+                public static global::Darp.Luau.LuauFunction CreateMethod{{opt}}{{optReturn}}(this global::Darp.Luau.LuauState state, {{model.DelegateType}} onLuaCall)
                 {
                     global::System.ArgumentNullException.ThrowIfNull(state);
                     global::System.ArgumentNullException.ThrowIfNull(onLuaCall);

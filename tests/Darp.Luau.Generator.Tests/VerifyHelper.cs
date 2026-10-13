@@ -212,7 +212,7 @@ public static class VerifyHelper
         ImmutableArray<Diagnostic> generatorDiagnostics = runResult.Results
             .SelectMany(static result => result.Diagnostics)
             .ToImmutableArray();
-        ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
+        ImmutableArray<Diagnostic> compilationDiagnostics = GetEmitDiagnostics(newCompilation);
         ImmutableArray<Diagnostic> analyzerDiagnostics = await newCompilation
             .WithAnalyzers(
                 ImmutableArray.Create<DiagnosticAnalyzer>(
@@ -225,7 +225,7 @@ public static class VerifyHelper
         Diagnostic[] invalidDiagnostics = compilationDiagnostics
             .Concat(generatorDiagnostics)
             .Concat(analyzerDiagnostics)
-            .Where(static diagnostic => IsDiagnosticInvalid(null, diagnostic))
+            .Where(diagnostic => IsDiagnosticInvalid(null, diagnostic, runResult))
             .OrderBy(static diagnostic => diagnostic.Location.SourceTree?.FilePath ?? "", StringComparer.Ordinal)
             .ThenBy(static diagnostic => diagnostic.Location.SourceSpan.Start)
             .ThenBy(static diagnostic => diagnostic.Id, StringComparer.Ordinal)
@@ -246,6 +246,17 @@ public static class VerifyHelper
             .SelectMany(static result => result.GeneratedSources)
             .Count(static source => source.HintName.Contains("CreateFunctionInterceptors", StringComparison.Ordinal))
             .ShouldBe(2);
+    }
+
+    /// <summary> Gets the diagnostics of <paramref name="compilation"/> as a build reports them. </summary>
+    /// <remarks>
+    /// Binding does not check an interceptor against the call it intercepts. That happens when the call is lowered,
+    /// so a signature that does not match (CS9144) only shows when the compilation is emitted.
+    /// </remarks>
+    private static ImmutableArray<Diagnostic> GetEmitDiagnostics(Compilation compilation)
+    {
+        using var assembly = new MemoryStream();
+        return compilation.Emit(assembly).Diagnostics;
     }
 
     /// <summary>
@@ -342,7 +353,7 @@ public static class VerifyHelper
             .GetRunResult()
             .Results.SelectMany(static x => x.Diagnostics)
             .ToImmutableArray();
-        ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
+        ImmutableArray<Diagnostic> compilationDiagnostics = GetEmitDiagnostics(newCompilation);
         ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
             ? []
             : await newCompilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
@@ -372,7 +383,7 @@ public static class VerifyHelper
             .Concat(generatorDiagnostics)
             .Concat(analyzerDiagnostics)
             .ShouldNotContain(
-                x => IsDiagnosticInvalid(allowedDiagnosticCode, x),
+                x => IsDiagnosticInvalid(allowedDiagnosticCode, x, driver.GetRunResult()),
                 string.Join(
                     "\n",
                     compilationDiagnostics
@@ -398,11 +409,24 @@ public static class VerifyHelper
         );
     }
 
-    private static bool IsDiagnosticInvalid(string? allowedDiagnosticCode, Diagnostic x)
+    /// <remarks> A warning counts in generated code: it fails the build of a project that treats warnings as errors. </remarks>
+    private static bool IsDiagnosticInvalid(
+        string? allowedDiagnosticCode,
+        Diagnostic x,
+        GeneratorDriverRunResult runResult
+    )
     {
         return x.Id is not "CS5001"
             && (allowedDiagnosticCode is null || !x.Id.StartsWith(allowedDiagnosticCode, StringComparison.Ordinal))
-            && (x.Severity > DiagnosticSeverity.Warning || x.IsWarningAsError);
+            && (
+                x.Severity > DiagnosticSeverity.Warning
+                || x.IsWarningAsError
+                || (
+                    x.Severity is DiagnosticSeverity.Warning
+                    && x.Location.SourceTree is { } tree
+                    && runResult.GeneratedTrees.Contains(tree)
+                )
+            );
     }
 }
 

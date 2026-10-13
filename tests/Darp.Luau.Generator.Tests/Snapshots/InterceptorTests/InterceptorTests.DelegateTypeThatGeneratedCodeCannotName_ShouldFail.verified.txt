@@ -1,0 +1,156 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction((int value = 5) => value);
+                             ^^^^^^^^^^^^^^^^^^^^^^^^
+        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+*/
+ : (16,29)-(16,53),
+      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: only the compiler can name it, like the delegate type of a lambda with default values, params or more than 16 parameters. Use a delegate type of your own,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction((int value = 5) => value);
+        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        state.CreateFunction<OnlyInThisClass>(value => value);
+*/
+ : (17,29)-(17,179),
+      Message: Type '<anonymous delegate>' cannot be the delegate type of CreateFunction: only the compiler can name it, like the delegate type of a lambda with default values, params or more than 16 parameters. Use a delegate type of your own,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+        state.CreateFunction<OnlyInThisClass>(value => value);
+                                              ^^^^^^^^^^^^^^
+        state.CreateFunction<OnlyInThisFile>(value => value);
+*/
+ : (18,46)-(18,60),
+      Message: Type 'global::Hi.OnlyInThisClass' cannot be the delegate type of CreateFunction: generated code cannot access it. Make the type and its type arguments internal or public,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<OnlyInThisClass>(value => value);
+        state.CreateFunction<OnlyInThisFile>(value => value);
+                                             ^^^^^^^^^^^^^^
+        state.CreateFunction<Tagged<LocalTag>>(value => value);
+*/
+ : (19,45)-(19,59),
+      Message: Type 'global::OnlyInThisFile' cannot be the delegate type of CreateFunction: a file-local type is not visible to generated code,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<OnlyInThisFile>(value => value);
+        state.CreateFunction<Tagged<LocalTag>>(value => value);
+                                               ^^^^^^^^^^^^^^
+        state.CreateFunction<System.Func<Hidden?, int>>(value => 1);
+*/
+ : (20,47)-(20,61),
+      Message: Type 'global::Tagged<global::LocalTag>' cannot be the delegate type of CreateFunction: a file-local type is not visible to generated code,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Tagged<LocalTag>>(value => value);
+        state.CreateFunction<System.Func<Hidden?, int>>(value => 1);
+                                                        ^^^^^^^^^^
+    }
+*/
+ : (21,56)-(21,66),
+      Message: Type 'global::System.Func<global::Hi.Hidden, int>' cannot be the delegate type of CreateFunction: generated code cannot access it. Make the type and its type arguments internal or public,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    {
+        state.CreateFunction<Scale>(value => value);
+                                    ^^^^^^^^^^^^^^
+        state.CreateFunction<Tagged<TSettings>>(value => value);
+*/
+ : (31,36)-(31,50),
+      Message: Type 'global::Plugin<TSettings>.Scale' cannot be the delegate type of CreateFunction: it uses a type parameter of the code around the call, which generated code does not have,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Scale>(value => value);
+        state.CreateFunction<Tagged<TSettings>>(value => value);
+                                                ^^^^^^^^^^^^^^
+    }
+*/
+ : (32,48)-(32,62),
+      Message: Type 'global::Tagged<TSettings>' cannot be the delegate type of CreateFunction: it uses a type parameter of the code around the call, which generated code does not have,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be the delegate type of CreateFunction: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

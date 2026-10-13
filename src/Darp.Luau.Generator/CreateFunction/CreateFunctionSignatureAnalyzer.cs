@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -9,8 +10,11 @@ namespace Darp.Luau.Generator.CreateFunction;
 
 internal static class CreateFunctionSignatureAnalyzer
 {
-    /// <summary> The most parameters <c>System.Action</c> and <c>System.Func</c> have. </summary>
-    private const int MaxParameterCount = 16;
+    /// <summary> How the interceptor writes a delegate type that is not Action or Func. </summary>
+    private static readonly SymbolDisplayFormat DelegateTypeFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
+        );
 
     /// <summary> The location of the callback argument, or of the call when there is none. </summary>
     private static Location GetCallbackLocation(IInvocationOperation invocationOperation)
@@ -51,26 +55,45 @@ internal static class CreateFunctionSignatureAnalyzer
             return new CreateFunctionAnalysisResult(null, diagnostics.ToImmutableArray());
         }
 
-        if (!TryExtractSignature(invocationOperation, apiSymbols, out InteropSignature signature, diagnostics))
+        if (
+            !TryAnalyzeDelegate(
+                invocationOperation,
+                semanticModel.Compilation,
+                apiSymbols,
+                out string? delegateTypeName,
+                out InteropSignature signature,
+                diagnostics
+            )
+        )
+        {
             return new CreateFunctionAnalysisResult(null, diagnostics.ToImmutableArray());
+        }
 
         return new CreateFunctionAnalysisResult(
-            new CreateFunctionModel(new InterceptorLocationData(location.Version, location.Data), signature),
+            new CreateFunctionModel(
+                new InterceptorLocationData(location.Version, location.Data),
+                delegateTypeName,
+                signature
+            ),
             diagnostics.ToImmutableArray()
         );
     }
 
-    private static bool TryExtractSignature(
+    /// <summary> Gets the type of the delegate the call passes, as generated code writes it, and its signature. </summary>
+    private static bool TryAnalyzeDelegate(
         IInvocationOperation invocationOperation,
+        Compilation compilation,
         LuauApiSymbols? apiSymbols,
+        [NotNullWhen(true)] out string? delegateTypeName,
         out InteropSignature signature,
         List<Diagnostic> diagnostics
     )
     {
+        delegateTypeName = null;
         signature = default;
         ITypeSymbol? delegateType = invocationOperation.Arguments.Select(x => x.Value.Type).FirstOrDefault();
 
-        if (delegateType is not INamedTypeSymbol { DelegateInvokeMethod: { } invokeMethod })
+        if (delegateType is not INamedTypeSymbol { DelegateInvokeMethod: { } invokeMethod } namedDelegateType)
         {
             var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
             Location diagnosticLocation = syntax.GetLocation();
@@ -96,21 +119,25 @@ internal static class CreateFunctionSignatureAnalyzer
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidDelegateTypeDescriptor,
                     diagnosticLocation,
-                    typeDisplayName
+                    typeDisplayName,
+                    "expected a delegate type such as Action, Func<string> or a delegate type of your own"
                 )
             );
             return false;
         }
 
-        if (invokeMethod.Parameters.Length > MaxParameterCount)
+        // The interceptor takes the delegate as the type the call passes, so the generated file has to name it.
+        if (GetReasonGeneratedCodeCannotName(namedDelegateType, compilation) is { } reason)
         {
-            // The interceptor takes the callback as an Action or Func, which stop at 16 parameters.
             diagnostics.Add(
                 Diagnostic.Create(
-                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    DiagnosticDescriptors.InvalidDelegateTypeDescriptor,
                     GetCallbackLocation(invocationOperation),
-                    delegateType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                    $"a callback with more than {MaxParameterCount} parameters"
+                    // The delegate type of the compiler has no qualified name: it is shown as the compiler shows it.
+                    delegateType.ToDisplayString(
+                        delegateType.CanBeReferencedByName ? SymbolDisplayFormat.FullyQualifiedFormat : null
+                    ),
+                    reason
                 )
             );
             return false;
@@ -237,7 +264,65 @@ internal static class CreateFunctionSignatureAnalyzer
             returnTypes.ToImmutableEquatableArray(),
             awaitable
         );
+        // The compiler infers Action or Func for a lambda, and the symbol of that type lacks the nullability of an
+        // inferred return. The signature reads it from the body of the lambda and the interceptor is written from
+        // the signature, so the type is too. A delegate type of its own declares its nullability and is taken as is.
+        delegateTypeName = IsActionOrFunc(namedDelegateType)
+            ? EmitterHelper.GetFunctionRepresentation(signature)
+            : delegateType.ToDisplayString(DelegateTypeFormat);
         return true;
+    }
+
+    private static bool IsActionOrFunc(INamedTypeSymbol delegateType) =>
+        delegateType
+            is {
+                Name: "Action" or "Func",
+                ContainingType: null,
+                ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true }
+            };
+
+    /// <summary> Why the generated file cannot write <paramref name="delegateType"/>, or null when it can. </summary>
+    private static string? GetReasonGeneratedCodeCannotName(INamedTypeSymbol delegateType, Compilation compilation)
+    {
+        if (GetReasonTypeHasNoName(delegateType) is { } reason)
+            return reason;
+
+        // Covers the type arguments and the containing types, like the private userdata type in Func<Hidden, int>.
+        return compilation.IsSymbolAccessibleWithin(delegateType, compilation.Assembly)
+            ? null
+            : "generated code cannot access it. Make the type and its type arguments internal or public";
+    }
+
+    /// <summary> Why no name reaches <paramref name="type"/> from another file, or null when one does. </summary>
+    private static string? GetReasonTypeHasNoName(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case ITypeParameterSymbol:
+                return "it uses a type parameter of the code around the call, which generated code does not have";
+            case IArrayTypeSymbol array:
+                return GetReasonTypeHasNoName(array.ElementType);
+            case INamedTypeSymbol named:
+                // A lambda that no Action or Func fits gets a delegate type of the compiler, which has no name.
+                if (!named.CanBeReferencedByName)
+                {
+                    return "only the compiler can name it, like the delegate type of a lambda with default values, "
+                        + "params or more than 16 parameters. Use a delegate type of your own";
+                }
+
+                if (named.IsFileLocal)
+                    return "a file-local type is not visible to generated code";
+
+                foreach (ITypeSymbol typeArgument in named.TypeArguments)
+                {
+                    if (GetReasonTypeHasNoName(typeArgument) is { } reason)
+                        return reason;
+                }
+
+                return named.ContainingType is { } containingType ? GetReasonTypeHasNoName(containingType) : null;
+            default:
+                return null;
+        }
     }
 
     /// <summary> Whether the callback is an async lambda or an async method. A delegate held in a variable is not seen. </summary>

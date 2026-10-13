@@ -599,18 +599,90 @@ public class InterceptorTests
     }
 
     [Fact]
-    public async Task MoreParametersThanFuncHas_ShouldFail()
+    public async Task CustomDelegate_ShouldBeTheParameterOfTheInterceptor()
     {
         const string code = """
             using Darp.Luau;
 
-            public delegate int Many(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17);
+            namespace Game.Scripting
+            {
+                public delegate TResult Convert<in T, out TResult>(T value);
+
+                internal delegate int Many(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17);
+            }
 
             public static class Hi
             {
                 public static void DoSomething(LuauState state)
                 {
-                    state.CreateFunction<Many>((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) => a1);
+                    state.CreateFunction<Game.Scripting.Convert<string?, (int, bool)>>(value => (value?.Length ?? 0, value is null));
+                    state.CreateFunction<Game.Scripting.Many>((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) => a1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    /// <summary> The return of an async lambda is nullable by what it returns, which the type of the interceptor has to say too. </summary>
+    [Fact]
+    public async Task AsyncLambdaWithInferredNullableReturn()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(async () =>
+                    {
+                        await Task.Yield();
+                        return (string?)null;
+                    });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task DelegateTypeThatGeneratedCodeCannotName_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            file delegate int OnlyInThisFile(int value);
+
+            file sealed class LocalTag { }
+
+            public delegate int Tagged<TTag>(int value);
+
+            public static class Hi
+            {
+                private delegate int OnlyInThisClass(int value);
+
+                private sealed class Hidden { }
+
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((int value = 5) => value);
+                    state.CreateFunction((int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12, int a13, int a14, int a15, int a16, int a17) => a1);
+                    state.CreateFunction<OnlyInThisClass>(value => value);
+                    state.CreateFunction<OnlyInThisFile>(value => value);
+                    state.CreateFunction<Tagged<LocalTag>>(value => value);
+                    state.CreateFunction<System.Func<Hidden?, int>>(value => 1);
+                }
+            }
+
+            public sealed class Plugin<TSettings>
+            {
+                public delegate int Scale(int value);
+
+                public void Register(LuauState state)
+                {
+                    state.CreateFunction<Scale>(value => value);
+                    state.CreateFunction<Tagged<TSettings>>(value => value);
                 }
             }
             """;
