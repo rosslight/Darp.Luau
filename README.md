@@ -76,7 +76,7 @@ using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
 lua.Globals.Set("pair", pair);
 ```
 
-Use `CreateFunctionManual(...)` when you need manual argument parsing, explicit user-facing errors, or a callback shape that the generator-backed path does not support:
+Use `CreateFunctionManual(...)` when you need to read the arguments yourself, or a callback shape that the generator-backed path does not support:
 
 ```csharp
 using LuauFunction pair = lua.CreateFunctionManual(static args =>
@@ -84,11 +84,13 @@ using LuauFunction pair = lua.CreateFunctionManual(static args =>
     int a = args[1].Get<int>();
     int b = args[2].Get<int>();
     if (a <= b)
-        return LuauReturn.Error("Expected a to be greater than b");
+        throw new ArgumentException("Expected a to be greater than b");
 
     return LuauReturn.Ok(a + b, a - b);
 });
 ```
+
+A callback fails by throwing: the message of the exception becomes the Luau error, which a script can catch with `pcall(...)`.
 
 `CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionManual(...)`.
 
@@ -105,7 +107,7 @@ int length = await lua.Load("return #fetch('https://example.com')").ExecuteAsync
 
 For the script, `fetch(url)` is a normal call. A `CancellationToken` parameter is not a Luau argument; it receives the token of the async call.
 
-Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. A `CreateFunctionManual(...)` callback uses the `LuauAwaiter` from `args.TryGetAwaiter(...)`.
+Methods of `[LuauUserdata]` types and functions of `[LuauModule]` types await in the same way. A `CreateFunctionManual(...)` callback uses the `LuauAwaiter` from `args.GetAwaiter()`.
 
 ## Work with tables
 

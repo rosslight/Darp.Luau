@@ -16,8 +16,7 @@ file static class CreateFunctionInterceptors
         global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
             int a1 = args[1].Get<int>();
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(new global::System.Threading.Tasks.ValueTask(onLuaCall(a1, args.CancellationToken)));
         }
     }

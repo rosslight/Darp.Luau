@@ -9,11 +9,7 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
     {
         registry.TypeName = "Vec2";
         registry.AddGetter("x", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.X));
-        registry.AddSetter("x", static (self, value) =>
-        {
-            self.X = value.Get<double>();
-            return global::Darp.Luau.LuauOutcome.Ok();
-        });
+        registry.AddSetter("x", static (self, value) => self.X = value.Get<double>());
         registry.AddGetter("y", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Y));
         registry.AddValue("dimensions", static _ => global::Darp.Luau.LuauReturnSingle.Ok(global::Vec2.Dimensions));
         registry.AddFunction("new", static args =>

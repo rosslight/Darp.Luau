@@ -17,7 +17,7 @@ public sealed partial class Amount : global::Darp.Luau.ILuauUserdata<global::Amo
                 var returns = (a1 + a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (add) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (add) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Div, static args =>
         {
@@ -28,7 +28,7 @@ public sealed partial class Amount : global::Darp.Luau.ILuauUserdata<global::Amo
                 var returns = (a1 / a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (div) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (div) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Eq, static args =>
         {
@@ -60,7 +60,7 @@ public sealed partial class Amount : global::Darp.Luau.ILuauUserdata<global::Amo
                 var returns = (a1 % a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (mod) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (mod) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Mul, static args =>
         {
@@ -71,7 +71,7 @@ public sealed partial class Amount : global::Darp.Luau.ILuauUserdata<global::Amo
                 var returns = (a1 * a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (mul) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Sub, static args =>
         {
@@ -82,7 +82,7 @@ public sealed partial class Amount : global::Darp.Luau.ILuauUserdata<global::Amo
                 var returns = (a1 - a2);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             }
-            return global::Darp.Luau.LuauReturn.Error($"attempt to perform arithmetic (sub) on {args[1].TypeName} and {args[2].TypeName}");
+            throw new global::System.ArgumentException($"attempt to perform arithmetic (sub) on {args[1].TypeName} and {args[2].TypeName}");
         });
         registry.AddMetamethod(global::Darp.Luau.LuauMetamethod.Unm, static args =>
         {

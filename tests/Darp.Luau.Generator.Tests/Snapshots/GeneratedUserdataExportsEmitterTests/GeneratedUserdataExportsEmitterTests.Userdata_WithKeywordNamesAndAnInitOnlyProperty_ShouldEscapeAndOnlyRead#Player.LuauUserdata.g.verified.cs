@@ -15,11 +15,7 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserdata<global::Pla
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         registry.AddGetter("kind", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.@class));
-        registry.AddSetter("kind", static (self, value) =>
-        {
-            self.@class = value.Get<int>();
-            return global::Darp.Luau.LuauOutcome.Ok();
-        });
+        registry.AddSetter("kind", static (self, value) => self.@class = value.Get<int>());
         registry.AddGetter("level", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Level));
     }
 }

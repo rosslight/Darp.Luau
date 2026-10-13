@@ -6,17 +6,14 @@ using static Darp.Luau.Native.LuauNative;
 namespace Darp.Luau.Utils;
 
 /// <summary> Something of a userdata type that Luau calls: an accessor, a method, a metamethod or a static function. </summary>
-internal abstract class UserdataMember(string label)
+internal abstract class UserdataMember
 {
-    /// <summary> Names the member in the message of an exception it throws. </summary>
-    public string Label { get; } = label;
-
     /// <summary> Runs the member with the arguments on the stack of <paramref name="L"/>. </summary>
     /// <returns>The result of the native callback: a value count, an error, or a yield.</returns>
     public abstract unsafe int Invoke(LuauState state, lua_State* L);
 }
 
-internal sealed class UserdataGetter<T>(string name, LuauGetter<T> getter) : UserdataMember($"userdata member '{name}'")
+internal sealed class UserdataGetter<T>(LuauGetter<T> getter) : UserdataMember
     where T : class
 {
     private readonly LuauGetter<T> _getter = getter;
@@ -27,13 +24,12 @@ internal sealed class UserdataGetter<T>(string name, LuauGetter<T> getter) : Use
         if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out string? error, valueLabel: "self"))
             return LuauStateMarshal.ReturnError(L, error);
 
-        return _getter(self, state).TryPushValue(state, L, out error)
-            ? LuauStateMarshal.ReturnSuccess(L, 1)
-            : LuauStateMarshal.ReturnError(L, error);
+        _getter(self, state).Push(state, L);
+        return LuauStateMarshal.ReturnSuccess(L, 1);
     }
 }
 
-internal sealed class UserdataSetter<T>(string name, LuauSetter<T> setter) : UserdataMember($"userdata member '{name}'")
+internal sealed class UserdataSetter<T>(LuauSetter<T> setter) : UserdataMember
     where T : class
 {
     private readonly LuauSetter<T> _setter = setter;
@@ -44,14 +40,12 @@ internal sealed class UserdataSetter<T>(string name, LuauSetter<T> setter) : Use
         if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out string? error, valueLabel: "self"))
             return LuauStateMarshal.ReturnError(L, error);
 
-        var value = new LuauValueView(state, L, stackIndex: 3, position: 0);
-        return _setter(self, value).TryGetError(out error)
-            ? LuauStateMarshal.ReturnError(L, error)
-            : LuauStateMarshal.ReturnSuccess(L, 0);
+        _setter(self, new LuauValueView(state, L, stackIndex: 3, position: 0));
+        return LuauStateMarshal.ReturnSuccess(L, 0);
     }
 }
 
-internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : UserdataMember($"userdata method '{name}'")
+internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : UserdataMember
     where T : class
 {
     private readonly string _name = name;
@@ -78,7 +72,7 @@ internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : Use
 }
 
 /// <summary> A member that gets every argument as Luau passed it: a metamethod or a static function. </summary>
-internal sealed class UserdataCallback(string label, LuauCallback callback) : UserdataMember(label)
+internal sealed class UserdataCallback(LuauCallback callback) : UserdataMember
 {
     private readonly LuauCallback _callback = callback;
 
@@ -98,9 +92,8 @@ internal sealed class UserdataCallback(string label, LuauCallback callback) : Us
 internal readonly record struct UserdataMemberName(byte[] Name, int Member);
 
 /// <param name="Name">The name in UTF-8, with a terminating zero.</param>
-/// <param name="DisplayName">The name as it was declared, for error messages.</param>
 /// <param name="Factory">Creates the value for one state.</param>
-internal readonly record struct UserdataStaticValue(byte[] Name, string DisplayName, LuauValueFactory Factory);
+internal readonly record struct UserdataStaticValue(byte[] Name, LuauValueFactory Factory);
 
 /// <summary> What Luau can do with a managed type. It holds no state, so every state of the process shares it. </summary>
 internal sealed class UserdataDescription

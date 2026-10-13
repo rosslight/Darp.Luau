@@ -321,7 +321,6 @@ public sealed class UserdataRegistryTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
             state.GetTypeTable<FailingOnceStaticSide>()
         );
-        exception.Message.ShouldContain("'value'");
         exception.Message.ShouldContain("not ready yet");
 
         using LuauTable table = state.GetTypeTable<FailingOnceStaticSide>();
@@ -433,7 +432,7 @@ public sealed class UserdataRegistryTests
                         return LuauReturn.Ok(new Vec(left.X * factor, left.Y * factor));
                     if (args[1].TryGet(out factor) && args[2].TryGet(out Vec? right))
                         return LuauReturn.Ok(new Vec(right.X * factor, right.Y * factor));
-                    return LuauReturn.Error("a vector can only be multiplied with a number");
+                    throw new InvalidOperationException("a vector can only be multiplied with a number");
                 }
             );
             registry.AddMetamethod(
@@ -535,7 +534,7 @@ public sealed class UserdataRegistryTests
             }
 
             registry.AddGetter("readOnly", static (_, _) => LuauReturnSingle.Ok(1));
-            registry.AddSetter("writeOnly", static (_, _) => LuauOutcome.Ok());
+            registry.AddSetter("writeOnly", static (_, _) => { });
             registry.AddMethod("method", static (_, _) => LuauReturn.Ok());
             registry.AddMetamethod(
                 LuauMetamethod.Index,
@@ -612,7 +611,6 @@ public sealed class UserdataRegistryTests
                 static (self, value) =>
                 {
                     self._next = value.GetOrNull<Node>();
-                    return LuauOutcome.Ok();
                 }
             );
             registry.AddGetter("owner", static (self, _) => LuauReturnSingle.Ok(self._owner?.Name));
@@ -622,7 +620,6 @@ public sealed class UserdataRegistryTests
                 {
                     Node owner = value.Get<Node>();
                     self._owner = owner;
-                    return LuauOutcome.Ok();
                 }
             );
         }
@@ -673,7 +670,9 @@ public sealed class UserdataRegistryTests
                 static _ =>
                 {
                     int attempt = Interlocked.Increment(ref s_attempts);
-                    return attempt == 1 ? LuauReturnSingle.Error("not ready yet") : LuauReturnSingle.Ok(attempt);
+                    return attempt == 1
+                        ? throw new InvalidOperationException("not ready yet")
+                        : LuauReturnSingle.Ok(attempt);
                 }
             );
     }

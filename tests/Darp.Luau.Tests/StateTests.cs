@@ -268,7 +268,6 @@ public sealed class StateTests : IDisposable
                 static (self, _) =>
                 {
                     self._state.Dispose();
-                    return LuauOutcome.Ok();
                 }
             );
             registry.AddMethod(

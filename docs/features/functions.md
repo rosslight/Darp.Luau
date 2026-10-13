@@ -86,15 +86,15 @@ The supported signature set is narrower than the library's overall type-conversi
 | Capability | `CreateFunction(...)` | `CreateFunctionManual(...)` |
 | --- | --- | --- |
 | Input shape | typed delegate | `LuauArgs` |
-| Output shape | `void`, one managed return value, or a supported top-level tuple return | `LuauReturn.Ok(...)` / `LuauReturn.Error(...)` |
+| Output shape | `void`, one managed return value, or a supported top-level tuple return | `LuauReturn.Ok(...)` |
 | Requirements | direct call, generator-backed | plain runtime API |
-| Best for | simple fixed signatures, including supported tuple returns | manual validation, custom errors, unsupported signatures |
+| Best for | simple fixed signatures, including supported tuple returns | arguments of more than one type, unsupported signatures |
 
 Prefer `CreateFunction(...)` unless you specifically need the extra control from `CreateFunctionManual(...)`.
 
 ## Use `CreateFunctionManual(...)` for manual callbacks
 
-Use `CreateFunctionManual(...)` when you want to parse callback arguments yourself, shape the user-facing error contract explicitly, or expose a callback shape the generator does not support:
+Use `CreateFunctionManual(...)` when you want to read callback arguments yourself, or expose a callback shape the generator does not support:
 
 ```csharp
 using LuauFunction pair = lua.CreateFunctionManual(static args =>
@@ -102,7 +102,7 @@ using LuauFunction pair = lua.CreateFunctionManual(static args =>
     int a = args[1].Get<int>();
     int b = args[2].Get<int>();
     if (a <= b)
-        return LuauReturn.Error("Expected a to be greater than b");
+        throw new ArgumentException("Expected a to be greater than b");
 
     return LuauReturn.Ok(a + b, a - b);
 });
@@ -120,7 +120,7 @@ lua.Globals.Set("pair", pair);
 | `args[1].TryGet(out int value)` | `false` | `false` |
 | `args[1].TryGetOrNull(out string? value)` | `true` with `null` | `false` |
 
-A read that fails throws `LuaGetException`. You do not catch it: the script gets its message as a Luau error, such as `invalid argument #2 (number expected, got string)` or `missing argument #2 (number expected)`. Use `TryGet` when an argument may have more than one type, and `args[1].Type` to look at its type without reading it.
+A read that fails throws `LuaGetException`. You do not catch it: like every exception of a callback, it reaches the script as a Luau error with its message, such as `invalid argument #2 (number expected, got string)` or `missing argument #2 (number expected)`. See [Error behavior](#error-behavior). Use `TryGet` when an argument may have more than one type, and `args[1].Type` to look at its type without reading it.
 
 A callback is not told when a script passes more arguments than it reads. `args.Count` is the number that was passed.
 
@@ -161,14 +161,13 @@ A `CancellationToken` parameter is not a Luau argument. It receives the token of
 
 An `async` lambda that is converted to `Action` would be `async void`: the script could not wait for it. The generator rejects that where it can see the lambda or method; a delegate you hold in a variable is not checked.
 
-A callback built with `CreateFunctionManual(...)` asks for an awaiter before it starts its work:
+A callback built with `CreateFunctionManual(...)` gets an awaiter before it starts its work:
 
 ```csharp
 using LuauFunction delay = lua.CreateFunctionManual(static args =>
 {
     int milliseconds = args[1].Get<int>();
-    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
-        return LuauReturn.Error(error);
+    LuauAwaiter awaiter = args.GetAwaiter();
     return awaiter.Await(new ValueTask(Task.Delay(milliseconds, args.CancellationToken)));
 });
 lua.Globals.Set("delay", delay);
@@ -176,17 +175,51 @@ lua.Globals.Set("delay", delay);
 await lua.Load("delay(100)").ExecuteAsync([], cancellationToken);
 ```
 
-Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Under a sync call the callback fails without starting its work. Read all arguments before you await. See [Coroutines](coroutines.md).
+Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeAsync(...)`, or `LuauCoroutine.ResumeAsync(...)`. Under a sync call `GetAwaiter()` throws, so the callback fails without starting its work. Read all arguments before you await. See [Coroutines](coroutines.md).
 
 ## Error behavior
 
-Callback failures become normal Luau errors:
+A callback fails by throwing. The message of the exception becomes the Luau error, which a script can catch with `pcall(...)`. This is the same for every kind of callback: a `CreateFunction(...)` delegate, a `CreateFunctionManual(...)` callback, a member of a userdata type, a function of a module, and the awaited work of an async callback.
 
-- an argument that cannot be read becomes a Luau error that names the argument, what was expected and what was passed,
-- a nullable parameter of a `CreateFunction(...)` delegate may be omitted by the script and is then `null`,
-- `LuauReturn.Error(...)` produces a Luau error with your message,
-- thrown exceptions are caught and surfaced as managed callback failures,
-- `pcall(...)` can catch those errors on the Luau side.
+```csharp
+using LuauFunction withdraw = lua.CreateFunction(
+    (int balance, int amount) =>
+        amount <= balance ? balance - amount : throw new ArgumentException("not enough money")
+);
+lua.Globals.Set("withdraw", withdraw);
+```
+
+```lua
+local ok, message = pcall(withdraw, 10, 25)
+print(ok, message) -- false   not enough money
+```
+
+- Any exception type works. Throw the one you would throw in other C# code, such as `ArgumentException` for an argument you reject.
+- The script sees the message and nothing else. An exception without a message is reported by the name of its type.
+- An argument that cannot be read throws for you. Its message names the argument, what was expected and what was passed.
+- A nullable parameter of a `CreateFunction(...)` delegate may be omitted by the script and is then `null`.
+- When the script does not catch the error, the host call that ran it (`Execute`, `Invoke`, ...) throws `LuaException` with that message.
+
+An exception you did not intend reaches the script in the same way, for example `Object reference not set to an instance of an object.` A script cannot tell it from an error you raised on purpose. Messages that .NET builds for you name C# parameters: `ArgumentOutOfRangeException.ThrowIfNegative(value)` gives `value ('-1') must be a non-negative value. (Parameter 'value')`. Pass your own text when the message is meant for the script author.
+
+For a failure a script is expected to handle, follow the Luau convention and return it instead of raising it:
+
+```csharp
+using LuauFunction find = lua.CreateFunctionManual(static args =>
+{
+    string name = args[1].Get<string>();
+    return Devices.TryGetValue(name, out Device? device)
+        ? LuauReturn.Ok(device.Address)
+        : LuauReturn.Ok(default, $"no device named {name}");
+});
+```
+
+```lua
+local address, message = find("kitchen")
+if not address then
+    print(message)
+end
+```
 
 ## Signature guidance
 

@@ -99,9 +99,10 @@ public sealed class CallbackArgumentTests : IDisposable
     }
 
     [Fact]
-    public void Index_BelowOne_ShouldBeAnErrorOfTheHost()
+    public void Index_BelowOne_ShouldFailTheCallback()
     {
-        ErrorOf("f(1)", static args => LuauReturn.Ok(args[0].Get<int>())).ShouldContain("ArgumentOutOfRangeException");
+        ErrorOf("f(1)", static args => LuauReturn.Ok(args[0].Get<int>()))
+            .ShouldContain("must be greater than or equal to '1'");
     }
 
     [Fact]
@@ -197,12 +198,12 @@ public sealed class CallbackArgumentTests : IDisposable
     }
 
     [Fact]
-    public void TypeNoValueCanBeReadAs_ShouldBeAnErrorOfTheHost()
+    public void TypeNoValueCanBeReadAs_ShouldFailTheCallback()
     {
         ErrorOf("f(1)", static args => LuauReturn.Ok(args[1].Get<DateTime>().Ticks))
-            .ShouldContain("NotSupportedException");
+            .ShouldBe("A Luau value cannot be read as System.DateTime.");
         ErrorOf("f(1)", static args => LuauReturn.Ok(args[1].TryGet(out DateTime _)))
-            .ShouldContain("NotSupportedException");
+            .ShouldBe("A Luau value cannot be read as System.DateTime.");
     }
 
     [Fact]
@@ -385,7 +386,6 @@ public sealed class CallbackArgumentTests : IDisposable
                 static (self, value) =>
                 {
                     self._value = value.Get<int>();
-                    return LuauOutcome.Ok();
                 }
             );
 

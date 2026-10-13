@@ -124,10 +124,9 @@ internal static class CallbackBodyEmitter
             return;
         }
 
-        // Asked before the call, so the callback never starts work that cannot be awaited. The arguments are read
+        // Got before the call, so the callback never starts work that cannot be awaited. The arguments are read
         // above, so that work never touches the callback-scoped args.
-        writer.WriteLine("if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))");
-        writer.WriteLine($"    return {LuauReturn}.Error(error);");
+        writer.WriteLine("global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();");
         string pending =
             signature.Awaitable is AwaitableReturnKind.ValueTask
                 ? callExpression

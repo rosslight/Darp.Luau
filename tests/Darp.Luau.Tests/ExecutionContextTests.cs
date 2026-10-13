@@ -19,8 +19,7 @@ public sealed class ExecutionContextTests : IDisposable
         {
             LuauFunctionView callbackView = args[1].Get<LuauFunctionView>();
             int value = args[2].Get<int>();
-            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
-                return LuauReturn.Error(error);
+            LuauAwaiter awaiter = args.GetAwaiter();
             return awaiter.Await(TouchAsync(state, callbackView.ToOwned(), value));
 
             static async ValueTask<LuauReturn> TouchAsync(LuauState state, LuauFunction callback, int value)

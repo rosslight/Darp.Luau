@@ -223,12 +223,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             foreach (UserdataStaticValue value in description.StaticValues)
             {
-                if (!value.Factory(_state).TryPushValue(_state, L, out string? error))
-                {
-                    throw new InvalidOperationException(
-                        $"The static value '{value.DisplayName}' of userdata type '{managedType}' failed: {error}"
-                    );
-                }
+                value.Factory(_state).Push(_state, L);
                 fixed (byte* pName = value.Name)
                     lua_rawsetfield(L, table, pName);
             }
@@ -341,7 +336,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     private static unsafe int MemberCallback(lua_State* L, void* ctx, int member)
     {
         int top = lua_gettop(L);
-        UserdataMember? invoked = null;
         try
         {
             if (GCHandle.FromIntPtr((IntPtr)ctx).Target is not UserdataType type)
@@ -349,13 +343,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (!type.State.OwnsThread(L))
                 return LuauStateMarshal.ReturnError(L, "userdata type belongs to a different state"u8);
 
-            invoked = type.Description.Members[member];
-            return invoked.Invoke(type.State, L);
+            return type.Description.Members[member].Invoke(type.State, L);
         }
         catch (Exception exception)
         {
             lua_settop(L, top);
-            return LuauStateMarshal.ReturnCallbackException(L, invoked?.Label ?? "userdata member", exception);
+            return LuauStateMarshal.ReturnCallbackException(L, exception);
         }
     }
 }

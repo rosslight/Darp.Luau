@@ -3,13 +3,13 @@ using Darp.Luau.Internal;
 namespace Darp.Luau;
 
 /// <summary>
-/// Lets a managed callback finish later. Get it from <see cref="LuauArgs.TryGetAwaiter"/> before you start the work,
+/// Lets a managed callback finish later. Get it from <see cref="LuauArgs.GetAwaiter"/> before you start the work,
 /// and return what <c>Await</c> gives you.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A pending result suspends the calling coroutine until the work completes. Asking first means that work which
-/// could not be awaited is never started.
+/// A pending result suspends the calling coroutine until the work completes. Getting the awaiter first means that
+/// work which could not be awaited is never started.
 /// </para>
 /// <para>
 /// Read every argument before the first <c>await</c>: <see cref="LuauArgs"/> and borrowed views end with the
@@ -72,7 +72,7 @@ public readonly ref struct LuauAwaiter
     {
         if (!_isGranted)
             throw new InvalidOperationException(
-                $"Get the awaiter from {nameof(LuauArgs)}.{nameof(LuauArgs.TryGetAwaiter)}."
+                $"Get the awaiter from {nameof(LuauArgs)}.{nameof(LuauArgs.GetAwaiter)}."
             );
     }
 }

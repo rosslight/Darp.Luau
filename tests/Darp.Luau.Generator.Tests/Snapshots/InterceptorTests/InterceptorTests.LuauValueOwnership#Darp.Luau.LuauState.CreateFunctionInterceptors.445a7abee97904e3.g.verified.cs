@@ -20,8 +20,7 @@ file static class CreateFunctionInterceptors
             try
             {
                 a1 = args[1].Get<global::Darp.Luau.LuauValue>();
-                if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
                 var pending = new global::System.Threading.Tasks.ValueTask(onLuaCall(a1));
                 isHandedOver = true;
                 return awaiter.Await(ReleaseAfter(pending, a1));

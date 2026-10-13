@@ -7,7 +7,5 @@ internal static class AwaitTestExtensions
     /// not started and the callback fails with the reason.
     /// </summary>
     public static LuauReturn AwaitOrError(this LuauArgs args, Func<ValueTask<LuauReturn>> start) =>
-        args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error)
-            ? awaiter.Await(start())
-            : LuauReturn.Error(error);
+        args.GetAwaiter().Await(start());
 }

@@ -7,12 +7,17 @@ namespace Darp.Luau;
 
 /// <summary>
 /// Represents the return value of a managed Luau callback.
-/// Use <see cref="Ok()"/> or one of the <see cref="Ok(IntoLuau)"/> overloads for successful results,
-/// <see cref="Error(string)"/> to return an error, or a <see cref="LuauAwaiter"/> to finish later.
+/// Use <see cref="Ok()"/> or one of the <see cref="Ok(IntoLuau)"/> overloads to return values, or a
+/// <see cref="LuauAwaiter"/> to finish later.
 /// </summary>
 /// <remarks>
-/// The default value represents an error with message <c>Unknown error</c>.
-/// A result is consumed once: its values are pushed to Luau, or released when Luau can no longer receive them.
+/// <para>
+/// A callback fails by throwing: the message of its exception becomes the Luau error.
+/// </para>
+/// <para>
+/// The default value returns no values. A result is consumed once: its values are pushed to Luau, or released
+/// when Luau can no longer receive them.
+/// </para>
 /// </remarks>
 [SuppressMessage(
     "Performance",
@@ -22,11 +27,10 @@ namespace Darp.Luau;
 public readonly struct LuauReturn
 {
     private readonly IntoLuauCopiedBuffer _buffer;
+
+    // The error of work that completed later, which cannot throw into the callback that started it.
     private readonly string? _error;
     private readonly PendingWork _pending;
-
-    /// <summary> Gets whether this callback result is successful. </summary>
-    public bool IsOk { get; }
 
     /// <summary> Gets whether this callback result completes later. See <see cref="LuauAwaiter"/>. </summary>
     public bool IsPending => !_pending.IsNone;
@@ -44,7 +48,6 @@ public readonly struct LuauReturn
             valueCount > 1
                 ? CaptureSeveral(valueCount, value1, value2, value3, value4)
                 : new IntoLuauCopiedBuffer(valueCount, valueCount > 0 ? value1.CaptureCopied() : default);
-        IsOk = true;
     }
 
     /// <summary> Captures more than one value. When one of them cannot be captured, the ones before it are released. </summary>
@@ -85,17 +88,9 @@ public readonly struct LuauReturn
         return new IntoLuauCopiedBuffer(valueCount, element0, element1, element2, element3);
     }
 
-    private LuauReturn(string error)
-    {
-        IsOk = false;
-        _error = error;
-    }
+    private LuauReturn(string error) => _error = error;
 
-    private LuauReturn(PendingWork pending)
-    {
-        IsOk = false;
-        _pending = pending;
-    }
+    private LuauReturn(PendingWork pending) => _pending = pending;
 
     /// <summary> Creates a successful callback result with no return values. </summary>
     public static LuauReturn Ok() => new(valueCount: 0);
@@ -124,10 +119,9 @@ public readonly struct LuauReturn
     public static LuauReturn Ok(IntoLuau value1, IntoLuau value2, IntoLuau value3, IntoLuau value4) =>
         new(valueCount: 4, value1, value2, value3, value4);
 
-    /// <summary> Creates a failed callback result with an error message. </summary>
-    /// <param name="error">Error message reported to the caller.</param>
-    /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
-    public static LuauReturn Error(string error) => new(error);
+    /// <summary> Creates the result of work that failed after its callback had returned. </summary>
+    /// <param name="error">The Luau error.</param>
+    internal static LuauReturn Error(string error) => new(error);
 
     /// <summary> The work a pending result waits for, if any. </summary>
     internal PendingWork Pending => _pending;
@@ -166,13 +160,10 @@ public readonly struct LuauReturn
     {
         Debug.Assert(!IsPending, "A callback hands its pending result to the coroutine driver instead of pushing it.");
         outputCount = 0;
-        if (!IsOk)
-        {
-            error = _error ?? "Unknown error";
+        error = _error;
+        if (error is not null)
             return false;
-        }
 
-        error = null;
         try
         {
             _buffer.Push(state, luaState);

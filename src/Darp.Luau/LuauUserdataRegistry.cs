@@ -86,7 +86,7 @@ public sealed class LuauUserdataRegistry<T>
     {
         ArgumentNullException.ThrowIfNull(getter);
         ClaimInstanceName(name, Accessors.Getter, conflicts: Accessors.Getter | Accessors.Method);
-        _getters.Add(AddMember(name, new UserdataGetter<T>(name, getter)));
+        _getters.Add(AddMember(name, new UserdataGetter<T>(getter)));
     }
 
     /// <summary> Adds a member that scripts write as <c>value.name = x</c>. </summary>
@@ -97,7 +97,7 @@ public sealed class LuauUserdataRegistry<T>
     {
         ArgumentNullException.ThrowIfNull(setter);
         ClaimInstanceName(name, Accessors.Setter, conflicts: Accessors.Setter | Accessors.Method);
-        _setters.Add(AddMember(name, new UserdataSetter<T>(name, setter)));
+        _setters.Add(AddMember(name, new UserdataSetter<T>(setter)));
     }
 
     /// <summary> Adds a method that scripts call as <c>value:name(...)</c>. </summary>
@@ -127,7 +127,7 @@ public sealed class LuauUserdataRegistry<T>
         if (!_declaredMetamethods.Add(metamethod))
             throw new ArgumentException($"Userdata type '{typeof(T)}' already declares '{name}'.", nameof(metamethod));
 
-        UserdataMemberName member = AddMember(name, new UserdataCallback(name, callback));
+        UserdataMemberName member = AddMember(name, new UserdataCallback(callback));
         switch (metamethod)
         {
             case LuauMetamethod.Index:
@@ -150,7 +150,7 @@ public sealed class LuauUserdataRegistry<T>
     {
         ArgumentNullException.ThrowIfNull(function);
         ClaimStaticName(name);
-        _staticFunctions.Add(AddMember(name, new UserdataCallback($"userdata function '{name}'", function)));
+        _staticFunctions.Add(AddMember(name, new UserdataCallback(function)));
     }
 
     /// <summary> Adds a value to the static side, which scripts read as <c>Type.name</c>. </summary>
@@ -161,7 +161,7 @@ public sealed class LuauUserdataRegistry<T>
     {
         ArgumentNullException.ThrowIfNull(value);
         ClaimStaticName(name);
-        _staticValues.Add(new UserdataStaticValue(UserdataDescription.ToLuauName(name), name, value));
+        _staticValues.Add(new UserdataStaticValue(UserdataDescription.ToLuauName(name), value));
     }
 
     internal UserdataDescription Build()
