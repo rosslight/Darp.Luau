@@ -151,6 +151,12 @@ public class GeneratedExportsTests
 
                 [LuauMember("Field..u16")]
                 public static int CreateU16() => 16;
+
+                [LuauMember("Text.Format")]
+                public static string Format(int value) => value.ToString();
+
+                [LuauMember("Text")]
+                public static string Text => "";
             }
             """;
 

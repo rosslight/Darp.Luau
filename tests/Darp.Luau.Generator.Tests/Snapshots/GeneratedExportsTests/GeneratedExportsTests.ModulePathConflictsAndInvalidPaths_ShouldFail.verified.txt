@@ -37,6 +37,25 @@
         DefaultSeverity: Error,
         IsEnabledByDefault: true
       }
+    },
+    {
+      Location: /*
+    [LuauMember("Text")]
+    public static string Text => "";
+                         ^^^^
+}
+*/
+ : (18,25)-(18,29),
+      Message: Luau export path conflict: 'Text' cannot be both a leaf member and a namespace for 'Text.Format',
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1007,
+        Title: Luau export path conflict,
+        MessageFormat: Luau export path conflict: '{0}' cannot be both a leaf member and a namespace for '{1}',
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
     }
   ]
 }

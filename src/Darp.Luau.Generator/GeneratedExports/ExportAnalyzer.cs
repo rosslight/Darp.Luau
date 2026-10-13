@@ -528,7 +528,6 @@ internal static class ExportAnalyzer
         return syntax switch
         {
             ClassDeclarationSyntax classDeclaration => $"{modifiers} class {classDeclaration.Identifier.Text}",
-            StructDeclarationSyntax structDeclaration => $"{modifiers} struct {structDeclaration.Identifier.Text}",
             RecordDeclarationSyntax recordDeclaration =>
                 $"{modifiers} record {recordDeclaration.ClassOrStructKeyword.Text} {recordDeclaration.Identifier.Text}",
             _ => throw new InvalidOperationException(
