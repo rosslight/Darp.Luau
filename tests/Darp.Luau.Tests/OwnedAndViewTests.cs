@@ -128,5 +128,58 @@ public sealed class OwnedAndViewTests : IDisposable
         target.ContainsKey("key").ShouldBeFalse();
     }
 
+    [Fact]
+    public void View_ShouldBePassedOnToLuauAsTheValueItIsAViewOf()
+    {
+        using LuauFunction echoFunction = _state.CreateFunctionManual(static args =>
+        {
+            LuauFunctionView view = args[1].Get<LuauFunctionView>();
+            return LuauReturn.Ok(view, view.ToString());
+        });
+        using LuauFunction echoCoroutine = _state.CreateFunctionManual(static args =>
+        {
+            LuauCoroutineView view = args[1].Get<LuauCoroutineView>();
+            return LuauReturn.Ok(view, view.ToString());
+        });
+        using LuauFunction echoUserdata = _state.CreateFunctionManual(static args =>
+        {
+            LuauUserdataView view = args[1].Get<LuauUserdataView>();
+            return LuauReturn.Ok(view, view.ToString());
+        });
+        using LuauFunction check = _state
+            .Load("local echo, value = ... local same, text = echo(value) return rawequal(same, value), text")
+            .ToFunction();
+        using LuauFunction function = _state.Load("return function() end").Execute<LuauFunction>();
+        using LuauCoroutine coroutine = _state.Load("return coroutine.create(function() end)").Execute<LuauCoroutine>();
+        using LuauUserdata userdata = _state.GetOrCreateUserdata(new ValueUserdata());
+
+        check.Invoke<bool, string>(echoFunction, function).ShouldBe((true, function.ToString()));
+        check.Invoke<bool, string>(echoCoroutine, coroutine).ShouldBe((true, coroutine.ToString()));
+        check.Invoke<bool, string>(echoUserdata, userdata).ShouldBe((true, userdata.ToString()));
+        function.ToString().ShouldStartWith("function: 0x");
+    }
+
+    [Fact]
+    public async Task FunctionArgument_ShouldBeInvokedAsynchronouslyThroughItsView()
+    {
+        using LuauFunction call = _state.CreateFunctionManual(static args =>
+        {
+            LuauFunctionView callback = args[1].Get<LuauFunctionView>();
+            if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
+                return LuauReturn.Error(error);
+            // The view is used inside the callback. Only the pending result crosses the await.
+            return awaiter.Await(Result(callback.InvokeAsync<int>([41], args.CancellationToken)));
+
+            static async ValueTask<LuauReturn> Result(ValueTask<int> pending) => LuauReturn.Ok(await pending);
+        });
+        _state.Globals.Set("call", call);
+
+        int result = await _state
+            .Load("return call(function(x) return x + 1 end)")
+            .ExecuteAsync<int>([], TestContext.Current.CancellationToken);
+
+        result.ShouldBe(42);
+    }
+
     public void Dispose() => _state.Dispose();
 }
