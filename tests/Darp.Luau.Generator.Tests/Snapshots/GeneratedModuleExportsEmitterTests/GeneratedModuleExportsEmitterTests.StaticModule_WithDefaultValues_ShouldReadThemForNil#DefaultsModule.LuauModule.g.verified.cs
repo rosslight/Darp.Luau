@@ -17,7 +17,7 @@ public static partial class DefaultsModule
             {
                 int? a1 = args[1].Get<int?>();
                 string? a2 = args[2].GetOrNull<string>();
-                string a3 = args[3].GetOrNull<string>() ?? null!;
+                string a3 = args[3].GetOrNull<string>() ?? default!;
                 a4 = args[4].Get<global::Darp.Luau.LuauValue>();
                 var returns = global::DefaultsModule.Nulls(a1, a2, a3, a4, args.CancellationToken);
                 return global::Darp.Luau.LuauReturn.Ok(returns);
@@ -53,7 +53,7 @@ public static partial class DefaultsModule
             global::Mode a3 = args[3].Get<global::Mode?>() ?? (global::Mode)(-1);
             global::Mode? a4 = args[4].Get<global::Mode?>() ?? (global::Mode)(2);
             int? a5 = args[5].Get<int?>() ?? 5;
-            global::System.Half a6 = args[6].Get<global::System.Half?>() ?? default;
+            global::System.Half a6 = args[6].Get<global::System.Half?>() ?? default!;
             var returns = global::DefaultsModule.Others(a1, a2, a3, a4, a5, a6);
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

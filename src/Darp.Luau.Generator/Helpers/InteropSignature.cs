@@ -16,8 +16,8 @@ internal enum AwaitableReturnKind
 /// </param>
 internal readonly record struct InteropParameter(InteropType Type, string? Default = null)
 {
-    /// <summary> The default of a nullable parameter: what it gets for nil without a default. </summary>
-    public const string NullDefault = "null";
+    /// <summary> The default that is null for a class and a nullable type, and the default value of a struct. </summary>
+    public const string DefaultOfType = "default!";
 }
 
 internal readonly record struct InteropSignature(

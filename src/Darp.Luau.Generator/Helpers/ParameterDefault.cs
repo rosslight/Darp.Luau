@@ -19,28 +19,8 @@ internal static class ParameterDefault
         if (!symbol.HasExplicitDefaultValue)
             return null;
 
-        // Only a number, a bool, a string and an enum have a constant, and each of them has a nullable read.
-        if (symbol.ExplicitDefaultValue is { } constant)
-        {
-            parameter = parameter with { Default = FormatConstant(constant, type) };
-            return null;
-        }
-
-        // The default is null, or the default of a struct.
-        if (type.IsNullable)
-        {
-            parameter = parameter with { Default = InteropParameter.NullDefault };
-            return null;
-        }
-
-        // "string name = null!": the host passes null where it declared there is none, and so does the read.
-        if (type.Type is LuauInteropKind.StringString or LuauInteropKind.ManagedUserdata)
-        {
-            parameter = parameter with { Default = "null!" };
-            return null;
-        }
-
-        // A LuauValue reads nil itself. A span and a view have no read that takes nil.
+        // A span and a view have no read that takes nil. A LuauValue reads nil itself, and a cancellation token is
+        // never a Luau argument.
         if (
             type.Type is not (LuauInteropKind.CancellationToken or LuauInteropKind.LuauValue)
             && !InteropTypeMapper.SupportsNullableValue(type.Type)
@@ -49,7 +29,13 @@ internal static class ParameterDefault
             return "has a default value that its type cannot have";
         }
 
-        parameter = parameter with { Default = "default" };
+        // The symbol has no constant for null and for the default of a struct.
+        parameter = parameter with
+        {
+            Default = symbol.ExplicitDefaultValue is { } constant
+                ? FormatConstant(constant, type)
+                : InteropParameter.DefaultOfType,
+        };
         return null;
     }
 

@@ -26,9 +26,10 @@ internal static class LuauMarshalEmitter
     /// <summary> Writes the expression that reads <paramref name="valueView"/>, a <c>LuauValueView</c>, as the argument of <paramref name="parameter"/>. </summary>
     public static string FormatRead(string valueView, InteropParameter parameter)
     {
-        // A default of null is what the nullable read gives for nil. A LuauValue reads nil itself.
+        // A nullable parameter with the default null gets it from its read, and a LuauValue reads nil itself.
         if (
-            parameter.Default is null or InteropParameter.NullDefault
+            parameter.Default is null
+            || (parameter.Type.IsNullable && parameter.Default == InteropParameter.DefaultOfType)
             || !InteropTypeMapper.SupportsNullableValue(parameter.Type.Type)
         )
         {
