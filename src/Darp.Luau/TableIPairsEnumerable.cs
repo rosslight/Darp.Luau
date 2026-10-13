@@ -14,15 +14,8 @@ namespace Darp.Luau;
 public readonly struct TableIPairsEnumerable<T> : IEnumerable<KeyValuePair<int, T>>
 {
     private readonly LuauTable _table;
-    private readonly LuauState? _state;
-    private readonly ulong _handle;
 
-    internal TableIPairsEnumerable(LuauTable table, LuauState? state, ulong handle)
-    {
-        _table = table;
-        _state = state;
-        _handle = handle;
-    }
+    internal TableIPairsEnumerable(LuauTable table) => _table = table;
 
     /// <summary>
     /// Gets the raw array length of the underlying Luau table.
@@ -35,9 +28,8 @@ public readonly struct TableIPairsEnumerable<T> : IEnumerable<KeyValuePair<int, 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator" />
     public Enumerator GetEnumerator()
     {
-        _state.ThrowIfDisposed();
-        ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_handle);
-        return new Enumerator(_state, newHandle);
+        ulong handle = _table.CountReference(out LuauState state);
+        return new Enumerator(state, handle);
     }
 
     IEnumerator<KeyValuePair<int, T>> IEnumerable<KeyValuePair<int, T>>.GetEnumerator() => GetEnumerator();
@@ -50,6 +42,9 @@ public readonly struct TableIPairsEnumerable<T> : IEnumerable<KeyValuePair<int, 
         private readonly LuauState? _state;
         private readonly ulong _handle;
         private KeyValuePair<int, T> _current;
+
+        // An enumeration that ended stays ended, also when the value it ended at changes afterwards.
+        private bool _isFinished;
 
         /// <inheritdoc />
         public readonly KeyValuePair<int, T> Current => _current;
@@ -69,15 +64,26 @@ public readonly struct TableIPairsEnumerable<T> : IEnumerable<KeyValuePair<int, 
         /// <exception cref="NotSupportedException">Thrown when the value cannot be read as <typeparamref name="T"/> at all.</exception>
         public bool MoveNext()
         {
-            int index = _current.Key + 1;
-            if (!LuauTableView.TryGetItem<T>(_state.GetSlotOrThrow(_handle), index, out var value))
+            if (_isFinished)
                 return false;
-            _current = new KeyValuePair<int, T>(index, value);
-            return true;
+
+            int index = _current.Key + 1;
+            if (LuauTableView.TryGetItem<T>(_state.GetSlotOrThrow(_handle), index, out var value))
+            {
+                _current = new KeyValuePair<int, T>(index, value);
+                return true;
+            }
+
+            _isFinished = true;
+            return false;
         }
 
         /// <inheritdoc />
-        public void Reset() => _current = default;
+        public void Reset()
+        {
+            _current = default;
+            _isFinished = false;
+        }
 
         void IDisposable.Dispose()
         {

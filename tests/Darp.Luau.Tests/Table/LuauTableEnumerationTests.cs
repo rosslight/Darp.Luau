@@ -1,3 +1,4 @@
+using Darp.Luau.Tests.Fixtures;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Table;
@@ -167,8 +168,8 @@ public sealed class LuauTableEnumerationTests : IDisposable
         // A vector has no managed form. In the first table the vector is read after the table next to it.
         using LuauTable vectorKey = Table("{ [vector.create(1, 2, 3)] = {} }");
         using LuauTable vectorValue = Table("{ [{}] = vector.create(1, 2, 3) }");
-        using LuauTable other = Table("{ marker = 7 }");
         ulong baseline = ActiveReferences;
+        int top = _state.GetStackTop();
 
         Should.Throw<NotSupportedException>(() =>
         {
@@ -180,22 +181,118 @@ public sealed class LuauTableEnumerationTests : IDisposable
         });
 
         ActiveReferences.ShouldBe(baseline);
-        // The stack is as it was: the next read finds its value.
-        other.Get<int>("marker").ShouldBe(7);
+        _state.GetStackTop().ShouldBe(top);
     }
 
     [Fact]
     public void IPairs_WithAVector_ShouldThrowForAValueAndStopForAnotherType()
     {
         using LuauTable table = Table("{ 1, vector.create(1, 2, 3), 3 }");
-        using LuauTable other = Table("{ marker = 7 }");
         ulong baseline = ActiveReferences;
+        int top = _state.GetStackTop();
 
         Should.Throw<NotSupportedException>(() => table.IPairs().ToArray());
         table.IPairs<double>().Select(pair => pair.Value).ShouldBe([1]);
 
         ActiveReferences.ShouldBe(baseline);
-        other.Get<int>("marker").ShouldBe(7);
+        _state.GetStackTop().ShouldBe(top);
+    }
+
+    [Fact]
+    public void TableArgument_WithAVector_ShouldThrowAndLeaveNothingBehind()
+    {
+        // The callback catches the exception itself: left to the callback boundary, the stack would be reset there.
+        using LuauFunction function = _state.CreateFunctionManual(static args =>
+        {
+            LuauTableView table = args[1].Get<LuauTableView>();
+            ulong references = args.State.MemoryStatistics.ActiveRegistryReferences;
+            int top = args.State.GetStackTop();
+            int thrown = 0;
+            try
+            {
+                foreach (KeyValuePair<LuauValue, LuauValue> _ in table) { }
+            }
+            catch (NotSupportedException)
+            {
+                thrown++;
+            }
+
+            try
+            {
+                foreach (KeyValuePair<int, LuauValue> _ in table.IPairs()) { }
+            }
+            catch (NotSupportedException)
+            {
+                thrown++;
+            }
+
+            bool leftNothing =
+                args.State.MemoryStatistics.ActiveRegistryReferences == references && args.State.GetStackTop() == top;
+            return LuauReturn.Ok(thrown, leftNothing);
+        });
+        using LuauTable vectorKey = Table("{ [vector.create(1, 2, 3)] = {} }");
+        using LuauTable vectorValue = Table("{ [{}] = vector.create(1, 2, 3) }");
+        using LuauTable vectorItem = Table("{ vector.create(1, 2, 3) }");
+
+        function.Invoke<int, bool>(vectorKey).ShouldBe((1, true));
+        function.Invoke<int, bool>(vectorValue).ShouldBe((1, true));
+        function.Invoke<int, bool>(vectorItem).ShouldBe((2, true));
+    }
+
+    [Fact]
+    public void IPairs_ThatHasEnded_ShouldStayEnded()
+    {
+        using LuauTable table = Table("{ 1, 'stop', 3 }");
+        using TableIPairsEnumerable<int>.Enumerator typed = table.IPairs<int>().GetEnumerator();
+
+        typed.MoveNext().ShouldBeTrue();
+        typed.MoveNext().ShouldBeFalse();
+        // What ended the enumeration becomes an int afterwards.
+        table.Set(2, 2);
+        typed.MoveNext().ShouldBeFalse();
+
+        using LuauTable holed = Table("{ 1, nil, 3 }");
+        using TableIPairsEnumerable<LuauValue>.Enumerator values = holed.IPairs().GetEnumerator();
+        values.MoveNext().ShouldBeTrue();
+        values.MoveNext().ShouldBeFalse();
+        values.MoveNext().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IPairs_ThatIsReset_ShouldStartAgain()
+    {
+        using LuauTable table = Table("{ 1, 'stop' }");
+        TableIPairsEnumerable<int>.Enumerator enumerator = table.IPairs<int>().GetEnumerator();
+        using IEnumerator<KeyValuePair<int, int>> typed = enumerator;
+
+        typed.MoveNext().ShouldBeTrue();
+        typed.MoveNext().ShouldBeFalse();
+        table.Set(2, 2);
+        typed.Reset();
+
+        typed.MoveNext().ShouldBeTrue();
+        typed.MoveNext().ShouldBeTrue();
+        typed.Current.ShouldBe(new KeyValuePair<int, int>(2, 2));
+        typed.MoveNext().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TableArgument_IPairs_ThatHasEnded_ShouldStayEnded()
+    {
+        using LuauFunction function = _state.CreateFunctionManual(static args =>
+        {
+            LuauTableView table = args[1].Get<LuauTableView>();
+            TableViewIPairsEnumerable<int>.Enumerator enumerator = table.IPairs<int>().GetEnumerator();
+            bool first = enumerator.MoveNext();
+            bool ended = !enumerator.MoveNext();
+            // What ended the enumeration becomes an int afterwards.
+            table.Set(2, 2);
+            bool stayedEnded = !enumerator.MoveNext();
+            return LuauReturn.Ok(first, ended, stayedEnded);
+        });
+        using LuauTable table = Table("{ 1, 'stop', 3 }");
+
+        function.Invoke<bool, bool, bool>(table).ShouldBe((true, true, true));
     }
 
     public void Dispose() => _state.Dispose();

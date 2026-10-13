@@ -26,6 +26,9 @@ public readonly ref struct TableViewIPairsEnumerable<T>
         private readonly LuauSlot _slot;
         private KeyValuePair<int, T> _current;
 
+        // An enumeration that ended stays ended, also when the value it ended at changes afterwards.
+        private bool _isFinished;
+
         internal Enumerator(LuauSlot slot) => _slot = slot;
 
         /// <summary> Gets the index and the value the enumerator is at. </summary>
@@ -36,11 +39,18 @@ public readonly ref struct TableViewIPairsEnumerable<T>
         /// <exception cref="NotSupportedException">Thrown when the value cannot be read as <typeparamref name="T"/> at all.</exception>
         public bool MoveNext()
         {
-            int index = _current.Key + 1;
-            if (!LuauTableView.TryGetItem<T>(_slot, index, out var value))
+            if (_isFinished)
                 return false;
-            _current = new KeyValuePair<int, T>(index, value);
-            return true;
+
+            int index = _current.Key + 1;
+            if (LuauTableView.TryGetItem<T>(_slot, index, out var value))
+            {
+                _current = new KeyValuePair<int, T>(index, value);
+                return true;
+            }
+
+            _isFinished = true;
+            return false;
         }
     }
 }

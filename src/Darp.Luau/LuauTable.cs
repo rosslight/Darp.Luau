@@ -95,9 +95,18 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
     public Enumerator GetEnumerator()
     {
+        ulong handle = CountReference(out LuauState state);
+        return new Enumerator(state, handle);
+    }
+
+    /// <summary> Takes one more reference to the table, for an enumerator that may outlive this one. </summary>
+    /// <param name="state">The state of the table.</param>
+    /// <returns>The handle of the new reference, which the caller releases.</returns>
+    internal ulong CountReference(out LuauState state)
+    {
         _state.ThrowIfDisposed();
-        ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_handle);
-        return new Enumerator(_state, newHandle);
+        state = _state;
+        return _state.ReferenceTracker.CountRefOrThrow(_handle);
     }
 
     IEnumerator<KeyValuePair<LuauValue, LuauValue>> IEnumerable<KeyValuePair<LuauValue, LuauValue>>.GetEnumerator() =>
@@ -117,7 +126,7 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
     /// <summary> Enumerates the list part of the table: the values at <c>1</c>, <c>2</c>, ... up to the first nil. </summary>
     /// <returns>A sequence of index and value. Its enumerator holds a reference of its own to the table.</returns>
     /// <remarks> Reads the table itself, without metamethods. A value that is reference-backed is the caller's to dispose. </remarks>
-    public TableIPairsEnumerable<LuauValue> IPairs() => new(this, _state, _handle);
+    public TableIPairsEnumerable<LuauValue> IPairs() => new(this);
 
     /// <summary>
     /// Enumerates the list part of the table as <typeparamref name="T"/>: the values at <c>1</c>, <c>2</c>, ... up
@@ -126,7 +135,7 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
     /// <typeparam name="T">The managed type to read the values as. See <see cref="LuauTableView.Get{T}"/>.</typeparam>
     /// <returns>A sequence of index and value. Its enumerator holds a reference of its own to the table.</returns>
     /// <remarks> Reads the table itself, without metamethods. An owned reference is the caller's to dispose. </remarks>
-    public TableIPairsEnumerable<T> IPairs<T>() => new(this, _state, _handle);
+    public TableIPairsEnumerable<T> IPairs<T>() => new(this);
 
     /// <summary>
     /// Releases this table reference from the state registry.
