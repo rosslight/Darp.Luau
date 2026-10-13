@@ -96,7 +96,7 @@ public sealed class LuauValueTests : IDisposable
         ActiveReferences.ShouldBe(baseline + 1);
 
         value.Dispose();
-        table.GetNumber("answer").ShouldBe(42);
+        table.Get<double>("answer").ShouldBe(42);
         table.Dispose();
         ActiveReferences.ShouldBe(baseline - 1);
     }

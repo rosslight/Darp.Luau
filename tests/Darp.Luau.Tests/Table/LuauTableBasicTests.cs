@@ -12,7 +12,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
         table.Set("myKey", 1);
 
-        double value = table.GetNumber("myKey");
+        double value = table.Get<double>("myKey");
 
         value.ShouldBe(1);
     }
@@ -23,7 +23,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
         table.Set("myKey", 1);
 
-        table.GetNumber("myKey").ShouldBe(1);
+        table.Get<double>("myKey").ShouldBe(1);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
         table.Set("boolKey", true);
 
-        bool value = table.GetBoolean("boolKey");
+        bool value = table.Get<bool>("boolKey");
 
         value.ShouldBeTrue();
     }
@@ -44,7 +44,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauString str = _lua.CreateString("test string");
         table.Set("stringKey", str);
 
-        table.GetUtf8String("stringKey").ShouldBe("test string");
+        table.Get<string>("stringKey").ShouldBe("test string");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class LuauTableBasicTests : IDisposable
         table.Set("key", 1);
         table.Set("key", 42);
 
-        table.GetNumber("key").ShouldBe(42);
+        table.Get<double>("key").ShouldBe(42);
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public sealed class LuauTableBasicTests : IDisposable
         table.Set("key2", 2);
         table.Set("key3", 3);
 
-        table.GetNumber("key1").ShouldBe(1);
-        table.GetNumber("key2").ShouldBe(2);
-        table.GetNumber("key3").ShouldBe(3);
+        table.Get<double>("key1").ShouldBe(1);
+        table.Get<double>("key2").ShouldBe(2);
+        table.Get<double>("key3").ShouldBe(3);
     }
 
     [Fact]
@@ -119,8 +119,8 @@ public sealed class LuauTableBasicTests : IDisposable
         nested.Set("nestedKey", 123);
         parent.Set("tableKey", nested);
 
-        using LuauTable retrieved = parent.GetLuauTable("tableKey");
-        retrieved.GetNumber("nestedKey").ShouldBe(123);
+        using LuauTable retrieved = parent.Get<LuauTable>("tableKey");
+        retrieved.Get<double>("nestedKey").ShouldBe(123);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class LuauTableBasicTests : IDisposable
     {
         using LuauTable table = _lua.CreateTable();
 
-        Should.Throw<Exception>(() => table.GetNumber("missing"));
+        Should.Throw<Exception>(() => table.Get<double>("missing"));
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public sealed class LuauTableBasicTests : IDisposable
     {
         using LuauTable table = _lua.CreateTable();
 
-        table.TryGetNumberOrNil("missing", out double? value).ShouldBeTrue();
+        table.TryGet("missing", out double? value).ShouldBeTrue();
         value.ShouldBeNull();
     }
 
@@ -155,7 +155,7 @@ public sealed class LuauTableBasicTests : IDisposable
     {
         using LuauTable table = _lua.CreateTable();
 
-        table.GetNumberOrNil("missing").ShouldBeNull();
+        table.Get<double?>("missing").ShouldBeNull();
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
         table.Set(1.0, 42);
 
-        table.GetNumber(1.0).ShouldBe(42);
+        table.Get<double>(1.0).ShouldBe(42);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class LuauTableBasicTests : IDisposable
         ReadOnlySpan<char> key = keyStr.AsSpan();
         table.Set(key, 42.0);
 
-        LuauValue value = table.GetLuauValue(key);
+        LuauValue value = table.Get<LuauValue>(key);
         value.TryGet(out double doubleValue).ShouldBeTrue();
         doubleValue.ShouldBe(42);
     }
@@ -212,7 +212,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauValue keyValue = _lua.CreateString(key).DisposeAndToLuauValue();
         table.Set(keyValue, 42.0);
 
-        LuauValue value = table.GetLuauValue(keyValue);
+        LuauValue value = table.Get<LuauValue>(keyValue);
         value.TryGet(out double doubleValue).ShouldBeTrue();
         doubleValue.ShouldBe(42);
     }
@@ -248,8 +248,8 @@ public sealed class LuauTableBasicTests : IDisposable
         table1.Set("key", 1);
         table2.Set("key", 2);
 
-        table1.GetNumber("key").ShouldBe(1);
-        table2.GetNumber("key").ShouldBe(2);
+        table1.Get<double>("key").ShouldBe(1);
+        table2.Get<double>("key").ShouldBe(2);
     }
 
     [Fact]
@@ -263,9 +263,9 @@ public sealed class LuauTableBasicTests : IDisposable
         level2.Set("level3", level3);
         level1.Set("level2", level2);
 
-        using LuauTable retrieved2 = level1.GetLuauTable("level2");
-        using LuauTable retrieved3 = retrieved2.GetLuauTable("level3");
-        retrieved3.GetNumber("deep").ShouldBe(999);
+        using LuauTable retrieved2 = level1.Get<LuauTable>("level2");
+        using LuauTable retrieved3 = retrieved2.Get<LuauTable>("level3");
+        retrieved3.Get<double>("deep").ShouldBe(999);
     }
 
     [Fact]
@@ -281,12 +281,12 @@ public sealed class LuauTableBasicTests : IDisposable
         nested.Set("nested", 123);
         table.Set("table", nested);
 
-        table.GetBoolean("bool").ShouldBeTrue();
-        table.GetNumber("number").ShouldBe(42.0);
-        table.GetUtf8String("string").ShouldBe("text");
+        table.Get<bool>("bool").ShouldBeTrue();
+        table.Get<double>("number").ShouldBe(42.0);
+        table.Get<string>("string").ShouldBe("text");
 
-        using LuauTable v4 = table.GetLuauTable("table");
-        v4.GetNumber("nested").ShouldBe(123);
+        using LuauTable v4 = table.Get<LuauTable>("table");
+        v4.Get<double>("nested").ShouldBe(123);
     }
 
     [Fact]

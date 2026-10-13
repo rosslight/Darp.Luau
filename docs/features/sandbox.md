@@ -54,7 +54,7 @@ The host does not get at the globals a script made for itself. There are two way
 using LuauTable enemy = lua.CreateEnvironment();
 lua.Load("hits = 0; function onTick(dt) hits = hits + 1; return hits end").WithEnvironment(enemy).Execute();
 
-using LuauFunction onTick = enemy.GetLuauFunction("onTick");
+using LuauFunction onTick = enemy.Get<LuauFunction>("onTick");
 int hits = onTick.Invoke<int>(0.016);
 ```
 

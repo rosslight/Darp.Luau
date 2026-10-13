@@ -19,6 +19,42 @@ internal static class Helpers
         ObjectDisposedException.ThrowIf(state.IsDisposed, state);
     }
 
+    public static bool IsReferenceValid([NotNullWhen(true)] this LuauState? state, ulong handle)
+    {
+        return state is not null && state.ReferenceTracker.HasRegistryReference(handle);
+    }
+
+    public static RegistryReferenceTracker.TrackedReference GetTrackedReferenceOrThrow(
+        [NotNull] this LuauState? state,
+        ulong handle
+    )
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.ReferenceTracker.TryGetTrackedReference(handle, out var trackedReference))
+            return trackedReference;
+        throw new ObjectDisposedException(nameof(handle), "Tried to access a reference that is no longer tracked.");
+    }
+
+    public static bool TryGetTrackedReference(
+        [NotNullWhen(true)] this LuauState? state,
+        ulong handle,
+        [NotNullWhen(true)] out RegistryReferenceTracker.TrackedReference? trackedReference
+    )
+    {
+        if (state is not null)
+            return state.ReferenceTracker.TryGetTrackedReference(handle, out trackedReference);
+        trackedReference = null;
+        return false;
+    }
+
+    /// <summary> Gets the slot of the owned reference <paramref name="handle"/>, for a view of it. </summary>
+    /// <exception cref="ObjectDisposedException">Thrown when the reference was disposed, or the state is.</exception>
+    public static LuauSlot GetSlotOrThrow([NotNull] this LuauState? state, ulong handle)
+    {
+        RegistryReferenceTracker.TrackedReference reference = state.GetTrackedReferenceOrThrow(handle);
+        return new LuauSlot(state, reference);
+    }
+
     /// <summary> Describes the referenced value like Luau's <c>tostring</c> does without metamethods. </summary>
     /// <param name="state"> The state the reference is associated with </param>
     /// <param name="handle"> The tracked handle </param>

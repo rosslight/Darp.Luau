@@ -14,7 +14,7 @@ public sealed class EmptyValueTests : IDisposable
 
         table.Set("key", ReadOnlySpan<char>.Empty);
 
-        table.GetUtf8String("key").ShouldBe(string.Empty);
+        table.Get<string>("key").ShouldBe(string.Empty);
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public sealed class EmptyValueTests : IDisposable
 
         table.Set("key", string.Empty);
 
-        table.GetUtf8String("key").ShouldBe(string.Empty);
+        table.Get<string>("key").ShouldBe(string.Empty);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class EmptyValueTests : IDisposable
 
         table.Set("key", Array.Empty<byte>());
 
-        table.GetBuffer("key").ShouldBeEmpty();
+        table.Get<byte[]>("key").ShouldBeEmpty();
     }
 
     [Fact]
@@ -85,8 +85,7 @@ public sealed class EmptyValueTests : IDisposable
     {
         using LuauBuffer buffer = _state.CreateBuffer([]);
 
-        buffer.TryGet(out byte[]? bytes).ShouldBeTrue();
-        bytes.ShouldBeEmpty();
+        buffer.ToArray().ShouldBeEmpty();
     }
 
     public void Dispose() => _state.Dispose();

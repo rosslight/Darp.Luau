@@ -124,7 +124,6 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         _trackedReferences.TryGetValue(handle, out trackedReference);
 
     internal sealed class TrackedReference(LuauState state, int luaReference, ulong originalHandle, bool isPinned)
-        : IReferenceSource
     {
         private readonly LuauState _state = state;
         private readonly int _luaReference = luaReference;
@@ -136,19 +135,29 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         /// <summary> Gets whether at least one handle still refers to this reference. </summary>
         public bool IsTracked => _numberOfManagedRefs > 0;
 
-        public LuauState ValidateInternal()
+        /// <summary> Gets the state of the reference. </summary>
+        /// <exception cref="ObjectDisposedException">Thrown when the state is disposed.</exception>
+        public LuauState State
         {
-            _state.ThrowIfDisposed();
-            return _state;
+            get
+            {
+                _state.ThrowIfDisposed();
+                return _state;
+            }
         }
 
-        public unsafe PopDisposable PushToStack(out int stackIndex)
+        /// <summary> Pushes the value onto <paramref name="L"/>, the main stack of the state. </summary>
+        /// <exception cref="ObjectDisposedException">Thrown when every handle of the reference was released.</exception>
+        public unsafe void Push(lua_State* L)
         {
-            _state.ThrowIfDisposed();
-            lua_State* L = _state.L;
-            var type = (lua_Type)lua_getref(L, _luaReference);
-            stackIndex = lua_gettop(L);
-            return new PopDisposable(L, true);
+            if (!IsTracked)
+            {
+                throw new ObjectDisposedException(
+                    nameof(TrackedReference),
+                    "Tried to access a reference that is no longer tracked."
+                );
+            }
+            _ = lua_getref(L, _luaReference);
         }
 
         public unsafe PopDisposable PushToTop()

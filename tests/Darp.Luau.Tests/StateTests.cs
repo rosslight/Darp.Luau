@@ -11,7 +11,7 @@ public sealed class StateTests : IDisposable
     {
         _state.Load("result = 42"u8).Execute();
 
-        _state.Globals.GetNumber("result").ShouldBe(42);
+        _state.Globals.Get<double>("result").ShouldBe(42);
     }
 
     [Fact]
@@ -19,7 +19,7 @@ public sealed class StateTests : IDisposable
     {
         _state.Load("result = 42").Execute();
 
-        _state.Globals.GetNumber("result").ShouldBe(42);
+        _state.Globals.Get<double>("result").ShouldBe(42);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class StateTests : IDisposable
         using (table)
         {
             count.ShouldBe(5);
-            table.GetNumber("value").ShouldBe(42);
+            table.Get<double>("value").ShouldBe(42);
         }
     }
 
@@ -154,7 +154,7 @@ public sealed class StateTests : IDisposable
         using (table)
         {
             _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone + 1);
-            table.GetNumber("value").ShouldBe(42);
+            table.Get<double>("value").ShouldBe(42);
         }
         _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone);
 

@@ -43,16 +43,16 @@ lua.Load(
     """
 ).Execute();
 
-double result = lua.Globals.GetNumber("result");
+double result = lua.Globals.Get<double>("result");
 ```
 
 ## Call Lua functions from C#
 
 ```csharp
-using LuauFunction add = lua.Globals.GetLuauFunction("add");
+using LuauFunction add = lua.Globals.Get<LuauFunction>("add");
 double sum = add.Invoke<double>(1, 2);
 
-using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
+using LuauFunction pair = lua.Globals.Get<LuauFunction>("pair");
 (int total, int delta) = pair.Invoke<int, int>(20, 4);
 ```
 
@@ -117,13 +117,13 @@ settings.Set("blob", new byte[] { 1, 2, 3 });
 
 lua.Globals.Set("settings", settings);
 
-using LuauTable roundTripped = lua.Globals.GetLuauTable("settings");
-double volume = roundTripped.GetNumber("volume");
-bool muted = roundTripped.GetBoolean("muted");
-byte[] blob = roundTripped.GetBuffer("blob");
+using LuauTable roundTripped = lua.Globals.Get<LuauTable>("settings");
+double volume = roundTripped.Get<double>("volume");
+bool muted = roundTripped.Get<bool>("muted");
+byte[] blob = roundTripped.Get<byte[]>("blob");
 ```
 
-Use `Get*` for required values, `TryGet*` for optional or external data, and `*OrNil` when `nil` is part of the contract.
+Use `Get<T>` for required values and `TryGet<T>` for optional or external data. When `nil` is part of the contract, use a nullable value type such as `Get<double?>`, or `GetOrNull<T>` for a reference type such as `string`.
 
 ## Work with userdata
 
@@ -147,10 +147,10 @@ var player = new Player { Name = "Ada" };
 lua.Globals.Set("player", IntoLuau.FromUserdata(player));
 await lua.Load("player:save()").ExecuteAsync();
 
-Player samePlayer = lua.Globals.GetUserdata<Player>("player");
+Player samePlayer = lua.Globals.Get<Player>("player");
 
-using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
-_ = playerRef.TryGetManaged(out Player? resolvedPlayer, out string? error);
+using LuauUserdata playerRef = lua.Globals.Get<LuauUserdata>("player");
+Player resolvedPlayer = playerRef.Get<Player>();
 ```
 
 Prefer `[LuauUserdata]` for regular script-facing properties, methods and operators. Implement `ILuauUserdata<T>` by hand only when you need behavior the generator cannot express, such as member names that are only known at run time. See [Userdata](docs/features/userdata.md) for metamethods, the static side of a type, and registration by hand.

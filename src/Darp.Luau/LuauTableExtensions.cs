@@ -1,31 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Darp.Luau;
 
 /// <summary> Table extensions </summary>
 public static class LuauTableExtensions
 {
-    /// <summary> Tries to get a value of a specific type from the table </summary>
-    /// <param name="table"> The table to get the value from </param>
-    /// <param name="key"> The key to look up </param>
-    /// <param name="value"> The value, if present and of the correct type </param>
-    /// <typeparam name="TValue"> The type of the value </typeparam>
-    /// <returns> True, if the value could be retrieved and has the correct type. False, otherwise </returns>
-    /// <remarks>
-    /// The value is a copy or an owned wrapper, never a span. To read bytes in place, use <see cref="LuauMarshal"/>.
-    /// </remarks>
-    public static bool TryGet<TValue>(this in LuauTable table, IntoLuau key, [NotNullWhen(true)] out TValue? value)
-    {
-        value = default;
-        if (!table.TryGetLuauValue(key, out LuauValue luauValue))
-            return false;
-
-        using (luauValue)
-        {
-            return luauValue.TryGet<TValue>(out value);
-        }
-    }
-
     /// <summary> Iterates on a table until the first value not matching the given type </summary>
     /// <param name="table"> The table to enumerate </param>
     /// <typeparam name="T"> The type to interpret the values with </typeparam>

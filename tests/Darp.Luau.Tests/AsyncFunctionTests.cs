@@ -503,7 +503,7 @@ public sealed class AsyncFunctionTests : IDisposable
 
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
         // The work was awaited and delivered. The script ended at its next safepoint, the call of tostring.
-        _state.Globals.GetNumber("sum").ShouldBe(42);
+        _state.Globals.Get<double>("sum").ShouldBe(42);
         _state.Globals.ContainsKey("later").ShouldBeFalse();
     }
 
@@ -555,7 +555,7 @@ public sealed class AsyncFunctionTests : IDisposable
 
         // The cancelled token stops the script afterwards, but the conversion failed as an error it could catch.
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
-        _state.Globals.GetUtf8String("caught").ShouldContain("conversion gave up");
+        _state.Globals.Get<string>("caught").ShouldContain("conversion gave up");
     }
 
     [Fact]

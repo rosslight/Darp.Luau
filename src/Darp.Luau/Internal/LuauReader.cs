@@ -113,13 +113,14 @@ internal readonly struct ReadFailure
         Mismatch,
         NumberDoesNotFit,
         NotSupported,
+        Error,
     }
 
     private readonly Kind _kind;
 
     // What was expected: the name of a Luau type, or a managed type whose name stands for it. The name of a managed
     // type is only read for the text: under Native AOT every read of Type.Name allocates a string.
-    // For a read that is not supported: the whole message.
+    // For a read that is not supported, and for an error: the whole message.
     private readonly object _expected;
 
     // The type that was found. Null for a value that was not passed.
@@ -151,6 +152,10 @@ internal readonly struct ReadFailure
     /// <summary> The requested type, or the value, has no managed form at all. </summary>
     public static ReadFailure NotSupported(string message) => new(Kind.NotSupported, message);
 
+    /// <summary> Luau raised an error before there was a value to read, like <c>__index</c> of a table does. </summary>
+    /// <param name="message">The error as Luau reported it.</param>
+    public static ReadFailure Error(string message) => new(Kind.Error, message);
+
     private string Expected => _expected as string ?? ((Type)_expected).Name;
 
     /// <summary> Whether the read is not supported at all. That is an error of the host, not of the value. </summary>
@@ -170,7 +175,12 @@ internal readonly struct ReadFailure
     /// <summary> The exception a throwing read raises. </summary>
     /// <param name="what">What was read, such as <c>result #1</c>.</param>
     public Exception ToException(string what) =>
-        IsNotSupported ? new NotSupportedException(Reason) : new LuaGetException($"{what}: {Reason}");
+        _kind switch
+        {
+            Kind.NotSupported => new NotSupportedException(Expected),
+            Kind.Error => new LuaGetException(Expected),
+            _ => new LuaGetException($"{what}: {Reason}"),
+        };
 }
 
 /// <summary> The one place that turns a Luau value into a managed value. </summary>
@@ -191,6 +201,9 @@ internal static unsafe class LuauReader
     /// Nil is only read by a <typeparamref name="T"/> that has a value for it: a nullable value type, or
     /// <see cref="LuauValue"/>.
     /// </remarks>
+    // Inlined into each read site. One branch remains for a value type, and it then shares the frame of its caller:
+    // on its own, the read of a number is a call with a P/Invoke frame of its own, which a table read notices.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool TryRead<T>(
         scoped in ReadSource source,
         [MaybeNullWhen(false)] out T value,
@@ -233,6 +246,10 @@ internal static unsafe class LuauReader
                 return Number<Int128, T>(source, out value, out failure);
             if (typeof(T) == typeof(UInt128) || typeof(T) == typeof(UInt128?))
                 return Number<UInt128, T>(source, out value, out failure);
+            if (typeof(T) == typeof(NFloat) || typeof(T) == typeof(NFloat?))
+                return Number<NFloat, T>(source, out value, out failure);
+            if (typeof(T) == typeof(BigInteger) || typeof(T) == typeof(BigInteger?))
+                return Number<BigInteger, T>(source, out value, out failure);
 
             if (typeof(T) == typeof(bool) || typeof(T) == typeof(bool?))
             {

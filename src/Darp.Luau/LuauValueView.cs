@@ -135,7 +135,7 @@ public readonly unsafe ref struct LuauValueView
     public static implicit operator IntoLuau(LuauValueView value) =>
         value._state is null || value._stackIndex == 0
             ? default
-            : IntoLuau.FromRefSource(new StackReference(value._state, value._luaState, value._stackIndex));
+            : IntoLuau.FromSlot(new LuauSlot(value._state, value._luaState, value._stackIndex));
 
     private ReadSource GetSource()
     {

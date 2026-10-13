@@ -148,7 +148,7 @@ public sealed class TypedReadTests : IDisposable
     public void OwnedReferences_ShouldReadTheMatchingLuauType()
     {
         using (LuauTable table = Read<LuauTable>("{ value = 1 }"))
-            table.GetNumber("value").ShouldBe(1);
+            table.Get<double>("value").ShouldBe(1);
         using (LuauFunction function = Read<LuauFunction>("function() return 7 end"))
             function.Invoke<int>().ShouldBe(7);
         using (LuauString text = Read<LuauString>("'text'"))
@@ -185,7 +185,7 @@ public sealed class TypedReadTests : IDisposable
         using LuauFunction identity = _state.Load("return ...").ToFunction();
 
         using (LuauTable table = Read<LuauTable?>("{ value = 1 }").ShouldNotBeNull())
-            table.GetNumber("value").ShouldBe(1);
+            table.Get<double>("value").ShouldBe(1);
         using (LuauFunction function = Read<LuauFunction?>("function() return 7 end").ShouldNotBeNull())
             function.Invoke<int>().ShouldBe(7);
         using (LuauString text = Read<LuauString?>("'text'").ShouldNotBeNull())
@@ -237,8 +237,7 @@ public sealed class TypedReadTests : IDisposable
         identity.Invoke<ValueUserdata>(userdata).ShouldBeSameAs(userdata);
         identity.Invoke<object>(userdata).ShouldBeSameAs(userdata);
         using LuauUserdata reference = identity.Invoke<LuauUserdata>(userdata);
-        reference.TryGetManaged(out ValueUserdata? managed, out _).ShouldBeTrue();
-        managed.ShouldBeSameAs(userdata);
+        reference.Get<ValueUserdata>().ShouldBeSameAs(userdata);
     }
 
     [Fact]

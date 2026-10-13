@@ -12,7 +12,7 @@ public sealed class ChunkTests : IDisposable
         LuauChunk chunk = _lua.Load("result = 1");
         chunk.Execute();
 
-        _lua.Globals.GetNumber("result").ShouldBe(1);
+        _lua.Globals.Get<double>("result").ShouldBe(1);
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public sealed class ChunkTests : IDisposable
         LuauChunk chunk = _lua.Load("result = ...");
         chunk.Execute(6);
 
-        _lua.Globals.GetNumber("result").ShouldBe(6);
+        _lua.Globals.Get<double>("result").ShouldBe(6);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class ChunkTests : IDisposable
         using (table)
         {
             _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone + 1);
-            table.GetNumber("value").ShouldBe(42);
+            table.Get<double>("value").ShouldBe(42);
         }
         _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone);
 
@@ -135,7 +135,7 @@ public sealed class ChunkTests : IDisposable
         LuauChunk chunk = _lua.Load("result = 42"u8);
         chunk.Execute();
 
-        _lua.Globals.GetNumber("result").ShouldBe(42);
+        _lua.Globals.Get<double>("result").ShouldBe(42);
     }
 
     [Fact]
@@ -220,8 +220,8 @@ public sealed class ChunkTests : IDisposable
             .Execute<int>();
 
         result.ShouldBe(42);
-        environment.GetNumber("computed").ShouldBe(42);
-        _lua.Globals.GetNumber("baseValue").ShouldBe(40);
+        environment.Get<double>("computed").ShouldBe(42);
+        _lua.Globals.Get<double>("baseValue").ShouldBe(40);
         _lua.Globals.ContainsKey("computed").ShouldBeFalse();
     }
 
@@ -246,7 +246,7 @@ public sealed class ChunkTests : IDisposable
 
         _lua.Load("_G.answer = 21").WithEnvironment(environment).Execute();
 
-        environment.GetNumber("answer").ShouldBe(21);
+        environment.Get<double>("answer").ShouldBe(21);
         _lua.Globals.ContainsKey("answer").ShouldBeFalse();
     }
 
@@ -268,7 +268,7 @@ public sealed class ChunkTests : IDisposable
         function.Invoke<int>().ShouldBe(3);
         function.Invoke<int>().ShouldBe(6);
 
-        environment.GetNumber("counter").ShouldBe(6);
+        environment.Get<double>("counter").ShouldBe(6);
         _lua.Globals.ContainsKey("counter").ShouldBeFalse();
     }
 

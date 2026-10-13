@@ -2,51 +2,62 @@ using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary>
-/// Represents a borrowed, stack-bound Luau userdata value read from callback arguments.
-/// </summary>
+/// <summary> A borrowed view of a Luau userdata, such as a userdata argument of a managed callback. </summary>
 /// <remarks>
-/// This view does not own a registry reference.
-/// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
-/// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
+/// The view does not own a registry reference. It is valid only while the callback that received it runs; call
+/// <see cref="ToOwned"/> to keep the userdata.
 /// </remarks>
-public readonly ref struct LuauUserdataView : ILuauView<LuauUserdata>
+public readonly unsafe ref struct LuauUserdataView
 {
-    private readonly StackReference _reference;
+    private readonly LuauSlot _slot;
 
-    internal unsafe LuauUserdataView(LuauState state, lua_State* luaState, int stackIndex) =>
-        _reference = new StackReference(state, luaState, stackIndex);
+    internal LuauUserdataView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _slot = new LuauSlot(state, luaState, stackIndex);
 
-    /// <summary>
-    /// Attempts to resolve this borrowed userdata as managed userdata of type <typeparamref name="T"/>.
-    /// </summary>
-    /// <typeparam name="T">Managed userdata type.</typeparam>
-    /// <param name="value">Receives the managed userdata instance when successful.</param>
-    /// <param name="error">Receives a descriptive error when resolution fails.</param>
-    /// <returns>
-    /// <c>true</c> when the userdata is managed userdata created by this library and matches
-    /// <typeparamref name="T"/>; otherwise <c>false</c>.
-    /// </returns>
-    public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserdata<T> => LuauUserdataAccessCore.TryGetManaged(_reference, out value, out error);
+    internal LuauUserdataView(LuauSlot slot) => _slot = slot;
 
-    /// <inheritdoc/>
-    public LuauUserdata ToOwned()
-    {
-        LuauState state = _reference.ValidateInternal();
-        return new LuauUserdata(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
-    }
+    /// <summary> Gets the managed object this userdata stands for. </summary>
+    /// <typeparam name="T">The type of the object: its userdata type, a base type or an interface of it.</typeparam>
+    /// <returns>The object.</returns>
+    /// <exception cref="LuaGetException">Thrown when the userdata is not managed userdata of type <typeparamref name="T"/>.</exception>
+    public T Get<T>()
+        where T : class =>
+        TryRead<T>(isProbe: false, out var value, out ReadFailure failure)
+            ? value
+            : throw failure.ToException("userdata");
 
-    /// <summary>
-    /// Converts this borrowed userdata view to an <see cref="IntoLuau"/> value without creating an owned reference.
-    /// </summary>
-    /// <param name="value">The borrowed userdata view.</param>
-    /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauUserdataView value) => IntoLuau.FromRefSource(value._reference);
+    /// <summary> Attempts to get the managed object this userdata stands for. </summary>
+    /// <typeparam name="T">The type of the object: its userdata type, a base type or an interface of it.</typeparam>
+    /// <param name="value">The object when the userdata is managed userdata of type <typeparamref name="T"/>.</param>
+    /// <returns><c>true</c> when the userdata is managed userdata of type <typeparamref name="T"/>; otherwise <c>false</c>.</returns>
+    public bool TryGet<T>([NotNullWhen(true)] out T? value)
+        where T : class => TryRead(isProbe: true, out value, out _);
+
+    /// <summary> Creates an owned reference to the userdata, which stays valid after the callback. </summary>
+    /// <returns>The owned reference, which the caller disposes.</returns>
+    public LuauUserdata ToOwned() => new(_slot.State, _slot.ToOwnedHandle());
+
+    /// <summary> Passes the userdata on to Luau without creating an owned reference. </summary>
+    /// <param name="value">The borrowed userdata.</param>
+    /// <returns>A temporary representation that is valid as long as the view.</returns>
+    public static implicit operator IntoLuau(LuauUserdataView value) => IntoLuau.FromSlot(value._slot);
 
     /// <inheritdoc />
-    public override string ToString() => _reference.ToString();
+    public override string ToString() => _slot.ToString();
+
+    private bool TryRead<T>(bool isProbe, [NotNullWhen(true)] out T? value, out ReadFailure failure)
+        where T : class
+    {
+        LuauState state = _slot.State;
+        lua_State* L = state.L;
+        _slot.Push(state);
+        ReadSource source = ReadSource.FromStack(state, L, -1);
+        bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
+        lua_pop(L, 1);
+        return isRead;
+    }
 }

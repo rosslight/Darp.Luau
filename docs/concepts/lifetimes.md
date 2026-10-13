@@ -24,7 +24,7 @@ Owned references are the values you can keep after the current operation finishe
 Typical pattern:
 
 ```csharp
-using LuauFunction add = lua.Globals.GetLuauFunction("add");
+using LuauFunction add = lua.Globals.Get<LuauFunction>("add");
 double value = add.Invoke<double>(1, 2);
 ```
 
@@ -55,18 +55,23 @@ That rule applies equally to manual callback surfaces such as `CreateFunctionMan
 - If you need to keep one, promote it with `ToOwned()` before the callback returns.
 
 ```csharp
-using LuauFunction capture = lua.CreateFunctionManual(static args =>
+var kept = new List<LuauTable>();
+
+using LuauFunction capture = lua.CreateFunctionManual(args =>
 {
     LuauTableView table = args[1].Get<LuauTableView>();
+    double value = table.Get<double>("value");
 
-    using LuauTable owned = table.ToOwned();
-    return LuauReturn.Ok(owned.GetNumber("value"));
+    kept.Add(table.ToOwned());
+    return LuauReturn.Ok(value);
 });
 ```
 
+The callback reads the table through the view. `ToOwned()` is only needed to keep the table; dispose the owned references in `kept` when you no longer need them.
+
 This example uses `CreateFunctionManual(...)` because it exposes `LuauArgs` directly, but the same ownership rule applies whenever a callback receives borrowed views.
 
-If you use a borrowed view after the callback frame ends, the library throws `ObjectDisposedException`.
+A borrowed view is a `ref struct`, so the compiler keeps it from leaving the callback: you cannot store it in a field, capture it in a lambda or use it across an `await`.
 
 ## Arguments across awaits
 
@@ -80,7 +85,7 @@ A callback that awaits has returned before the awaited work runs. Its `LuauArgs`
 
 ## Borrowed spans are still borrowed
 
-Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
+Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.AsSpan()`, or `LuauBuffer.AsSpan()` aliases Luau memory.
 
 Consume those spans immediately. If you need an independent lifetime, copy into a managed `string` or `byte[]`.
 
@@ -93,7 +98,7 @@ if (LuauMarshal.TryGetUtf8StringSpan(lua.Globals, "name", out ReadOnlySpan<byte>
 }
 ```
 
-When the value is replaced or removed, the next Luau garbage collection can free the memory, and reading the span afterwards is undefined behavior. Prefer `GetUtf8String(...)`, `GetBuffer(...)`, or an owned `GetLuauString(...)` unless the copy matters.
+When the value is replaced or removed, the next Luau garbage collection can free the memory, and reading the span afterwards is undefined behavior. Prefer `Get<string>(...)`, `Get<byte[]>(...)`, or an owned `Get<LuauString>(...)` unless the copy matters.
 
 For the string- and buffer-specific API shapes that produce those spans, see [Strings](../features/strings.md) and [Buffers](../features/buffers.md).
 

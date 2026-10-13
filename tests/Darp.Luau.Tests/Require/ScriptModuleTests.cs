@@ -18,7 +18,7 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from dependency");
+        result.Get<string>(1).ShouldBe("result from dependency");
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class ScriptModuleTests
 
         using LuauTable result = state.Load("""return require("./without_config/dependency")""").Execute<LuauTable>();
 
-        result.GetUtf8String(1).ShouldBe("result from dependency");
+        result.Get<string>(1).ShouldBe("result from dependency");
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class ScriptModuleTests
 
         using LuauTable result = state.Load($"""return require("{modulePath}")""").Execute<LuauTable>();
 
-        result.GetUtf8String(1).ShouldBe("result from umlaut");
+        result.Get<string>(1).ShouldBe("result from umlaut");
     }
 
     [Fact]
@@ -67,8 +67,8 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./without_config/module.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from dependency");
-        result.GetUtf8String(2).ShouldBe("required into module");
+        result.Get<string>(1).ShouldBe("result from dependency");
+        result.Get<string>(2).ShouldBe("required into module");
     }
 
     [Fact]
@@ -108,10 +108,10 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("parent");
-        result.GetUtf8String(2).ShouldBe("child");
-        result.GetUtf8String(3).ShouldBe("parent");
-        result.GetUtf8String(4).ShouldBe("child");
+        result.Get<string>(1).ShouldBe("parent");
+        result.Get<string>(2).ShouldBe("child");
+        result.Get<string>(3).ShouldBe("parent");
+        result.Get<string>(4).ShouldBe("child");
         result.TryGet(5, out bool sameParent).ShouldBeTrue();
         sameParent.ShouldBeTrue();
         result.TryGet(6, out bool sameChild).ShouldBeTrue();
@@ -132,7 +132,7 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from lua_dependency");
+        result.Get<string>(1).ShouldBe("result from lua_dependency");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from init.luau");
+        result.Get<string>(1).ShouldBe("result from init.luau");
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from init.lua");
+        result.Get<string>(1).ShouldBe("result from init.lua");
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from submodule");
+        result.Get<string>(1).ShouldBe("result from submodule");
     }
 
     [Fact]
@@ -213,8 +213,8 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable result = state.LoadFile("./without_config/nested_inits_requirer.luau").Execute<LuauTable>();
-        result.GetUtf8String(1).ShouldBe("result from nested_inits/init");
-        result.GetUtf8String(2).ShouldBe("required into module");
+        result.Get<string>(1).ShouldBe("result from nested_inits/init");
+        result.Get<string>(2).ShouldBe("required into module");
     }
 
     [Fact]
@@ -318,12 +318,12 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable dependency = state.LoadFile("./config/src/alias_requirer.luau").Execute<LuauTable>();
-        dependency.GetUtf8String(1).ShouldBe("result from dependency");
+        dependency.Get<string>(1).ShouldBe("result from dependency");
 
         using LuauTable subdirectoryDependency = state
             .LoadFile("./config/src/directory_alias_requirer.luau")
             .Execute<LuauTable>();
-        subdirectoryDependency.GetUtf8String(1).ShouldBe("result from subdirectory_dependency");
+        subdirectoryDependency.Get<string>(1).ShouldBe("result from subdirectory_dependency");
     }
 
     [Fact]
@@ -356,12 +356,12 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable dependency = state.LoadFile("./config/src/alias_requirer.luau").Execute<LuauTable>();
-        dependency.GetUtf8String(1).ShouldBe("result from dependency");
+        dependency.Get<string>(1).ShouldBe("result from dependency");
 
         using LuauTable subdirectoryDependency = state
             .LoadFile("./config/src/directory_alias_requirer.luau")
             .Execute<LuauTable>();
-        subdirectoryDependency.GetUtf8String(1).ShouldBe("result from subdirectory_dependency");
+        subdirectoryDependency.Get<string>(1).ShouldBe("result from subdirectory_dependency");
     }
 
     [Fact]
@@ -399,10 +399,10 @@ public sealed class ScriptModuleTests
         state.EnableScriptModules();
 
         using LuauTable childAlias = state.LoadFile("./config/src/alias_requirer.luau").Execute<LuauTable>();
-        childAlias.GetUtf8String(1).ShouldBe("result from dependency");
+        childAlias.Get<string>(1).ShouldBe("result from dependency");
 
         using LuauTable parentAlias = state.LoadFile("./config/src/parent_alias_requirer.luau").Execute<LuauTable>();
-        parentAlias.GetUtf8String(1).ShouldBe("result from other_dependency");
+        parentAlias.Get<string>(1).ShouldBe("result from other_dependency");
     }
 
     [Theory]
@@ -532,17 +532,17 @@ public sealed class ScriptModuleTests
         result.TryGet(1, out LuauTable innerDependency).ShouldBeTrue();
         using (innerDependency)
         {
-            innerDependency.GetUtf8String(1).ShouldBe("result from inner_dependency");
+            innerDependency.Get<string>(1).ShouldBe("result from inner_dependency");
         }
         result.TryGet(2, out LuauTable outerDependency01).ShouldBeTrue();
         using (outerDependency01)
         {
-            outerDependency01.GetUtf8String(1).ShouldBe("result from outer_dependency");
+            outerDependency01.Get<string>(1).ShouldBe("result from outer_dependency");
         }
         result.TryGet(3, out LuauTable outerDependency02).ShouldBeTrue();
         using (outerDependency02)
         {
-            outerDependency02.GetUtf8String(1).ShouldBe("result from outer_dependency");
+            outerDependency02.Get<string>(1).ShouldBe("result from outer_dependency");
         }
     }
 
@@ -669,8 +669,8 @@ public sealed class ScriptModuleTests
             .Execute<LuauTable, LuauFunction, LuauBuffer>();
         using (table)
         {
-            table.GetUtf8String(1).ShouldBe("foo");
-            table.GetUtf8String(2).ShouldBe("bar");
+            table.Get<string>(1).ShouldBe("foo");
+            table.Get<string>(2).ShouldBe("bar");
         }
         using (function)
         {
@@ -678,8 +678,7 @@ public sealed class ScriptModuleTests
         }
         using (buffer)
         {
-            buffer.TryGet(out ReadOnlySpan<byte> bytes).ShouldBeTrue();
-            bytes.Length.ShouldBe(16);
+            buffer.AsSpan().Length.ShouldBe(16);
         }
     }
 
@@ -1052,12 +1051,12 @@ public sealed class ScriptModuleTests
                     result.TryGet(1, out LuauTable innerDependency).ShouldBeTrue();
                     using (innerDependency)
                     {
-                        innerDependency.GetUtf8String(1).ShouldBe("result from inner_dependency");
+                        innerDependency.Get<string>(1).ShouldBe("result from inner_dependency");
                     }
                     result.TryGet(2, out LuauTable outerDependency).ShouldBeTrue();
                     using (outerDependency)
                     {
-                        outerDependency.GetUtf8String(1).ShouldBe("result from outer_dependency");
+                        outerDependency.Get<string>(1).ShouldBe("result from outer_dependency");
                     }
                 },
                 TestContext.Current.CancellationToken

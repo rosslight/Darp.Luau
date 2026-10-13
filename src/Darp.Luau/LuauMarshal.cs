@@ -11,7 +11,7 @@ namespace Darp.Luau;
 /// </para>
 /// <para>
 /// Use the span at once, before any script runs and before the table is written, and copy what you want to keep.
-/// The regular getters, such as <see cref="LuauTable.GetUtf8String"/> and <see cref="LuauTable.GetBuffer"/>, return
+/// The regular getters, such as <see cref="LuauTable.Get{T}"/> as <see cref="string"/> or a byte array, return
 /// copies and have no such rule.
 /// </para>
 /// </remarks>
@@ -23,7 +23,7 @@ public static class LuauMarshal
     /// <param name="value">The bytes of the string, which Luau owns.</param>
     /// <returns><c>true</c> when the value exists and is a string; otherwise <c>false</c>.</returns>
     public static bool TryGetUtf8StringSpan(in LuauTable table, IntoLuau key, out ReadOnlySpan<byte> value) =>
-        table.TryGetUtf8String(key, out value, out _);
+        table.AsView().TryGetStringBytes(key, out value, out _);
 
     /// <summary> Attempts to get the UTF-8 bytes of the string or <c>nil</c> at <paramref name="key"/> without copying them. </summary>
     /// <param name="table">The table to read from.</param>
@@ -36,7 +36,7 @@ public static class LuauMarshal
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil
-    ) => table.TryGetUtf8StringOrNil(key, out value, out isNil, out _);
+    ) => table.AsView().TryGetStringBytes(key, out value, out isNil) || isNil;
 
     /// <summary> Attempts to get the bytes of the buffer at <paramref name="key"/> without copying them. </summary>
     /// <param name="table">The table to read from.</param>
@@ -44,7 +44,7 @@ public static class LuauMarshal
     /// <param name="value">The bytes of the buffer, which Luau owns.</param>
     /// <returns><c>true</c> when the value exists and is a buffer; otherwise <c>false</c>.</returns>
     public static bool TryGetBufferSpan(in LuauTable table, IntoLuau key, out ReadOnlySpan<byte> value) =>
-        table.TryGetBuffer(key, out value, out _);
+        table.AsView().TryGetBufferBytes(key, out value, out _);
 
     /// <summary> Attempts to get the bytes of the buffer or <c>nil</c> at <paramref name="key"/> without copying them. </summary>
     /// <param name="table">The table to read from.</param>
@@ -57,5 +57,5 @@ public static class LuauMarshal
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil
-    ) => table.TryGetBufferOrNil(key, out value, out isNil, out _);
+    ) => table.AsView().TryGetBufferBytes(key, out value, out isNil) || isNil;
 }

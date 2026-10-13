@@ -19,8 +19,8 @@ public sealed class LuauTableMetamethodTests : IDisposable
             """
         );
 
-        table.GetNumber("own").ShouldBe(1);
-        table.GetNumber("four").ShouldBe(4);
+        table.Get<double>("own").ShouldBe(1);
+        table.Get<double>("four").ShouldBe(4);
         table.ContainsKey("anything").ShouldBeTrue();
     }
 
@@ -29,7 +29,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
     {
         using LuauTable table = Create("return setmetatable({}, { __index = { inherited = 7 } })");
 
-        table.GetNumber("inherited").ShouldBe(7);
+        table.Get<double>("inherited").ShouldBe(7);
         table.ContainsKey("missing").ShouldBeFalse();
     }
 
@@ -52,9 +52,9 @@ public sealed class LuauTableMetamethodTests : IDisposable
             """
         );
 
-        table.TryGetNumber("missing", out double _).ShouldBeFalse();
+        table.TryGet("missing", out double _).ShouldBeFalse();
         table.TryGet("missing", out LuauValue _).ShouldBeFalse();
-        Should.Throw<LuaGetException>(() => table.GetNumber("missing")).Message.ShouldContain("boom from __index");
+        Should.Throw<LuaGetException>(() => table.Get<double>("missing")).Message.ShouldContain("boom from __index");
         Should.Throw<LuaException>(() => table.ContainsKey("missing")).Message.ShouldContain("boom from __index");
 
         // The failed reads left the stack balanced and the state usable.
@@ -66,7 +66,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
     {
         using LuauTable table = Create("return setmetatable({}, { __index = function() coroutine.yield() end })");
 
-        table.TryGetNumber("missing", out double _).ShouldBeFalse();
+        table.TryGet("missing", out double _).ShouldBeFalse();
     }
 
     [Fact]
@@ -82,10 +82,10 @@ public sealed class LuauTableMetamethodTests : IDisposable
         table.Set("own", 5);
         table.Set("fresh", 21);
 
-        table.GetNumber("own").ShouldBe(5);
+        table.Get<double>("own").ShouldBe(5);
         table.ContainsKey("fresh").ShouldBeFalse();
-        using LuauTable log = _state.Globals.GetLuauTable("log");
-        log.GetNumber("fresh").ShouldBe(42);
+        using LuauTable log = _state.Globals.Get<LuauTable>("log");
+        log.Get<double>("fresh").ShouldBe(42);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
 
         Should.Throw<LuaException>(() => table.Set("value", 2)).Message.ShouldContain("readonly");
 
-        table.GetNumber("value").ShouldBe(1);
+        table.Get<double>("value").ShouldBe(1);
     }
 
     [Fact]
@@ -126,9 +126,9 @@ public sealed class LuauTableMetamethodTests : IDisposable
         proxy.Set("fresh", 23);
         Should.Throw<LuaException>(() => proxy.Set("own", 2)).Message.ShouldContain("readonly");
 
-        using LuauTable backing = _state.Globals.GetLuauTable("backing");
-        backing.GetNumber("fresh").ShouldBe(23);
-        proxy.GetNumber("own").ShouldBe(1);
+        using LuauTable backing = _state.Globals.Get<LuauTable>("backing");
+        backing.Get<double>("fresh").ShouldBe(23);
+        proxy.Get<double>("own").ShouldBe(1);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
             return state.GetOrCreateUserdata(new ValueUserdata());
         });
 
-        table.GetUtf8String(key).ShouldBe("from __index");
+        table.Get<string>(key).ShouldBe("from __index");
 
         created.ShouldBe(1);
     }
@@ -173,7 +173,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
         Should.Throw<Exception>(() => table.ContainsKey(disposed));
 
         table.Set("key", 3);
-        table.GetNumber("key").ShouldBe(3);
+        table.Get<double>("key").ShouldBe(3);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class LuauTableMetamethodTests : IDisposable
 
         table.ToString().ShouldStartWith("table: 0x");
         function.ToString().ShouldStartWith("function: 0x");
-        _state.Globals.GetNumber("tostringCalls").ShouldBe(0);
+        _state.Globals.Get<double>("tostringCalls").ShouldBe(0);
     }
 
     [Fact]

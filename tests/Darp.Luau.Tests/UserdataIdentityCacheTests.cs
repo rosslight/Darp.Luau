@@ -49,8 +49,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
         using LuauUserdata second = _state.GetOrCreateUserdata(value);
 
         first.Dispose();
-        second.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
-        ReferenceEquals(value, resolved).ShouldBeTrue();
+        second.Get<ValueUserdata>().ShouldBeSameAs(value);
     }
 
     [Fact]
@@ -133,8 +132,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
 
         using LuauUserdata again = _state.GetOrCreateUserdata(first);
 
-        again.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
-        resolved.ShouldBeSameAs(first);
+        again.Get<ValueUserdata>().ShouldBeSameAs(first);
         foreach (LuauUserdata other in others)
             other.Dispose();
     }

@@ -57,7 +57,7 @@ lua.Load(
     """
 ).Execute();
 
-using LuauFunction add = lua.Globals.GetLuauFunction("add");
+using LuauFunction add = lua.Globals.Get<LuauFunction>("add");
 double result = add.Invoke<double>(1, 2);
 ```
 
@@ -83,20 +83,20 @@ config.Set("enabled", true);
 
 lua.Globals.Set("config", config);
 
-using LuauTable roundTripped = lua.Globals.GetLuauTable("config");
-string name = roundTripped.GetUtf8String("name");
-double score = roundTripped.GetNumber("score");
-bool? enabled = roundTripped.GetBooleanOrNil("enabled");
+using LuauTable roundTripped = lua.Globals.Get<LuauTable>("config");
+string name = roundTripped.Get<string>("name");
+double score = roundTripped.Get<double>("score");
+bool? enabled = roundTripped.Get<bool?>("enabled");
 ```
 
-See [Tables](features/tables.md) for `Get*`, `TryGet*`, `*OrNil`, dense-array helpers, and raw Luau wrappers.
+See [Tables](features/tables.md) for `Get<T>`, `TryGet<T>`, `GetOrNull<T>`, dense-array helpers, and raw Luau wrappers.
 
 ## Work with strings
 
 ```csharp
 lua.Globals.Set("name", "Ada");
 
-string roundTripped = lua.Globals.GetUtf8String("name");
+string roundTripped = lua.Globals.Get<string>("name");
 ```
 
 Use `string` for managed text, `ReadOnlySpan<byte>` for immediate borrowed UTF-8 bytes, `LuauString` for owned Luau-backed string values, and `LuauStringView` inside callbacks. See [Strings](features/strings.md).
@@ -108,7 +108,7 @@ byte[] payload = [0x01, 0x02, 0x03];
 
 lua.Globals.Set("payload", payload);
 
-byte[] roundTripped = lua.Globals.GetBuffer("payload");
+byte[] roundTripped = lua.Globals.Get<byte[]>("payload");
 ```
 
 Use `byte[]` for managed copies, `ReadOnlySpan<byte>` for immediate borrowed reads, `LuauBuffer` for owned Luau-backed values, and `LuauBufferView` inside callbacks. See [Buffers](features/buffers.md).

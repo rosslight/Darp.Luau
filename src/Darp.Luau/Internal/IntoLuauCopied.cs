@@ -91,7 +91,7 @@ internal readonly struct IntoLuauCopied
             case Kind.BorrowedReference:
                 Debug.Assert(_object is not null);
                 var reference = (RegistryReferenceTracker.TrackedReference)_object;
-                if (!ReferenceEquals(state, reference.ValidateInternal()))
+                if (!ReferenceEquals(state, reference.State))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
                 if (!reference.IsTracked)
                     throw new ObjectDisposedException(

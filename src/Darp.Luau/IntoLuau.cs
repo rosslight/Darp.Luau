@@ -27,8 +27,7 @@ public readonly ref struct IntoLuau
         Value,
         Buffer,
         UserdataFactory,
-        StackReference,
-        TrackedReference,
+        Reference,
     }
 
     /// <summary> Describes of which kind the resulting <see cref="LuauValue"/> will be </summary>
@@ -40,8 +39,7 @@ public readonly ref struct IntoLuau
     private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
-    private readonly StackReference _stackReference;
-    private readonly RegistryReferenceTracker.TrackedReference? _trackedReference;
+    private readonly LuauSlot _slot;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -75,28 +73,19 @@ public readonly ref struct IntoLuau
         _factory = factory;
     }
 
-    private IntoLuau(StackReference stackReference)
+    private IntoLuau(LuauSlot slot)
     {
-        Type = Kind.StackReference;
-        _stackReference = stackReference;
+        Type = Kind.Reference;
+        _slot = slot;
     }
 
-    private IntoLuau(RegistryReferenceTracker.TrackedReference trackedReference)
-    {
-        Type = Kind.TrackedReference;
-        _trackedReference = trackedReference;
-    }
+    /// <summary> Refers to the value in <paramref name="slot"/> without taking a reference of its own. </summary>
+    internal static IntoLuau FromSlot(LuauSlot slot) => new(slot);
 
-    internal static IntoLuau FromRefSource(StackReference stackReference) => new(stackReference);
-
-    internal static IntoLuau Borrow(LuauState? state, ulong handle)
-    {
-        if (state is null)
-            return default;
-        if (!state.TryGetTrackedReference(handle, out var reference))
-            throw new ObjectDisposedException(nameof(handle), "Tried to access a reference that is no longer tracked.");
-        return new IntoLuau(reference);
-    }
+    /// <summary> Refers to the owned reference <paramref name="handle"/> without taking a reference of its own. </summary>
+    /// <remarks> A reference that was never set, like that of <c>default</c>, is nil. </remarks>
+    internal static IntoLuau Borrow(LuauState? state, ulong handle) =>
+        state is null ? default : new IntoLuau(state.GetSlotOrThrow(handle));
 
     internal unsafe void Push(LuauState state)
     {
@@ -164,21 +153,10 @@ public readonly ref struct IntoLuau
                     userdata.Dispose();
                 }
                 break;
-            case Kind.StackReference:
-                if (!ReferenceEquals(state, _stackReference.ValidateInternal()))
+            case Kind.Reference:
+                if (!ReferenceEquals(state, _slot.State))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
-                _ = _stackReference.PushToTop();
-#pragma warning restore CA2000
-                if ((nint)state.L != (nint)L)
-                    lua_xmove(state.L, L, 1);
-                break;
-            case Kind.TrackedReference:
-                if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
-                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
-                _ = _trackedReference!.PushToTop();
-#pragma warning restore CA2000
+                _slot.Push(state);
                 if ((nint)state.L != (nint)L)
                     lua_xmove(state.L, L, 1);
                 break;
@@ -200,13 +178,12 @@ public readonly ref struct IntoLuau
         {
             case Kind.Value:
                 return IntoLuauCopied.FromBorrowedValue(_luauValue);
-            case Kind.TrackedReference:
-                Debug.Assert(_trackedReference is not null);
-                return IntoLuauCopied.FromBorrowedReference(_trackedReference);
-            case Kind.StackReference:
-                throw new InvalidOperationException(
-                    "A borrowed view cannot be passed to an async call that waits for another thread using the state."
-                );
+            case Kind.Reference:
+                return _slot.Reference is { } reference
+                    ? IntoLuauCopied.FromBorrowedReference(reference)
+                    : throw new InvalidOperationException(
+                        "A borrowed view cannot be passed to an async call that waits for another thread using the state."
+                    );
             default:
                 return CaptureCopied();
         }
@@ -221,7 +198,7 @@ public readonly ref struct IntoLuau
         return copies;
     }
 
-    internal IntoLuauCopied CaptureCopied()
+    internal unsafe IntoLuauCopied CaptureCopied()
     {
         switch (Type)
         {
@@ -242,17 +219,11 @@ public readonly ref struct IntoLuau
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 return IntoLuauCopied.FromUserdataFactory(_factory);
-            case Kind.StackReference:
+            case Kind.Reference:
             {
-                LuauState state = _stackReference.ValidateInternal();
-                using PopDisposable pop = _stackReference.PushToStack(out int stackIndex);
-                return IntoLuauCopied.FromValue(LuauValue.ToValue(state, stackIndex));
-            }
-            case Kind.TrackedReference:
-            {
-                Debug.Assert(_trackedReference is not null);
-                LuauState state = _trackedReference.ValidateInternal();
-                using PopDisposable pop = _trackedReference.PushToTop();
+                LuauState state = _slot.State;
+                _slot.Push(state);
+                using var pop = new PopDisposable(state.L, shouldPop: true);
                 return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
             }
             case Kind.Nil:

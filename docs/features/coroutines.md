@@ -51,12 +51,12 @@ A coroutine created with `coroutine.create(...)` is a normal Luau value. Read it
 ```csharp
 lua.Load("co = coroutine.create(function(x) coroutine.yield(x) return 'done' end)").Execute();
 
-using LuauCoroutine coroutine = lua.Globals.GetLuauCoroutine("co");
+using LuauCoroutine coroutine = lua.Globals.Get<LuauCoroutine>("co");
 int value = coroutine.Resume<int>(5);
 string result = coroutine.Resume<string>();
 ```
 
-- Tables offer `GetLuauCoroutine(...)` and `TryGetLuauCoroutine(...)`.
+- Tables read them with `Get<LuauCoroutine>(...)` and `TryGet(..., out LuauCoroutine coroutine)`.
 - `LuauValue` reports coroutines as `LuauValueType.Thread` and converts them with `TryGet(out LuauCoroutine coroutine)`.
 - Managed callbacks read them with `args[1].Get<LuauCoroutineView>()`, a borrowed view. Call `ToOwned()` to keep or resume it, or read `args[1].Get<LuauCoroutine>()` for an owned reference right away.
 
@@ -98,7 +98,7 @@ A script can only be suspended by an awaiting callback if the host runs it async
 ```csharp
 string page = await lua.Load("return fetch('https://example.com')").ExecuteAsync<string>([], cancellationToken);
 
-using LuauFunction handler = lua.Globals.GetLuauFunction("handler");
+using LuauFunction handler = lua.Globals.Get<LuauFunction>("handler");
 await handler.InvokeAsync([42], cancellationToken);
 
 await coroutine.ResumeAsync([], cancellationToken);

@@ -21,9 +21,9 @@ public sealed class GeneratedModuleLoadingTests
             )
             .Execute();
 
-        state.Globals.GetNumber("sum").ShouldBe(42);
-        state.Globals.GetNumber("tokens").ShouldBe(7);
-        state.Globals.GetNumber("difficulty").ShouldBe((int)ArcadeDifficulty.Hard);
+        state.Globals.Get<double>("sum").ShouldBe(42);
+        state.Globals.Get<double>("tokens").ShouldBe(7);
+        state.Globals.Get<double>("difficulty").ShouldBe((int)ArcadeDifficulty.Hard);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class GeneratedModuleLoadingTests
         _ = state.RegisterModule<WorkshopModule>();
         state.Load("bundle = require('workshop').tools.hammer(5)").Execute();
 
-        state.Globals.GetNumber("bundle").ShouldBe(10);
+        state.Globals.Get<double>("bundle").ShouldBe(10);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class GeneratedModuleLoadingTests
         _ = state.RegisterModule<GuildModule>();
         state.Load("champion = require('guild').heroes.create('Ada')").Execute();
 
-        state.Globals.GetUserdata<HeroCard>("champion").Name.ShouldBe("Ada");
+        state.Globals.Get<HeroCard>("champion").Name.ShouldBe("Ada");
     }
 
     [Fact]

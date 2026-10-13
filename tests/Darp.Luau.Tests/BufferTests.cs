@@ -13,9 +13,7 @@ public sealed class BufferTests : IDisposable
 
         using LuauBuffer buffer = _state.CreateBuffer(expected);
 
-        buffer.TryGet(out byte[]? found).ShouldBeTrue();
-        found.ShouldNotBeNull();
-        found.ShouldBe<byte>(expected);
+        buffer.ToArray().ShouldBe<byte>(expected);
     }
 
     [Fact]
@@ -45,8 +43,7 @@ public sealed class BufferTests : IDisposable
         value.TryGet(out LuauBuffer owned).ShouldBeTrue();
         using (owned)
         {
-            owned.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
-            found.ToArray().ShouldBe<byte>(expected.ToArray());
+            owned.AsSpan().ToArray().ShouldBe<byte>(expected.ToArray());
         }
     }
 
@@ -61,8 +58,7 @@ public sealed class BufferTests : IDisposable
         value.TryGet(out LuauBuffer found).ShouldBeTrue();
         using (found)
         {
-            found.TryGet(out byte[]? bytes).ShouldBeTrue();
-            bytes.ShouldBe<byte>([0x01, 0x02, 0x03]);
+            found.ToArray().ShouldBe<byte>([0x01, 0x02, 0x03]);
         }
     }
 

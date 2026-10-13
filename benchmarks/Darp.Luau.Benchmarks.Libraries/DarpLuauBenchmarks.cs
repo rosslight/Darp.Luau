@@ -31,10 +31,10 @@ public class DarpLuauBenchmarks : IDisposable
             }
         );
 
-        _add = _state.Globals.GetLuauFunction("add");
-        _callManagedAdd = _state.Globals.GetLuauFunction("call_managed_add");
-        _callManagedAddAsync = _state.Globals.GetLuauFunction("call_managed_add_async");
-        _fib = _state.Globals.GetLuauFunction("fib");
+        _add = _state.Globals.Get<LuauFunction>("add");
+        _callManagedAdd = _state.Globals.Get<LuauFunction>("call_managed_add");
+        _callManagedAddAsync = _state.Globals.Get<LuauFunction>("call_managed_add_async");
+        _fib = _state.Globals.Get<LuauFunction>("fib");
         _table = _state.CreateTable();
     }
 
@@ -71,7 +71,7 @@ public class DarpLuauBenchmarks : IDisposable
     public double TableSetAndGet()
     {
         _table.Set("key", Scenario.TableValue);
-        return _table.GetNumber("key");
+        return _table.Get<double>("key");
     }
 
     [Benchmark(Description = Scenario.RunScript, OperationsPerInvoke = 1)]
