@@ -542,6 +542,25 @@ public class GeneratedExportsTests
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
     }
 
+    /// <summary> Reported once, and neither a module nor a userdata type is generated. </summary>
+    [Fact]
+    public async Task TypeThatIsBothAModuleAndAUserdataType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("bank")]
+            [LuauUserdata("Bank")]
+            public sealed partial class Bank
+            {
+                [LuauMember("open")]
+                public void Open() { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSourceWithErrors(code);
+    }
+
     [Fact]
     public async Task MetamethodsWithTheWrongShape_ShouldFail()
     {

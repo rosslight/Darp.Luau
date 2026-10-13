@@ -5,13 +5,14 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class ExportTreeBuilder
 {
-    public static ValidatedModuleExportNode BuildModuleTree(
-        NormalizedExportType normalizedType,
+    /// <summary> Puts the members of a module into the tables their paths name. </summary>
+    public static GeneratedModuleExportNodeIr BuildModuleTree(
+        List<AnalyzedExportMember> members,
         List<Diagnostic> diagnostics
     )
     {
         var root = new MutableModuleExportNode(string.Empty);
-        foreach (NormalizedExportMember member in normalizedType.Members)
+        foreach (AnalyzedExportMember member in members)
             AddModuleMember(root, member, diagnostics);
 
         return Freeze(root);
@@ -19,7 +20,7 @@ internal static class ExportTreeBuilder
 
     private static void AddModuleMember(
         MutableModuleExportNode root,
-        NormalizedExportMember member,
+        AnalyzedExportMember member,
         List<Diagnostic> diagnostics
     )
     {
@@ -41,9 +42,9 @@ internal static class ExportTreeBuilder
                     diagnostics.Add(
                         Diagnostic.Create(
                             DiagnosticDescriptors.LuauExportPathConflictDescriptor,
-                            SymbolExtensions.GetSymbolLocation(member.Symbol),
-                            member.LuauName,
-                            GetNamespaceConflictPath(child, member.LuauName)
+                            member.Location,
+                            member.Member.LuauName,
+                            GetNamespaceConflictPath(child, member.Member.LuauName)
                         )
                     );
                     return;
@@ -61,9 +62,9 @@ internal static class ExportTreeBuilder
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.LuauExportPathConflictDescriptor,
-                        SymbolExtensions.GetSymbolLocation(member.Symbol),
-                        child.Member.LuauName,
-                        member.LuauName
+                        member.Location,
+                        child.Member.Member.LuauName,
+                        member.Member.LuauName
                     )
                 );
                 return;
@@ -76,7 +77,7 @@ internal static class ExportTreeBuilder
     private static string GetNamespaceConflictPath(MutableModuleExportNode node, string prefix)
     {
         if (node.Member is not null)
-            return node.Member.LuauName;
+            return node.Member.Member.LuauName;
 
         foreach (KeyValuePair<string, MutableModuleExportNode> child in node.Children)
             return GetNamespaceConflictPath(child.Value, prefix + "." + child.Key);
@@ -84,11 +85,11 @@ internal static class ExportTreeBuilder
         return prefix;
     }
 
-    private static ValidatedModuleExportNode Freeze(MutableModuleExportNode node)
+    private static GeneratedModuleExportNodeIr Freeze(MutableModuleExportNode node)
     {
-        return new ValidatedModuleExportNode(
+        return new GeneratedModuleExportNodeIr(
             node.Name,
-            node.Member,
+            node.Member?.Member,
             node.Children.Values.Select(Freeze).ToImmutableEquatableArray()
         );
     }
@@ -97,7 +98,7 @@ internal static class ExportTreeBuilder
     {
         public string Name { get; } = name;
 
-        public NormalizedExportMember? Member { get; set; }
+        public AnalyzedExportMember? Member { get; set; }
 
         public Dictionary<string, MutableModuleExportNode> Children { get; } = new(StringComparer.Ordinal);
     }
