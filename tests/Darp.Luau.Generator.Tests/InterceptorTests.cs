@@ -647,6 +647,29 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
 
+    /// <summary> The interceptor writes the type of the tuple, so a name that is a keyword has to stay escaped. </summary>
+    [Fact]
+    public async Task AsyncTupleReturnWithAnElementNamedLikeAKeyword()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(async Task<(int @class, int value)> (int value) =>
+                    {
+                        await Task.Yield();
+                        return (value, value);
+                    });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
     /// <summary> The rules of a parameter of a module function hold for a parameter of a delegate. </summary>
     [Fact]
     public async Task ParametersWithParamsOrADefaultGeneratedCodeCannotUse_ShouldFail()

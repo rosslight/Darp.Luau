@@ -35,8 +35,8 @@ internal static class ExportProjector
                 // A static property is read by its qualified name: a bare name such as 'module' or 'state' would
                 // bind to a local of the generated method instead.
                 property.PropertySymbol.IsStatic
-                    ? $"{property.PropertySymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{EscapeIdentifier(property.ManagedName)}"
-                    : EscapeIdentifier(property.ManagedName),
+                    ? $"{property.PropertySymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{EmitterHelper.EscapeIdentifier(property.ManagedName)}"
+                    : EmitterHelper.EscapeIdentifier(property.ManagedName),
                 property.LuauName,
                 property.PathSegments,
                 property.Property.Getter is null ? null : new GeneratedExportAccessorIr(property.Property.Getter.Type),
@@ -45,7 +45,7 @@ internal static class ExportProjector
             NormalizedExportMethodMember method => new GeneratedExportMethodIr(
                 method.MethodSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 method.MethodSymbol.IsStatic,
-                EscapeIdentifier(method.ManagedName),
+                EmitterHelper.EscapeIdentifier(method.ManagedName),
                 method.LuauName,
                 method.PathSegments,
                 method.Signature
@@ -53,10 +53,6 @@ internal static class ExportProjector
             _ => throw new InvalidOperationException($"Unsupported normalized member type '{member.GetType().Name}'"),
         };
     }
-
-    /// <summary> Writes a member name the way source code refers to it: <c>@return</c> for a member named <c>return</c>. </summary>
-    public static string EscapeIdentifier(string name) =>
-        SyntaxFacts.GetKeywordKind(name) is SyntaxKind.None ? name : $"@{name}";
 
     private static GeneratedModuleExportNodeIr ProjectNode(ValidatedModuleExportNode node)
     {

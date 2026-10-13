@@ -161,7 +161,7 @@ internal static class SignatureReader
             if (!TryReadReturn(element.Type, isNullable, apiSymbols, out InteropType read))
                 return ReturnError(element.Type, $"return tuple element '{element.Name}'");
 
-            returns.Add(read with { TupleElementName = element.Name });
+            returns.Add(read with { TupleElementName = EmitterHelper.EscapeIdentifier(element.Name) });
         }
 
         return null;

@@ -224,7 +224,7 @@ internal static class MetamethodAnalyzer
         out string callTarget
     )
     {
-        string name = ExportProjector.EscapeIdentifier(method.Name);
+        string name = EmitterHelper.EscapeIdentifier(method.Name);
         if (method.MethodKind is not MethodKind.UserDefinedOperator)
         {
             callKind = method.IsStatic ? MetamethodCallKind.StaticMethod : MetamethodCallKind.InstanceMethod;

@@ -1,7 +1,13 @@
+using Microsoft.CodeAnalysis.CSharp;
+
 namespace Darp.Luau.Generator.Helpers;
 
 internal static class EmitterHelper
 {
+    /// <summary> Writes a name the way source code refers to it: <c>@return</c> for a member named <c>return</c>. </summary>
+    public static string EscapeIdentifier(string name) =>
+        SyntaxFacts.GetKeywordKind(name) is SyntaxKind.None ? name : $"@{name}";
+
     internal static string GetDotnetType(InteropType param)
     {
         if (param is { Type: LuauInteropKind.Enum or LuauInteropKind.ManagedUserdata, OriginalTypeName: { } name })
