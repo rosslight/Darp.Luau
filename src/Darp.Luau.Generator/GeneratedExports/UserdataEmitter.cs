@@ -166,8 +166,9 @@ internal static class UserdataEmitter
         const string valueType = "global::Darp.Luau.LuauValueType";
         var checks = new List<string>();
         int index = 0;
-        foreach (InteropType operand in overload.Signature.Parameters)
+        foreach (InteropParameter parameter in overload.Signature.Parameters)
         {
+            InteropType operand = parameter.Type;
             if (operand.Type is LuauInteropKind.CancellationToken)
                 continue;
 

@@ -87,6 +87,7 @@ local bundle = workshop.tools.hammer(5)
 Generated modules support:
 
 - methods with fixed supported signatures,
+- parameters with default values, as described in [Default values](functions.md#default-values),
 - methods that return `Task` or `ValueTask`, and `CancellationToken` parameters, as described in [Generated async methods](userdata.md#generated-async-methods),
 - static read-only properties,
 - instance methods on class modules,
@@ -99,7 +100,7 @@ The generator reports diagnostics for unsupported shapes instead of emitting wea
 - fields are not exported,
 - instance properties are not supported,
 - write-capable module properties are not supported,
-- optional, `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
+- `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
 - member paths cannot conflict, such as using both `Field` and `Field.u8` as exports.
 
 Use stable Luau-facing names in `[LuauMember("...")]` instead of mirroring managed names by default.

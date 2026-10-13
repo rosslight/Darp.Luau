@@ -29,6 +29,25 @@ public sealed class GeneratedUserdataTests
     }
 
     [Fact]
+    public void Method_ShouldUseTheDefaultForANilOrOmittedArgument()
+    {
+        using LuauState state = CreateStateWithPoint();
+
+        (string omitted, string nil, string passed) = state
+            .Load(
+                """
+                local point = Point.new(1, 2)
+                return tostring(point:scaled()), tostring(point:scaled(nil)), tostring(point:scaled(3))
+                """
+            )
+            .Execute<string, string, string>();
+
+        omitted.ShouldBe("(2, 4)");
+        nil.ShouldBe("(2, 4)");
+        passed.ShouldBe("(3, 6)");
+    }
+
+    [Fact]
     public void Operators_ShouldRunTheMethodThatTakesTheOperands()
     {
         using LuauState state = CreateStateWithPoint();
@@ -248,6 +267,9 @@ internal sealed partial class Point(double x, double y)
 
     [LuauMember("dot")]
     public double Dot(Point other) => X * other.X + Y * other.Y;
+
+    [LuauMember("scaled")]
+    public Point Scaled(double factor = 2) => new(X * factor, Y * factor);
 
     [LuauMember("scaledLater")]
     public async Task<Point> ScaledLaterAsync(double factor)

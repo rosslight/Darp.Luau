@@ -27,6 +27,26 @@ public sealed class GeneratedModuleLoadingTests
     }
 
     [Fact]
+    public void GeneratedFunction_ShouldUseTheDefaultForANilOrOmittedArgument()
+    {
+        using var state = new LuauState();
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
+
+        (int omitted, int nil, int passed) = state
+            .Load(
+                """
+                local arcade = require("arcade")
+                return arcade.bonus(10), arcade.bonus(10, nil, 1), arcade.bonus(10, 3)
+                """
+            )
+            .Execute<int, int, int>();
+
+        omitted.ShouldBe(40);
+        nil.ShouldBe(20);
+        passed.ShouldBe(60);
+    }
+
+    [Fact]
     public void GeneratedStaticModule_ShouldWorkUnderNone()
     {
         using var state = new LuauState(LuauLibraries.None);
@@ -111,6 +131,10 @@ public static partial class ArcadeModule
 
     [LuauMember("add_score")]
     public static int AddScore(int current, int bonus) => current + bonus;
+
+    [LuauMember("bonus")]
+    public static int Bonus(int score, int factor = 2, ArcadeDifficulty difficulty = ArcadeDifficulty.Hard) =>
+        score * factor * (int)difficulty;
 }
 
 [LuauModule("names")]

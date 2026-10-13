@@ -1,0 +1,61 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction<Sum>(values => values.Length);
+                                  ^^^^^^
+        state.CreateFunction<Bytes>(values => values.Length);
+*/
+ : (13,34)-(13,40),
+      Message: Type 'int[]' used for parameter 'values', which uses params is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Sum>(values => values.Length);
+        state.CreateFunction<Bytes>(values => values.Length);
+                                    ^^^^^^
+        state.CreateFunction<Length>(text => text.Length);
+*/
+ : (14,36)-(14,42),
+      Message: Type 'global::System.ReadOnlySpan<byte>' used for parameter 'values', which uses params is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction<Bytes>(values => values.Length);
+        state.CreateFunction<Length>(text => text.Length);
+                                     ^^^^
+    }
+*/
+ : (15,37)-(15,41),
+      Message: Type 'global::System.ReadOnlySpan<char>' used for parameter 'text', which has a default value that its type cannot have is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

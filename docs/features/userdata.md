@@ -214,6 +214,7 @@ Generated userdata supports:
 
 - instance properties with supported stored value types,
 - instance methods with fixed supported signatures,
+- parameters with default values, as described in [Default values](functions.md#default-values),
 - methods that return `Task` or `ValueTask`, and `CancellationToken` parameters,
 - metamethods on methods and operators,
 - static methods and read-only static properties, as the static side of the type,
@@ -225,7 +226,7 @@ The generator reports diagnostics for unsupported shapes instead of emitting wea
 - exported userdata types must be partial, top-level, non-generic classes,
 - fields are not exported,
 - member names are single-segment only; dotted paths are for generated modules,
-- optional, `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
+- `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
 - a type with `[LuauUserdata]` cannot also implement `Register` by hand.
 
 Implement `ILuauUserdata<T>` by hand only when you need member names that are only known at run time, custom validation, unsupported member shapes, or unusual error behavior.

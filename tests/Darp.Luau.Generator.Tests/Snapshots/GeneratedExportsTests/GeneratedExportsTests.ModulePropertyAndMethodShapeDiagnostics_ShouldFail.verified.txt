@@ -24,10 +24,10 @@
 
     [LuauMember("create")]
      ^^^^^^^^^^^^^^^^^^^^
-    public static int Create(int value = 0) => value;
+    public static int Create(ref int value) => value;
 */
  : (8,5)-(8,25),
-      Message: Generated module function 'Create' uses an unsupported parameter or return shape: parameter 'value' is optional,
+      Message: Generated module function 'Create' uses an unsupported parameter or return shape: parameter 'value' cannot use ref, in, or out,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1006,

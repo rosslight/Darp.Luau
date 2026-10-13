@@ -31,6 +31,65 @@ public sealed class GeneratedModuleExportsEmitterTests
         await VerifyHelper.VerifyGeneratedExportsSource(code);
     }
 
+    /// <summary> Nil, or an argument that was not passed, takes the default value of the parameter. </summary>
+    [Fact]
+    public async Task StaticModule_WithDefaultValues_ShouldReadThemForNil()
+    {
+        const string code = """
+            #nullable enable
+            using System;
+            using System.Threading;
+            using Darp.Luau;
+
+            public enum Mode : long
+            {
+                Slow = -1,
+                Fast = 2,
+            }
+
+            [LuauModule("defaults")]
+            public static partial class DefaultsModule
+            {
+                [LuauMember("numbers")]
+                public static double Numbers(
+                    int required,
+                    byte small = 5,
+                    int negative = -2,
+                    uint unsigned = 3,
+                    long big = long.MinValue,
+                    ulong huge = ulong.MaxValue,
+                    float single = 1.5f,
+                    double real = 0.1,
+                    decimal money = 1.25m,
+                    float notANumber = float.NaN,
+                    float above = float.PositiveInfinity,
+                    double below = double.NegativeInfinity
+                ) => required;
+
+                [LuauMember("others")]
+                public static string Others(
+                    bool flag = true,
+                    string text = "a \"quoted\"\ttext",
+                    Mode mode = Mode.Slow,
+                    Mode? maybeMode = Mode.Fast,
+                    int? limit = 5,
+                    Half ratio = default
+                ) => text;
+
+                [LuauMember("nulls")]
+                public static bool Nulls(
+                    int? number = null,
+                    string? text = null,
+                    string forced = null!,
+                    LuauValue value = default,
+                    CancellationToken token = default
+                ) => number is null;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
     [Fact]
     public async Task StaticModule_WithAwaitableFunction_ShouldAwaitIt()
     {
@@ -135,7 +194,7 @@ public sealed class GeneratedModuleExportsEmitterTests
                 public static int Tokens => 7;
 
                 [LuauMember("unsupported")]
-                public static int Unsupported(int value = 0) => value;
+                public static int Unsupported(ref int value) => value;
 
                 [LuauMember("add_score")]
                 public static int AddScore(int current, int bonus) => current + bonus;
@@ -160,7 +219,7 @@ public sealed class GeneratedModuleExportsEmitterTests
                 public int Ok() => 1;
 
                 [LuauMember("unsupported")]
-                public int Unsupported(int value = 0) => value;
+                public int Unsupported(ref int value) => value;
 
                 [LuauMember("duplicate")]
                 public int DuplicateOne() => 1;

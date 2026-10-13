@@ -157,7 +157,7 @@ internal static class CreateFunctionSignatureAnalyzer
             return false;
         }
 
-        var parameters = ImmutableArray.CreateBuilder<InteropType>();
+        var parameters = ImmutableArray.CreateBuilder<InteropParameter>();
         var returnTypes = ImmutableArray.CreateBuilder<InteropType>();
         ImmutableArray<LambdaReturnOverride> returnOverrides = LambdaReturnNullabilityResolver.GetReturnOverrides(
             invocationOperation
@@ -179,6 +179,19 @@ internal static class CreateFunctionSignatureAnalyzer
                         parameterLocation,
                         parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         $"{usageDescription}, which is passed by reference (ref, in or out)"
+                    )
+                );
+                return false;
+            }
+
+            if (parameter.IsParams)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                        parameterLocation,
+                        parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        $"{usageDescription}, which uses params"
                     )
                 );
                 return false;
@@ -215,7 +228,20 @@ internal static class CreateFunctionSignatureAnalyzer
                 return false;
             }
 
-            parameters.Add(parameterType);
+            if (ParameterDefault.TryRead(parameter, parameterType, out InteropParameter read) is { } defaultError)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                        parameterLocation,
+                        parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        $"{usageDescription}, which {defaultError}"
+                    )
+                );
+                return false;
+            }
+
+            parameters.Add(read);
         }
 
         AwaitableReturnKind awaitable = InteropTypeMapper.GetAwaitableKind(

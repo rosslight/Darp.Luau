@@ -4,8 +4,9 @@ internal static class LuauMarshalEmitter
 {
     /// <summary> Writes the statements that read argument <paramref name="parameterIndex"/> into a local <c>a{index}</c>. </summary>
     /// <remarks> A read that fails throws. The callback boundary turns that into the Luau error of the script. </remarks>
-    public static string GenerateParameterRead(int parameterIndex, InteropType param)
+    public static string GenerateParameterRead(int parameterIndex, InteropParameter parameter)
     {
+        InteropType param = parameter.Type;
         string argument = $"args[{parameterIndex}]";
         string local = $"a{parameterIndex}";
         if (param.Type is LuauInteropKind.StringCharSpan)
@@ -19,7 +20,24 @@ internal static class LuauMarshalEmitter
                 """;
         }
 
-        return $"{GetDotnetType(param)} {local} = {FormatRead(argument, param)};";
+        return $"{GetDotnetType(param)} {local} = {FormatRead(argument, parameter)};";
+    }
+
+    /// <summary> Writes the expression that reads <paramref name="valueView"/>, a <c>LuauValueView</c>, as the argument of <paramref name="parameter"/>. </summary>
+    public static string FormatRead(string valueView, InteropParameter parameter)
+    {
+        // A nullable parameter with the default null gets it from its read, and a LuauValue reads nil itself.
+        if (
+            parameter.Default is null
+            || (parameter.Type.IsNullable && parameter.Default == InteropParameter.DefaultOfType)
+            || !InteropTypeMapper.SupportsNullableValue(parameter.Type.Type)
+        )
+        {
+            return FormatRead(valueView, parameter.Type);
+        }
+
+        // Nil, or an argument that was not passed, takes the default.
+        return $"{FormatRead(valueView, parameter.Type with { IsNullable = true })} ?? {parameter.Default}";
     }
 
     /// <summary> Writes the expression that reads <paramref name="valueView"/>, a <c>LuauValueView</c>, as <paramref name="param"/>. </summary>

@@ -59,6 +59,28 @@ using LuauFunction scale = lua.CreateFunction<Scale>(value => value * 2);
 
 Generated code has to name the delegate type. A delegate type of your own, and its type arguments, must be `internal` or `public`. A lambda with default parameter values, `params`, or more than 16 parameters has a delegate type that only the compiler can name: convert it to a delegate type of your own.
 
+### Default values
+
+A parameter with a default value takes it when the script passes `nil` or leaves the argument out:
+
+```csharp
+public delegate int Scale(int value, int factor = 2);
+
+using LuauFunction scale = lua.CreateFunction<Scale>((value, factor) => value * factor);
+```
+
+```lua
+scale(21)       -- 42
+scale(21, nil)  -- 42
+scale(21, 3)    -- 63
+```
+
+- The default can be a number, a `bool`, a `string`, an enum value, or `null`.
+- `nil` always takes the default, so `int? limit = 5` never receives `null`.
+- A span or a borrowed view cannot have a default value, and `params` is not supported.
+
+The same holds for generated `[LuauModule]` functions and `[LuauUserdata]` methods. The operands of a metamethod cannot have a default value.
+
 ### Direct-call requirement
 
 `CreateFunction(...)` is generator-backed. The direct method call is intercepted at compile time and replaced with a generated marshalling adapter.

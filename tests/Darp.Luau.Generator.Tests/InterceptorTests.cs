@@ -646,6 +646,33 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
 
+    /// <summary> The rules of a parameter of a module function hold for a parameter of a delegate. </summary>
+    [Fact]
+    public async Task ParametersWithParamsOrADefaultGeneratedCodeCannotUse_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public delegate int Sum(params int[] values);
+
+            public delegate int Bytes(params ReadOnlySpan<byte> values);
+
+            public delegate int Length(ReadOnlySpan<char> text = default);
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction<Sum>(values => values.Length);
+                    state.CreateFunction<Bytes>(values => values.Length);
+                    state.CreateFunction<Length>(text => text.Length);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
     [Fact]
     public async Task DelegateTypeThatGeneratedCodeCannotName_ShouldFail()
     {
