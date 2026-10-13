@@ -1,20 +1,17 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Native;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary>
-/// Represents an <c>ipairs</c>-style enumerable over a Luau table.
-/// </summary>
+/// <summary> The list part of a <see cref="LuauTable"/>: its values at <c>1</c>, <c>2</c>, ... as <typeparamref name="T"/>. </summary>
+/// <typeparam name="T">The managed type the values are read as.</typeparam>
 [SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
     Justification = "This enumerable is a lightweight view over Lua state and handle ownership; custom value equality would imply semantics the API does not guarantee."
 )]
-public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, LuauValue>>
+public readonly struct TableIPairsEnumerable<T> : IEnumerable<KeyValuePair<int, T>>
 {
     private readonly LuauTable _table;
     private readonly LuauState? _state;
@@ -30,7 +27,9 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
     /// <summary>
     /// Gets the raw array length of the underlying Luau table.
     /// </summary>
-    /// <remarks>If the table has holes, this value can be misleading and enumeration may end earlier.</remarks>
+    /// <remarks>
+    /// If the table has holes, or values that are not a <typeparamref name="T"/>, enumeration ends earlier.
+    /// </remarks>
     public int Count => _table.ListCount;
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator" />
@@ -41,23 +40,21 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         return new Enumerator(_state, newHandle);
     }
 
-    IEnumerator<KeyValuePair<int, LuauValue>> IEnumerable<KeyValuePair<int, LuauValue>>.GetEnumerator() =>
-        GetEnumerator();
+    IEnumerator<KeyValuePair<int, T>> IEnumerable<KeyValuePair<int, T>>.GetEnumerator() => GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
-    public struct Enumerator : IEnumerator<KeyValuePair<int, LuauValue>>
+    /// <summary> The enumerator of the <see cref="TableIPairsEnumerable{T}"/> </summary>
+    public struct Enumerator : IEnumerator<KeyValuePair<int, T>>
     {
         private readonly LuauState? _state;
         private readonly ulong _handle;
-        private KeyValuePair<int, LuauValue> _current;
-        private int _i;
+        private KeyValuePair<int, T> _current;
 
         /// <inheritdoc />
-        public KeyValuePair<int, LuauValue> Current => _current;
+        public readonly KeyValuePair<int, T> Current => _current;
 
-        object IEnumerator.Current => _current;
+        readonly object IEnumerator.Current => _current;
 
         /// <summary>Initializes an enumerator over a tracked table reference.</summary>
         /// <param name="state">The state that owns the tracked table reference.</param>
@@ -69,36 +66,18 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         }
 
         /// <inheritdoc />
-        public unsafe bool MoveNext()
+        /// <exception cref="NotSupportedException">Thrown when the value cannot be read as <typeparamref name="T"/> at all.</exception>
+        public bool MoveNext()
         {
-            _i++;
-            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-            lua_State* L = _state.L;
-#if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-            using PopDisposable tablePop = trackedReference.PushToTop();
-            int t = lua_gettop(L);
-            _ = lua_rawgeti(L, t, _i);
-            if (lua_isnil(L, -1))
-            {
-                lua_pop(L, 1);
+            int index = _current.Key + 1;
+            if (!LuauTableView.TryGetItem<T>(_state.GetSlotOrThrow(_handle), index, out var value))
                 return false;
-            }
-
-            var value = LuauValue.ToValue(_state);
-
-            lua_pop(L, 1);
-            _current = new KeyValuePair<int, LuauValue>(_i, value);
+            _current = new KeyValuePair<int, T>(index, value);
             return true;
         }
 
         /// <inheritdoc />
-        public void Reset()
-        {
-            _i = 0;
-            _current = default;
-        }
+        public void Reset() => _current = default;
 
         void IDisposable.Dispose()
         {

@@ -116,7 +116,7 @@ foreach ((int index, double value) in values.IPairs<double>())
 
 `CreateTable(ReadOnlySpan<double>)` writes numeric keys starting at `1`.
 
-`IPairs()` returns raw `LuauValue` entries, while `IPairs<T>()` converts each value to `T` and stops at the first `nil` or type mismatch.
+`IPairs()` returns raw `LuauValue` entries, while `IPairs<T>()` reads each value as `T` and stops at the first `nil` or the first value that is not a `T`. `T` is any type `Get<T>` reads. Both read the table itself, without `__index`.
 
 `ListCount`, `IPairs()`, and `IPairs<T>()` are only reliable for dense arrays. Sparse tables and tables with holes can shorten enumeration and make the reported length misleading.
 
@@ -124,23 +124,26 @@ You can also enumerate the whole table with `foreach`, but key order is not guar
 
 ## Borrowed table views
 
-`LuauTableView` shows up in callbacks, where a table argument is read as one. It has the same API as `LuauTable`: `Get<T>`, `GetOrNull<T>`, `TryGet<T>`, `TryGetOrNull<T>`, the indexer, `Set`, `ContainsKey`, and `ListCount`. A callback reads and writes a table argument through the view:
+`LuauTableView` shows up in callbacks, where a table argument is read as one. It has the same API as `LuauTable`: `Get<T>`, `GetOrNull<T>`, `TryGet<T>`, `TryGetOrNull<T>`, the indexer, `Set`, `ContainsKey`, `ListCount`, `IPairs()`, `IPairs<T>()`, and `foreach`. A callback reads, writes and enumerates a table argument through the view:
 
 ```csharp
-using LuauFunction readValue = lua.CreateFunctionManual(static args =>
+using LuauFunction sum = lua.CreateFunctionManual(static args =>
 {
-    LuauTableView table = args[1].Get<LuauTableView>();
+    LuauTableView values = args[1].Get<LuauTableView>();
 
-    return LuauReturn.Ok(table.Get<double>("value"));
+    double total = values.Get<double>("offset");
+    foreach ((int _, double value) in values.IPairs<double>())
+    {
+        total += value;
+    }
+
+    return LuauReturn.Ok(total);
 });
 ```
 
-`LuauTableView` does not own a registry reference. It is valid only while the current callback frame is active. Call `ToOwned()` in two cases:
+`LuauTableView` does not own a registry reference, and neither do its enumerations: a `foreach` over a table argument takes no reference to the table. The view and its enumerations are valid only while the current callback frame is active. They are `ref struct` types, so LINQ does not apply to them.
 
-- to keep the table: before storing it or using it after the callback returns,
-- to enumerate the table with `foreach` or `IPairs()`, which only `LuauTable` offers.
-
-`ToOwned()` returns an owned reference, which the caller disposes.
+Call `ToOwned()` to keep the table: before storing it or using it after the callback returns. It returns an owned reference, which the caller disposes.
 
 ## Lifetime notes
 

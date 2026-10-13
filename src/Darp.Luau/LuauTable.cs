@@ -114,12 +114,19 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
     )]
     public LuauValue this[IntoLuau key] => AsView()[key];
 
+    /// <summary> Enumerates the list part of the table: the values at <c>1</c>, <c>2</c>, ... up to the first nil. </summary>
+    /// <returns>A sequence of index and value. Its enumerator holds a reference of its own to the table.</returns>
+    /// <remarks> Reads the table itself, without metamethods. A value that is reference-backed is the caller's to dispose. </remarks>
+    public TableIPairsEnumerable<LuauValue> IPairs() => new(this, _state, _handle);
+
     /// <summary>
-    /// Returns an <c>ipairs</c>-style enumerable over consecutive integer keys starting at <c>1</c>.
+    /// Enumerates the list part of the table as <typeparamref name="T"/>: the values at <c>1</c>, <c>2</c>, ... up
+    /// to the first that is nil or not a <typeparamref name="T"/>.
     /// </summary>
-    /// <returns>An enumerable of index-value pairs.</returns>
-    /// <remarks>Enumeration stops at the first <c>nil</c> entry.</remarks>
-    public TableIPairsEnumerable IPairs() => new(this, _state, _handle);
+    /// <typeparam name="T">The managed type to read the values as. See <see cref="LuauTableView.Get{T}"/>.</typeparam>
+    /// <returns>A sequence of index and value. Its enumerator holds a reference of its own to the table.</returns>
+    /// <remarks> Reads the table itself, without metamethods. An owned reference is the caller's to dispose. </remarks>
+    public TableIPairsEnumerable<T> IPairs<T>() => new(this, _state, _handle);
 
     /// <summary>
     /// Releases this table reference from the state registry.
@@ -129,7 +136,8 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
     /// <summary> A view of this table, which is valid while this reference is. </summary>
     internal LuauTableView AsView() => new(_state.GetSlotOrThrow(_handle));
 
-    /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
+    /// <summary> Enumerates the pairs of a <see cref="LuauTable"/>. </summary>
+    /// <remarks> Holds a reference of its own to the table, which disposing it releases. </remarks>
     public struct Enumerator : IEnumerator<KeyValuePair<LuauValue, LuauValue>>
     {
         private readonly LuauState? _state;
@@ -155,32 +163,9 @@ public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<
         }
 
         /// <inheritdoc />
-        public bool MoveNext()
-        {
-            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
-            lua_State* L = _state.L;
-#if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-            using PopDisposable tablePop = trackedReference.PushToTop();
-            int t = lua_gettop(L); // table index
-
-            // lua_rawiter pushes (key, value) unless it is at the end. Unlike lua_next it cannot raise an error
-            // when the table changed since the last step.
-            int next = lua_rawiter(L, t, _iterator);
-            if (next < 0)
-                return false;
-            _iterator = next;
-
-            // stack: [table, key, value]
-            var value = LuauValue.ToValue(_state);
-            lua_pop(L, 1); // pop value
-            var key = LuauValue.ToValue(_state);
-            lua_pop(L, 1); // pop key; table is released by tablePop
-
-            _current = new KeyValuePair<LuauValue, LuauValue>(key, value);
-            return true;
-        }
+        /// <exception cref="NotSupportedException">Thrown when the key or the value has no managed form, like a vector.</exception>
+        public bool MoveNext() =>
+            LuauTableView.TryGetNextPair(_state.GetSlotOrThrow(_handle), ref _iterator, out _current);
 
         /// <inheritdoc />
         public void Reset()

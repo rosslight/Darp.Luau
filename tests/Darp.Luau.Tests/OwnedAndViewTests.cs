@@ -41,8 +41,18 @@ public sealed class OwnedAndViewTests : IDisposable
     }
 
     private static IEnumerable<string> Operations([DynamicallyAccessedMembers(PublicApi)] Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Select(method => method.ToString() ?? method.Name);
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Select(Signature);
+
+    private static string Signature(MethodInfo method)
+    {
+        // An enumeration returns another type on purpose: that of a view borrows the view, that of an owned
+        // reference holds a reference of its own and is a sequence for LINQ.
+        string[] enumerations = ["GetEnumerator", "IPairs"];
+        string signature = method.ToString() ?? method.Name;
+        return enumerations.Contains(method.Name)
+            ? signature[(signature.IndexOf(' ', StringComparison.Ordinal) + 1)..]
+            : signature;
+    }
 
     [Fact]
     public void String_ShouldGiveItsBytesAndItsText()

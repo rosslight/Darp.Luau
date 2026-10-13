@@ -178,6 +178,28 @@ public readonly unsafe ref struct LuauTableView
         return type != lua_Type.LUA_TNIL;
     }
 
+    /// <summary> Enumerates the pairs of the table, in no particular order. </summary>
+    /// <returns>An enumerator that borrows the view. It holds no reference to the table.</returns>
+    /// <remarks>
+    /// Reads the table itself, without metamethods. A key or a value that is reference-backed is the caller's to
+    /// dispose.
+    /// </remarks>
+    public Enumerator GetEnumerator() => new(_slot);
+
+    /// <summary> Enumerates the list part of the table: the values at <c>1</c>, <c>2</c>, ... up to the first nil. </summary>
+    /// <returns>A sequence of index and value that borrows the view. It holds no reference to the table.</returns>
+    /// <remarks> Reads the table itself, without metamethods. A value that is reference-backed is the caller's to dispose. </remarks>
+    public TableViewIPairsEnumerable<LuauValue> IPairs() => new(_slot);
+
+    /// <summary>
+    /// Enumerates the list part of the table as <typeparamref name="T"/>: the values at <c>1</c>, <c>2</c>, ... up
+    /// to the first that is nil or not a <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The managed type to read the values as. See <see cref="Get{T}"/>.</typeparam>
+    /// <returns>A sequence of index and value that borrows the view. It holds no reference to the table.</returns>
+    /// <remarks> Reads the table itself, without metamethods. An owned reference is the caller's to dispose. </remarks>
+    public TableViewIPairsEnumerable<T> IPairs<T>() => new(_slot);
+
     /// <summary> Creates an owned reference to the table, which stays valid after the callback. </summary>
     /// <returns>The owned reference, which the caller disposes.</returns>
     public LuauTable ToOwned() => new(_slot.State, _slot.ToOwnedHandle());
@@ -189,6 +211,80 @@ public readonly unsafe ref struct LuauTableView
 
     /// <inheritdoc />
     public override string ToString() => _slot.ToString();
+
+    /// <summary> Reads the pair that follows <paramref name="iterator"/> in the table of <paramref name="slot"/>. </summary>
+    /// <param name="slot">The table.</param>
+    /// <param name="iterator">Where the enumeration is: 0 at its start. Moved on to the pair that was read.</param>
+    /// <param name="pair">The key and the value, each with a reference of its own when it is reference-backed.</param>
+    /// <returns><c>false</c> at the end of the table.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the key or the value has no managed form, like a vector.</exception>
+    internal static bool TryGetNextPair(
+        scoped in LuauSlot slot,
+        ref int iterator,
+        out KeyValuePair<LuauValue, LuauValue> pair
+    )
+    {
+        LuauState state = slot.State;
+        lua_State* L = state.L;
+        slot.Push(state); // [table]
+
+        // lua_rawiter pushes key and value unless it is at the end. Unlike lua_next it cannot raise an error when
+        // the table changed since the last step.
+        int next = lua_rawiter(L, -1, iterator);
+        if (next < 0)
+        {
+            lua_pop(L, 1);
+            pair = default;
+            return false;
+        }
+        iterator = next;
+
+        // [table, key, value]. Reading reports what it cannot read instead of throwing, so the three are popped
+        // on every path.
+        LuauValue key = default;
+        bool isRead =
+            LuauValue.TryRead(ReadSource.FromStack(state, L, -1), out LuauValue value, out ReadFailure failure)
+            && LuauValue.TryRead(ReadSource.FromStack(state, L, -2), out key, out failure);
+        lua_pop(L, 3);
+        if (!isRead)
+        {
+            // The value was read when it is the key that failed.
+            value.Dispose();
+            throw failure.ToException("table pair");
+        }
+
+        pair = new KeyValuePair<LuauValue, LuauValue>(key, value);
+        return true;
+    }
+
+    /// <summary> Reads the value at <paramref name="index"/> of the table of <paramref name="slot"/> as <typeparamref name="T"/>. </summary>
+    /// <returns><c>false</c> when the value is nil or not a <typeparamref name="T"/>: the list part ends there.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the value cannot be read as <typeparamref name="T"/> at all.</exception>
+    internal static bool TryGetItem<T>(scoped in LuauSlot slot, int index, [MaybeNullWhen(false)] out T value)
+    {
+        LuauState state = slot.State;
+        lua_State* L = state.L;
+        slot.Push(state); // [table]
+        var type = (lua_Type)lua_rawgeti(L, -1, index); // [table, value]
+
+        // Nil ends the list also for a type that reads nil.
+        ReadFailure failure = default;
+        bool isRead;
+        if (type is lua_Type.LUA_TNIL)
+        {
+            value = default;
+            isRead = false;
+        }
+        else
+        {
+            isRead = LuauReader.TryRead(ReadSource.FromStack(state, L, -1, type).AsProbe(), out value, out failure);
+        }
+
+        lua_pop(L, 2);
+        if (failure.IsNotSupported)
+            throw failure.ToException("table value");
+        return isRead;
+    }
 
     /// <summary> The UTF-8 bytes of the string at <paramref name="key"/>, which Luau owns. </summary>
     /// <remarks> Nothing keeps the bytes alive once this method returns. See <see cref="LuauMarshal"/>. </remarks>
@@ -322,4 +418,30 @@ public readonly unsafe ref struct LuauTableView
     }
 
     private static Exception ToException(ReadFailure failure) => failure.ToException("table value");
+
+    /// <summary> Enumerates the pairs of a <see cref="LuauTableView"/>. </summary>
+    /// <remarks> Borrows the view: it is valid as long as the view and holds no reference to the table. </remarks>
+    [SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "An enumerator nested in what it enumerates is the pattern of the base library, as in Span<T>.Enumerator."
+    )]
+    public ref struct Enumerator
+    {
+        private readonly LuauSlot _slot;
+
+        // Where lua_rawiter continues.
+        private int _iterator;
+        private KeyValuePair<LuauValue, LuauValue> _current;
+
+        internal Enumerator(LuauSlot slot) => _slot = slot;
+
+        /// <summary> Gets the pair the enumerator is at. </summary>
+        public readonly KeyValuePair<LuauValue, LuauValue> Current => _current;
+
+        /// <summary> Moves to the next pair. </summary>
+        /// <returns><c>false</c> at the end of the table.</returns>
+        /// <exception cref="NotSupportedException">Thrown when the key or the value has no managed form, like a vector.</exception>
+        public bool MoveNext() => TryGetNextPair(_slot, ref _iterator, out _current);
+    }
 }
