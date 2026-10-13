@@ -621,15 +621,10 @@ public sealed unsafe class LuauState : IDisposable
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
-        if (utf8Value.IsEmpty)
-            throw new ArgumentNullException(nameof(utf8Value));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        fixed (byte* pValue = utf8Value)
-        {
-            lua_pushlstring(L, pValue, (nuint)utf8Value.Length);
-        }
+        LuauStateMarshal.PushString(L, utf8Value);
 
         ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauString(this, reference);
@@ -642,17 +637,11 @@ public sealed unsafe class LuauState : IDisposable
     {
         this.ThrowIfDisposed();
         ObjectDisposedException.ThrowIf(_disposing > 0, this);
-        if (span.IsEmpty)
-            throw new ArgumentNullException(nameof(span));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         void* pDest = lua_newbuffer(L, (nuint)span.Length);
-
-        fixed (byte* pSrc = span)
-        {
-            Unsafe.CopyBlock(pDest, pSrc, (uint)span.Length);
-        }
+        span.CopyTo(new Span<byte>(pDest, span.Length));
 
         ulong handle = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauBuffer(this, handle);

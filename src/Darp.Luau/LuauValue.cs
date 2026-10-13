@@ -119,256 +119,114 @@ public readonly struct LuauValue : IDisposable
         return new LuauValue(state, type, new LuauValueUnion(newHandle ?? 0));
     }
 
-    /// <summary>
-    /// Attempts to convert this Luau value to the requested managed type.
-    /// </summary>
-    /// <typeparam name="T">The managed target type.</typeparam>
-    /// <param name="value">Receives the converted value when the conversion succeeds.</param>
-    /// <param name="acceptNil">Allows <c>nil</c> to map to supported optional managed representations.</param>
-    /// <returns><c>true</c> when conversion succeeds; otherwise <c>false</c>.</returns>
-    public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
+    /// <summary> Gets this value as <typeparamref name="T"/>. </summary>
+    /// <typeparam name="T">
+    /// The managed type to read: a number type, an enum, <see cref="bool"/>, <see cref="string"/>, a byte array, a
+    /// managed userdata type, an owned reference such as <see cref="LuauTable"/>, or <see cref="LuauValue"/> for a
+    /// copy. The nullable form of a value type also reads nil. <see cref="LuauValue"/> reads nil itself and has no
+    /// nullable form.
+    /// </typeparam>
+    /// <returns>The value. An owned reference is a reference of its own that the caller disposes.</returns>
+    /// <exception cref="LuaGetException">Thrown when the value is not a <typeparamref name="T"/>.</exception>
+    /// <exception cref="NotSupportedException">Thrown when <typeparamref name="T"/> is not a type a Luau value can be read as.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
+    public T Get<T>() => Read<T>(out var value, out ReadFailure failure) ? value : throw failure.ToException("value");
+
+    /// <summary> Gets this value as <typeparamref name="T"/>, or <c>null</c> when it is nil. </summary>
+    /// <typeparam name="T">A reference type <see cref="Get{T}"/> reads. For a value type, use its nullable form with <see cref="Get{T}"/>.</typeparam>
+    /// <returns>The value, or <c>null</c>.</returns>
+    /// <exception cref="LuaGetException">Thrown when the value is neither nil nor a <typeparamref name="T"/>.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
+    public T? GetOrNull<T>()
+        where T : class => Type is LuauValueType.Nil ? null : Get<T>();
+
+    /// <summary> Attempts to get this value as <typeparamref name="T"/>. </summary>
+    /// <typeparam name="T">The managed type to read. See <see cref="Get{T}"/>.</typeparam>
+    /// <param name="value">The value when it is a <typeparamref name="T"/>.</param>
+    /// <returns><c>true</c> when the value is a <typeparamref name="T"/>; otherwise <c>false</c>.</returns>
+    /// <remarks>
+    /// Nil is read by the types that have a value for it: a nullable value type, for which
+    /// <c>TryGet(out int? number)</c> returns <c>true</c> with <c>null</c>, and <see cref="LuauValue"/>.
+    /// </remarks>
+    /// <exception cref="NotSupportedException">Thrown when <typeparamref name="T"/> is not a type a Luau value can be read as.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
+    public bool TryGet<T>([NotNullWhen(true)] out T? value)
     {
-        if (typeof(T) == typeof(LuauValue))
+        if (Read<T>(out var read, out ReadFailure failure))
         {
-            LuauValue temp = this;
-            if (
-                _state is not null
-                && Type
-                    is LuauValueType.String
-                        or LuauValueType.Table
-                        or LuauValueType.Function
-                        or LuauValueType.Thread
-                        or LuauValueType.Userdata
-                        or LuauValueType.Buffer
-            )
-            {
-                // A reference that was disposed, or whose state is gone, cannot be copied.
-                if (_state.IsDisposed || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                {
-                    value = default;
-                    return false;
-                }
-                ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                temp = new LuauValue(_state, Type, new LuauValueUnion(newHandle));
-            }
-            value = Unsafe.As<LuauValue, T>(ref temp)!;
+            // Not null, except for the null of a nullable value type, which is what the caller asked to read nil as.
+            // Annotated as the framework annotates the out parameter of a generic Try method, so that
+            // TryGet(out string? text) infers string and leaves text not null.
+            value = read!;
             return true;
         }
+
         value = default;
+        return failure.IsNotSupported ? throw failure.ToException("value") : false;
+    }
+
+    /// <summary> Attempts to get this value as <typeparamref name="T"/>, or as <c>null</c> when it is nil. </summary>
+    /// <typeparam name="T">A reference type <see cref="Get{T}"/> reads.</typeparam>
+    /// <param name="value">The value, or <c>null</c> when it is nil.</param>
+    /// <returns><c>true</c> when the value is nil or a <typeparamref name="T"/>; otherwise <c>false</c>.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
+    public bool TryGetOrNull<T>(out T? value)
+        where T : class
+    {
+        if (Type is not LuauValueType.Nil)
+            return TryGet(out value);
+
+        value = null;
+        return true;
+    }
+
+    private unsafe bool Read<T>([MaybeNullWhen(false)] out T value, out ReadFailure failure)
+    {
         switch (Type)
         {
             case LuauValueType.Nil:
-                if (typeof(T) == typeof(LuauNil))
-                {
-                    var temp = default(LuauNil);
-                    value = Unsafe.As<LuauNil, T>(ref temp)!;
-                    return true;
-                }
-                if (!acceptNil)
-                {
-                    return false;
-                }
-                if (typeof(T) == typeof(double?))
-                {
-                    double? temp = null;
-                    value = Unsafe.As<double?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(Half?))
-                {
-                    Half? temp = null;
-                    value = Unsafe.As<Half?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(float?))
-                {
-                    float? temp = null;
-                    value = Unsafe.As<float?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(decimal?))
-                {
-                    decimal? temp = null;
-                    value = Unsafe.As<decimal?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(double?))
-                {
-                    double? temp = null;
-                    value = Unsafe.As<double?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(sbyte?))
-                {
-                    sbyte? temp = null;
-                    value = Unsafe.As<sbyte?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(byte?))
-                {
-                    byte? temp = null;
-                    value = Unsafe.As<byte?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(short?))
-                {
-                    short? temp = null;
-                    value = Unsafe.As<short?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(ushort?))
-                {
-                    ushort? temp = null;
-                    value = Unsafe.As<ushort?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(int?))
-                {
-                    int? temp = null;
-                    value = Unsafe.As<int?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(uint?))
-                {
-                    uint? temp = null;
-                    value = Unsafe.As<uint?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(long?))
-                {
-                    long? temp = null;
-                    value = Unsafe.As<long?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(ulong?))
-                {
-                    ulong? temp = null;
-                    value = Unsafe.As<ulong?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(Int128?))
-                {
-                    Int128? temp = null;
-                    value = Unsafe.As<Int128?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(UInt128?))
-                {
-                    UInt128? temp = null;
-                    value = Unsafe.As<UInt128?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(bool?))
-                {
-                    bool? temp = null;
-                    value = Unsafe.As<bool?, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(string))
-                {
-                    string? temp = null;
-                    value = Unsafe.As<string?, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.String:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(string))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    using var luauString = new LuauString(_state, newHandle);
-                    string temp = luauString.ToString();
-                    value = Unsafe.As<string, T>(ref temp)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(LuauString))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauString(_state, newHandle);
-                    value = Unsafe.As<LuauString, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.Number:
-                return TryGetNumber(_union.ValueDouble, out value);
+                return LuauReader.TryRead(ReadSource.Nil, out value, out failure);
             case LuauValueType.Boolean:
-                if (typeof(T) == typeof(bool))
-                {
-                    bool temp = _union.ValueBool;
-                    value = Unsafe.As<bool, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.Table:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(LuauTable))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauTable(_state, newHandle);
-                    value = Unsafe.As<LuauTable, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.Function:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(LuauFunction))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauFunction(_state, newHandle);
-                    value = Unsafe.As<LuauFunction, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.Thread:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(LuauCoroutine))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauCoroutine(_state, newHandle);
-                    value = Unsafe.As<LuauCoroutine, T>(ref temp);
-                    return value is not null;
-                }
-                return false;
-            case LuauValueType.Userdata:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(LuauUserdata))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauUserdata(_state, newHandle);
-                    value = Unsafe.As<LuauUserdata, T>(ref temp)!;
-                    return true;
-                }
-                return false;
-            case LuauValueType.Buffer:
-                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
-                    return false;
-                if (typeof(T) == typeof(byte[]))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    using var temp = new LuauBuffer(_state, newHandle);
-                    if (!temp.TryGet(out byte[]? bytes))
-                        return false;
-
-                    value = Unsafe.As<byte[], T>(ref bytes)!;
-                    return true;
-                }
-                if (typeof(T) == typeof(LuauBuffer))
-                {
-                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
-                    var temp = new LuauBuffer(_state, newHandle);
-                    value = Unsafe.As<LuauBuffer, T>(ref temp)!;
-                    return true;
-                }
-                return false;
+                return LuauReader.TryRead(ReadSource.FromBoolean(_state, _union.ValueBool), out value, out failure);
+            case LuauValueType.Number:
+                return LuauReader.TryRead(ReadSource.FromNumber(_state, _union.ValueDouble), out value, out failure);
             default:
-                return false;
+                RegistryReferenceTracker.TrackedReference reference = _state.GetTrackedReferenceOrThrow(
+                    _union.ValueHandle
+                );
+                // A value type reads a reference as an owned reference only, which shares the handle and needs
+                // nothing on the stack.
+                if (typeof(T).IsValueType)
+                {
+                    return LuauReader.TryRead(
+                        ReadSource.FromTracked(_state, GetLuaType(Type), _union.ValueHandle),
+                        out value,
+                        out failure
+                    );
+                }
+
+                using (reference.PushToTop())
+                {
+                    return LuauReader.TryRead(
+                        ReadSource.FromStack(_state, _state.L, -1, GetLuaType(Type), _union.ValueHandle),
+                        out value,
+                        out failure
+                    );
+                }
         }
     }
+
+    private static lua_Type GetLuaType(LuauValueType type) =>
+        type switch
+        {
+            LuauValueType.String => lua_Type.LUA_TSTRING,
+            LuauValueType.Table => lua_Type.LUA_TTABLE,
+            LuauValueType.Function => lua_Type.LUA_TFUNCTION,
+            LuauValueType.Thread => lua_Type.LUA_TTHREAD,
+            LuauValueType.Userdata => lua_Type.LUA_TUSERDATA,
+            LuauValueType.Buffer => lua_Type.LUA_TBUFFER,
+            _ => throw new InvalidOperationException($"Unsupported Luau value type: {type}."),
+        };
 
     /// <summary> Push a single value on the stack </summary>
     /// <param name="L"> The lua state </param>
@@ -413,100 +271,67 @@ public readonly struct LuauValue : IDisposable
         }
     }
 
-    /// <summary> Converts a number to <typeparamref name="T"/> when that is a numeric type that can hold it. </summary>
-    private static bool TryGetNumber<T>(double number, [NotNullWhen(true)] out T? value)
-    {
-        if (typeof(T) == typeof(double))
-            return TryGetNumber<double, T>(number, out value);
-        if (typeof(T) == typeof(int))
-            return TryGetNumber<int, T>(number, out value);
-        if (typeof(T) == typeof(float))
-            return TryGetNumber<float, T>(number, out value);
-        if (typeof(T) == typeof(long))
-            return TryGetNumber<long, T>(number, out value);
-        if (typeof(T) == typeof(uint))
-            return TryGetNumber<uint, T>(number, out value);
-        if (typeof(T) == typeof(ulong))
-            return TryGetNumber<ulong, T>(number, out value);
-        if (typeof(T) == typeof(short))
-            return TryGetNumber<short, T>(number, out value);
-        if (typeof(T) == typeof(ushort))
-            return TryGetNumber<ushort, T>(number, out value);
-        if (typeof(T) == typeof(byte))
-            return TryGetNumber<byte, T>(number, out value);
-        if (typeof(T) == typeof(sbyte))
-            return TryGetNumber<sbyte, T>(number, out value);
-        if (typeof(T) == typeof(decimal))
-            return TryGetNumber<decimal, T>(number, out value);
-        if (typeof(T) == typeof(Half))
-            return TryGetNumber<Half, T>(number, out value);
-        if (typeof(T) == typeof(Int128))
-            return TryGetNumber<Int128, T>(number, out value);
-        if (typeof(T) == typeof(UInt128))
-            return TryGetNumber<UInt128, T>(number, out value);
-
-        value = default;
-        return false;
-    }
-
-    private static bool TryGetNumber<TNumber, T>(double number, [NotNullWhen(true)] out T? value)
-        where TNumber : struct, INumber<TNumber>
-    {
-        if (LuauNumber.TryConvert(number, out TNumber converted))
-        {
-            value = Unsafe.As<TNumber, T>(ref converted)!;
-            return true;
-        }
-
-        value = default;
-        return false;
-    }
-
     internal static unsafe LuauValue ToValue(LuauState state, int index = -1)
     {
         return ToValue(state, state.L, index);
     }
 
+    /// <summary> Gets the value at <paramref name="index"/>, with a reference of its own when it is reference-backed. </summary>
+    /// <exception cref="NotSupportedException">Thrown for a value that has no managed form, such as a vector.</exception>
     internal static unsafe LuauValue ToValue(LuauState state, lua_State* L, int index = -1)
     {
         if (!state.OwnsThread(L))
             throw new InvalidOperationException("Cross-state value access is not allowed.");
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var type = (lua_Type)lua_type(L, index);
-        switch (type)
+        return TryRead(ReadSource.FromStack(state, L, index), out LuauValue value, out ReadFailure failure)
+            ? value
+            : throw failure.ToException("value");
+    }
+
+    /// <summary> Reads <paramref name="source"/> as a value, with a reference of its own when it is reference-backed. </summary>
+    internal static bool TryRead(in ReadSource source, out LuauValue value, out ReadFailure failure)
+    {
+        failure = default;
+        if (source.IsNil)
         {
-            case lua_Type.LUA_TNIL:
-                return default;
+            value = default;
+            return true;
+        }
+
+        switch (source.Type)
+        {
             case lua_Type.LUA_TBOOLEAN:
-                bool valueBool = lua_toboolean(L, index) == 1;
-                return new LuauValue(state, LuauValueType.Boolean, new LuauValueUnion(valueBool));
+                value = new LuauValue(source.State, LuauValueType.Boolean, new LuauValueUnion(source.Boolean));
+                return true;
             case lua_Type.LUA_TNUMBER:
-                double valueNumber = lua_tonumber(L, index);
-                return new LuauValue(state, LuauValueType.Number, new LuauValueUnion(valueNumber));
+                value = new LuauValue(source.State, LuauValueType.Number, new LuauValueUnion(source.Number));
+                return true;
             case lua_Type.LUA_TSTRING:
-                ulong referenceString = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.String, new LuauValueUnion(referenceString));
+                value = Own(source, LuauValueType.String);
+                return true;
             case lua_Type.LUA_TTABLE:
-                ulong referenceTable = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceTable));
+                value = Own(source, LuauValueType.Table);
+                return true;
             case lua_Type.LUA_TFUNCTION:
-                ulong referenceFunction = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
+                value = Own(source, LuauValueType.Function);
+                return true;
             case lua_Type.LUA_TTHREAD:
-                ulong referenceThread = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.Thread, new LuauValueUnion(referenceThread));
+                value = Own(source, LuauValueType.Thread);
+                return true;
             case lua_Type.LUA_TUSERDATA:
-                ulong referenceUserdata = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.Userdata, new LuauValueUnion(referenceUserdata));
+                value = Own(source, LuauValueType.Userdata);
+                return true;
             case lua_Type.LUA_TBUFFER:
-                ulong referenceBuffer = state.ReferenceTracker.TrackRef(L, index);
-                return new LuauValue(state, LuauValueType.Buffer, new LuauValueUnion(referenceBuffer));
+                value = Own(source, LuauValueType.Buffer);
+                return true;
             default:
-                throw new NotSupportedException($"The lua type {type} is not supported!");
+                value = default;
+                failure = new ReadFailure($"The lua type {source.Type} is not supported!", IsNotSupported: true);
+                return false;
         }
     }
+
+    private static LuauValue Own(in ReadSource source, LuauValueType type) =>
+        new(source.State, type, new LuauValueUnion(LuauReader.Own(source)));
 
     /// <summary>
     /// Releases an owned registry reference when this value represents a reference-backed Lua type.

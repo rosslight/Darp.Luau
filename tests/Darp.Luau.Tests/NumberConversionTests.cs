@@ -154,7 +154,7 @@ public sealed class NumberConversionTests : IDisposable
     [Fact]
     public void TypedResult_ThatDoesNotFit_ShouldThrow()
     {
-        Should.Throw<InvalidCastException>(() => _state.Load("return 1.5").Execute<int>());
+        Should.Throw<LuaGetException>(() => _state.Load("return 1.5").Execute<int>());
 
         _state.Load("return 2").Execute<int>().ShouldBe(2);
     }

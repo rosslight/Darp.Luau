@@ -22,7 +22,7 @@ public static class LuauTableExtensions
 
         using (luauValue)
         {
-            return luauValue.TryGet(out value, acceptNil: false);
+            return luauValue.TryGet<TValue>(out value);
         }
     }
 
@@ -37,33 +37,11 @@ public static class LuauTableExtensions
         {
             using (value)
             {
-                if (value.TryGet(out T? v))
+                if (value.TryGet<T>(out var v))
                     yield return new KeyValuePair<int, T>(i, v);
                 else
                     break;
             }
         }
     }
-
-    /// <summary>
-    /// Reinterprets the <see cref="LuauValue"/> as <typeparamref name="T"/> or returns null if different type
-    /// </summary>
-    /// <param name="value"> The value to cast </param>
-    /// <typeparam name="T"> The type to cast to </typeparam>
-    /// <returns> The value as the requested type or null </returns>
-    public static T? As<T>(this in LuauValue value)
-        where T : struct => value.Type is not LuauValueType.Nil && value.TryGet(out T v) ? v : null;
-}
-
-/// <summary> Additional table extensions. Necessary to have constraints both on class and struct types </summary>
-public static class LuauTableClassExtensions
-{
-    /// <summary>
-    /// Reinterprets the <see cref="LuauValue"/> as <typeparamref name="T"/> or returns null if different type
-    /// </summary>
-    /// <param name="value"> The value to cast </param>
-    /// <typeparam name="T"> The type to cast to </typeparam>
-    /// <returns> The value as the requested type or null </returns>
-    public static T? As<T>(this in LuauValue value)
-        where T : class => value.Type is not LuauValueType.Nil && value.TryGet(out T? v) ? v : null;
 }

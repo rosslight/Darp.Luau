@@ -34,7 +34,7 @@ public readonly struct LuauUserdata : ILuauReference
     [Obsolete("Do not initialize the LuauUserdata. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
-    internal LuauUserdata(LuauState state, ulong handle)
+    internal LuauUserdata(LuauState? state, ulong handle)
     {
         _state = state;
         _handle = handle;

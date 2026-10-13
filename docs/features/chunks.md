@@ -69,7 +69,7 @@ Typed chunk returns follow the same conversion rules as other typed APIs.
 
 - If the chunk returns more values than requested, extra values are ignored.
 - If the chunk returns fewer values than requested, missing values are read as `nil` and may fail conversion.
-- If a return value cannot be converted to the requested managed type, the call throws `InvalidCastException`.
+- If a return value cannot be converted to the requested managed type, the call throws `LuaGetException`, whose message names the result, what was expected and what was found.
 
 ## Read all returns dynamically
 
@@ -82,9 +82,9 @@ using LuauValue numberValue = values[0];
 using LuauValue textValue = values[1];
 using LuauValue flagValue = values[2];
 
-numberValue.TryGet(out int number, acceptNil: false);
-textValue.TryGet(out string? text, acceptNil: false);
-flagValue.TryGet(out bool flag, acceptNil: false);
+int number = numberValue.Get<int>();
+string text = textValue.Get<string>();
+bool flag = flagValue.Get<bool>();
 ```
 
 Each `LuauValue` may own a registry reference. Dispose returned values when they may be reference-backed. See [Lifetimes and ownership](../concepts/lifetimes.md).

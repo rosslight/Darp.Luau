@@ -26,7 +26,7 @@ public readonly struct LuauBuffer : ILuauReference
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() { }
 
-    internal LuauBuffer(LuauState state, ulong handle)
+    internal LuauBuffer(LuauState? state, ulong handle)
     {
         _state = state;
         _handle = handle;

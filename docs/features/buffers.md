@@ -30,7 +30,7 @@ byte[] payload = [0x01, 0x02, 0x03];
 lua.Globals.Set("payload", payload);
 
 using LuauFunction send = lua.Globals.GetLuauFunction("send");
-send.Invoke<LuauNil>(payload);
+send.Invoke(payload);
 ```
 
 Create `LuauBuffer` only when you want to keep or reuse the same Luau buffer value:

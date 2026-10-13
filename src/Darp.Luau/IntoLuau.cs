@@ -115,19 +115,13 @@ public readonly ref struct IntoLuau
                 {
                     Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
                     int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
-                    fixed (byte* pStr = buffer[..numberOfBytes])
-                    {
-                        lua_pushlstring(L, pStr, (nuint)numberOfBytes);
-                    }
+                    LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 else
                 {
                     Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
                     int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
-                    fixed (byte* pStr = buffer[..numberOfBytes])
-                    {
-                        lua_pushlstring(L, pStr, (nuint)numberOfBytes);
-                    }
+                    LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 break;
             case Kind.Buffer:
@@ -244,9 +238,7 @@ public readonly ref struct IntoLuau
             case Kind.Unsigned:
                 return IntoLuauCopied.FromNumber((uint)_integer);
             case Kind.Value:
-                if (!_luauValue.TryGet(out LuauValue copiedValue))
-                    throw new InvalidOperationException("Could not capture LuauValue for deferred return.");
-                return IntoLuauCopied.FromValue(copiedValue);
+                return IntoLuauCopied.FromValue(_luauValue.Get<LuauValue>());
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 return IntoLuauCopied.FromUserdataFactory(_factory);
@@ -275,11 +267,10 @@ public readonly ref struct IntoLuau
     public static implicit operator IntoLuau(string? value) =>
         value is null ? default : new IntoLuau(valueChars: value);
 
-    /// <summary> Converts to a string or nil </summary>
-    /// <param name="value"> The string value </param>
+    /// <summary> Converts to a string </summary>
+    /// <param name="value"> The string value. An empty span is an empty string, not nil. </param>
     /// <returns> A temporary representation of the value </returns>
-    public static implicit operator IntoLuau(ReadOnlySpan<char> value) =>
-        value.IsEmpty ? default : new IntoLuau(valueChars: value);
+    public static implicit operator IntoLuau(ReadOnlySpan<char> value) => new(valueChars: value);
 
     /// <summary> Converts to a boolean </summary>
     /// <param name="value"> The boolean value </param>
@@ -363,10 +354,10 @@ public readonly ref struct IntoLuau
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(LuauValue value) => new(value);
 
-    /// <summary> Converts to a buffer </summary>
+    /// <summary> Converts to a buffer or nil </summary>
     /// <param name="value"> The byte array </param>
     /// <returns> A temporary representation of the value </returns>
-    public static implicit operator IntoLuau(byte[] value) => new(value);
+    public static implicit operator IntoLuau(byte[]? value) => value is null ? default : new IntoLuau(value);
 
     /// <summary> Converts to a userdata </summary>
     /// <param name="userdata"> The userdata </param>
