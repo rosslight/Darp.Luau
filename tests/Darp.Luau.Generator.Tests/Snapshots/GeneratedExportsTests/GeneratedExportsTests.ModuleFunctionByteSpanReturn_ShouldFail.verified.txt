@@ -8,12 +8,12 @@
     public static ReadOnlySpan<byte> Bytes() => "abc"u8;
 */
  : (6,5)-(6,24),
-      Message: Generated module function 'Bytes' uses an unsupported parameter or return shape: return value has unsupported type 'global::System.ReadOnlySpan<byte>',
+      Message: Type 'System.ReadOnlySpan<byte>' used for the return value is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

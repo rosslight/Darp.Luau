@@ -8,7 +8,7 @@
     }
 */
  : (9,53)-(9,57),
-      Message: Type 'global::System.Threading.Tasks.Task<int>' used for the result of an async callback (the task must not be nullable) is not supported for Luau parameter/return marshalling,
+      Message: Type 'System.Threading.Tasks.Task<int>?' used for the result of an async callback (the task must not be nullable) is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0002,

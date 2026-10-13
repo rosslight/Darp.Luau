@@ -8,12 +8,12 @@
     public static int Length(ReadOnlySpan<char> text = default) => text.Length;
 */
  : (6,5)-(6,25),
-      Message: Generated module function 'Length' uses an unsupported parameter or return shape: parameter 'text' has a default value that its type cannot have,
+      Message: Type 'System.ReadOnlySpan<char>' used for parameter 'text', which has a default value that its type cannot have is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -27,12 +27,12 @@
     public static int Count(LuauTableView table = default) => 0;
 */
  : (9,5)-(9,24),
-      Message: Generated module function 'Count' uses an unsupported parameter or return shape: parameter 'table' has a default value that its type cannot have,
+      Message: Type 'Darp.Luau.LuauTableView' used for parameter 'table', which has a default value that its type cannot have is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -46,12 +46,12 @@
     public static int Sum(params int[] values) => values.Length;
 */
  : (12,5)-(12,22),
-      Message: Generated module function 'Sum' uses an unsupported parameter or return shape: parameter 'values' uses params,
+      Message: Type 'int[]' used for parameter 'values', which uses params is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

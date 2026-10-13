@@ -50,8 +50,7 @@ internal static class InteropTypeMapper
         mapping = new InteropType(
             LuauInteropKind.ManagedUserdata,
             type.NullableAnnotation is NullableAnnotation.Annotated,
-            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            IsGeneratedUserdata: true
+            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
         );
         return true;
     }
@@ -76,7 +75,16 @@ internal static class InteropTypeMapper
         return namedType.Name == "Task" ? AwaitableReturnKind.Task : AwaitableReturnKind.ValueTask;
     }
 
-    public static bool TryMapType(ITypeSymbol type, out InteropType mapping)
+    /// <summary> Maps a type that a callback takes or returns, or that a property has. </summary>
+    public static bool TryMapType(ITypeSymbol type, LuauApiSymbols apiSymbols, out InteropType mapping)
+    {
+        if (!TryMapType(type, out mapping) && !TryMapGeneratedUserdataType(type, apiSymbols, out mapping))
+            return false;
+
+        return !mapping.IsNullable || SupportsNullableValue(mapping.Type);
+    }
+
+    private static bool TryMapType(ITypeSymbol type, out InteropType mapping)
     {
         bool isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
         if (
@@ -224,31 +232,13 @@ internal static class InteropTypeMapper
                 or LuauInteropKind.ManagedUserdata;
     }
 
-    public static bool SupportsUsage(InteropType mapping, LuauInteropTypeUsage usage)
-    {
-        if (mapping.Type is LuauInteropKind.CancellationToken)
-        {
-            return usage
-                is LuauInteropTypeUsage.CreateFunctionParameter
-                    or LuauInteropTypeUsage.ModuleFunctionParameter
-                    or LuauInteropTypeUsage.UserdataMethodParameter;
-        }
+    /// <summary> Whether a callback can return a value of this type. </summary>
+    /// <remarks> A span of bytes has no conversion to a Luau value, and a cancellation token is none. </remarks>
+    public static bool CanBeReturned(LuauInteropKind type) =>
+        type is not (LuauInteropKind.String or LuauInteropKind.CancellationToken);
 
-        return usage switch
-        {
-            LuauInteropTypeUsage.ModuleFunctionReturn or LuauInteropTypeUsage.UserdataMethodReturn =>
-                SupportsReturnType(mapping.Type),
-            LuauInteropTypeUsage.ModuleProperty
-            or LuauInteropTypeUsage.UserdataPropertyGet
-            or LuauInteropTypeUsage.UserdataPropertySet
-            or LuauInteropTypeUsage.TypeFile => SupportsStoredPropertyType(mapping.Type),
-            _ => true,
-        };
-    }
-
-    private static bool SupportsReturnType(LuauInteropKind type) => type is not LuauInteropKind.String;
-
-    private static bool SupportsStoredPropertyType(LuauInteropKind type)
+    /// <summary> Whether a property of a host module or of a userdata type can have this type. </summary>
+    public static bool CanBeProperty(LuauInteropKind type)
     {
         return type
             is LuauInteropKind.Boolean

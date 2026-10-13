@@ -65,12 +65,50 @@
     public Task<int>? Load() => null;
 */
  : (21,5)-(21,23),
-      Message: Generated userdata method 'Load' uses an unsupported parameter or return shape: a nullable task cannot be awaited; return a task that is never null,
+      Message: Type 'System.Threading.Tasks.Task<int>?' used for the result of an async callback (the task must not be nullable) is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("reset")]
+     ^^^^^^^^^^^^^^^^^^^
+    public void Reset<T>() { }
+*/
+ : (24,5)-(24,24),
+      Message: Invalid generated export shape: method 'Reset' is generic, and a script has no type to call it with,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("stats")]
+     ^^^^^^^^^^^^^^^^^^^
+    public (int, int, int, int, int) Stats() => default;
+*/
+ : (27,5)-(27,24),
+      Message: Return tuple type '(int, int, int, int, int)' is not supported: only up to 4 tuple return values are supported,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0005,
+        Title: Unsupported tuple return shape,
+        MessageFormat: Return tuple type '{0}' is not supported: {1},
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

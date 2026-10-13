@@ -483,6 +483,7 @@ public class InterceptorTests
                 {
                     state.CreateFunction((object p1) => {});
                     state.CreateFunction(() => new object());
+                    state.CreateFunction(() => (Count: 1, Tag: new object()));
                 }
             }
             """;
@@ -721,6 +722,27 @@ public class InterceptorTests
                     state.CreateFunction<Counter>(() => ref _hits);
                     state.CreateFunction(ref readonly int () => ref _hits);
                 }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    /// <summary> A span of bytes has no conversion to a Luau value, for a callback as for a module function. </summary>
+    [Fact]
+    public async Task ByteSpanReturn_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(Bytes);
+                }
+
+                private static ReadOnlySpan<byte> Bytes() => "abc"u8;
             }
             """;
         await VerifyHelper.VerifyGeneratorWithErrors(code);

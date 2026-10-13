@@ -94,15 +94,6 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true
     );
 
-    public static readonly DiagnosticDescriptor UnsupportedGeneratedFunctionShapeDescriptor = new(
-        id: "DLUAU1006",
-        title: "Unsupported generated function shape",
-        messageFormat: "Generated {0} '{1}' uses an unsupported parameter or return shape: {2}",
-        category: "Darp.Luau.Generator",
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true
-    );
-
     public static readonly DiagnosticDescriptor LuauExportPathConflictDescriptor = new(
         id: "DLUAU1007",
         title: "Luau export path conflict",

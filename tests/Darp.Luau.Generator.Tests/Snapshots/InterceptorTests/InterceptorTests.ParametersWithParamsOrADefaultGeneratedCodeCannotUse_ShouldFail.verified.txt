@@ -27,7 +27,7 @@
         state.CreateFunction<Length>(text => text.Length);
 */
  : (14,36)-(14,42),
-      Message: Type 'global::System.ReadOnlySpan<byte>' used for parameter 'values', which uses params is not supported for Luau parameter/return marshalling,
+      Message: Type 'System.ReadOnlySpan<byte>' used for parameter 'values', which uses params is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0002,
@@ -46,7 +46,7 @@
     }
 */
  : (15,37)-(15,41),
-      Message: Type 'global::System.ReadOnlySpan<char>' used for parameter 'text', which has a default value that its type cannot have is not supported for Luau parameter/return marshalling,
+      Message: Type 'System.ReadOnlySpan<char>' used for parameter 'text', which has a default value that its type cannot have is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0002,

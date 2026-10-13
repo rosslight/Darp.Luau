@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction(Bytes);
+                             ^^^^^
+    }
+*/
+ : (7,29)-(7,34),
+      Message: Type 'System.ReadOnlySpan<byte>' used for the return value is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

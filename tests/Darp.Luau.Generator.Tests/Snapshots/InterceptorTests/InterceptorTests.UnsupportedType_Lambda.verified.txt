@@ -1,4 +1,4 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
@@ -24,10 +24,29 @@
         state.CreateFunction((object p1) => {});
         state.CreateFunction(() => new object());
                                    ^^^^^^^^^^^^
-    }
+        state.CreateFunction(() => (Count: 1, Tag: new object()));
 */
  : (8,35)-(8,47),
       Message: Type 'object' used for the return value is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction(() => new object());
+        state.CreateFunction(() => (Count: 1, Tag: new object()));
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    }
+*/
+ : (9,35)-(9,64),
+      Message: Type 'object' used for return tuple element 'Tag' is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
         Id: DLUAU0002,

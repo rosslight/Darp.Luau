@@ -65,7 +65,7 @@ public sealed class CreateFunctionUsageAnalyzer : DiagnosticAnalyzer
         if (!apiSymbols.IsCreateFunctionMethod(operation.TargetMethod))
             return;
 
-        CreateFunctionAnalysisResult analysis = CreateFunctionSignatureAnalyzer.Analyze(operation);
+        CreateFunctionAnalysisResult analysis = CreateFunctionSignatureAnalyzer.Analyze(operation, apiSymbols);
         foreach (Diagnostic diagnostic in analysis.Diagnostics)
             context.ReportDiagnostic(diagnostic);
     }

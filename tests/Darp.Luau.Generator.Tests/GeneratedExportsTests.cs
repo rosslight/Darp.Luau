@@ -331,6 +331,12 @@ public class GeneratedExportsTests
 
                 [LuauMember("load")]
                 public Task<int>? Load() => null;
+
+                [LuauMember("reset")]
+                public void Reset<T>() { }
+
+                [LuauMember("stats")]
+                public (int, int, int, int, int) Stats() => default;
             }
             """;
 

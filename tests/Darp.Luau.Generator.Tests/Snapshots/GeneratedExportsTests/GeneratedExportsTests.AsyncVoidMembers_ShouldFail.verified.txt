@@ -8,12 +8,12 @@
     public async void Save() => await Task.Yield();
 */
  : (6,5)-(6,23),
-      Message: Generated userdata method 'Save' uses an unsupported parameter or return shape: async void methods are not supported; return Task or ValueTask so the script can wait for the work,
+      Message: Type 'void' used for the result of an async callback (return Task or ValueTask so the script can wait for the work) is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -27,12 +27,12 @@
     public static async void Tick() => await Task.Yield();
 */
  : (13,5)-(13,23),
-      Message: Generated module function 'Tick' uses an unsupported parameter or return shape: async void methods are not supported; return Task or ValueTask so the script can wait for the work,
+      Message: Type 'void' used for the result of an async callback (return Task or ValueTask so the script can wait for the work) is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

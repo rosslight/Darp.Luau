@@ -94,26 +94,13 @@ internal static class MetamethodAnalyzer
             return null;
         }
 
-        if (
-            !ExportAnalyzer.TryMapMethodSignature(
-                method,
-                LuauExportedTypeKind.Userdata,
-                context,
-                location,
-                diagnostics,
-                out ImmutableEquatableArray<InteropParameter> parameters,
-                out ImmutableEquatableArray<InteropType> returns,
-                out AwaitableReturnKind awaitable
-            )
-        )
-        {
+        if (!ExportAnalyzer.TryReadSignature(method, context, location, diagnostics, out InteropSignature read))
             return null;
-        }
 
-        for (int i = 0; i < parameters.Length; i++)
+        for (int i = 0; i < read.Parameters.Length; i++)
         {
             // Luau passes the operands it has, and the overloads are told apart by them.
-            if (parameters[i] is { Default: not null, Type.Type: not LuauInteropKind.CancellationToken })
+            if (read.Parameters[i] is { Default: not null, Type.Type: not LuauInteropKind.CancellationToken })
             {
                 Report(
                     diagnostics,
@@ -134,10 +121,10 @@ internal static class MetamethodAnalyzer
             operands.Add(new InteropParameter(self with { IsNullable = false }));
             operandTypes.Add(discoveredType.Symbol);
         }
-        operands.AddRange(parameters);
+        operands.AddRange(read.Parameters);
         operandTypes.AddRange(method.Parameters.Select(static x => x.Type));
 
-        var signature = new InteropSignature(operands.ToImmutableEquatableArray(), returns, awaitable);
+        InteropSignature signature = read with { Parameters = operands.ToImmutableEquatableArray() };
         string ownTypeName = discoveredType.Symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string? shapeError = GetShapeError(metamethod, signature, ownTypeName);
         if (shapeError is not null)
