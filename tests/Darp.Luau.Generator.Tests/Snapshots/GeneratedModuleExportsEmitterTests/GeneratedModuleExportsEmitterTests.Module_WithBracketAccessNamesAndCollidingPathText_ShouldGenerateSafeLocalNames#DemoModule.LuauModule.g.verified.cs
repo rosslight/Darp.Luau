@@ -13,8 +13,6 @@ public static partial class DemoModule
         using global::Darp.Luau.LuauTable __var0 = state.CreateTable();
         using global::Darp.Luau.LuauFunction __var1 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = global::DemoModule.One();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
@@ -24,8 +22,6 @@ public static partial class DemoModule
         using global::Darp.Luau.LuauTable __var2 = state.CreateTable();
         using global::Darp.Luau.LuauFunction __var3 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = global::DemoModule.Two();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
@@ -34,8 +30,6 @@ public static partial class DemoModule
         
         using global::Darp.Luau.LuauFunction __var4 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = global::DemoModule.FooBar();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
@@ -43,8 +37,6 @@ public static partial class DemoModule
         using global::Darp.Luau.LuauTable __var5 = state.CreateTable();
         using global::Darp.Luau.LuauFunction __var6 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = global::DemoModule.CreateItem();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

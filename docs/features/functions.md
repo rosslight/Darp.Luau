@@ -99,10 +99,8 @@ Use `CreateFunctionManual(...)` when you want to parse callback arguments yourse
 ```csharp
 using LuauFunction pair = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryValidateArgumentCount(2, out string? error))
-        return LuauReturn.Error(error);
-    if (!args.TryReadNumber(1, out int a, out error) || !args.TryReadNumber(2, out int b, out error))
-        return LuauReturn.Error(error);
+    int a = args[1].Get<int>();
+    int b = args[2].Get<int>();
     if (a <= b)
         return LuauReturn.Error("Expected a to be greater than b");
 
@@ -112,19 +110,30 @@ using LuauFunction pair = lua.CreateFunctionManual(static args =>
 lua.Globals.Set("pair", pair);
 ```
 
-`TryValidateArgumentCount(...)` checks minimum arity, not exact arity. If your callback requires an exact argument count, compare `args.ArgumentCount` yourself as well.
+`args[1]` is the first argument, a `LuauValueView`: a borrowed view of a value whose type you have not read yet.
+
+| Read | An argument that is `nil` or was not passed | Another type |
+| --- | --- | --- |
+| `args[1].Get<int>()` | Luau error | Luau error |
+| `args[1].Get<int?>()` | `null` | Luau error |
+| `args[1].GetOrNull<string>()` | `null` | Luau error |
+| `args[1].TryGet(out int value)` | `false` | `false` |
+| `args[1].TryGetOrNull(out string? value)` | `true` with `null` | `false` |
+
+A read that fails throws `LuaGetException`. You do not catch it: the script gets its message as a Luau error, such as `invalid argument #2 (number expected, got string)` or `missing argument #2 (number expected)`. Use `TryGet` when an argument may have more than one type, and `args[1].Type` to look at its type without reading it.
+
+A callback is not told when a script passes more arguments than it reads. `args.Count` is the number that was passed.
 
 ## Borrowed callback values
 
-`LuauArgs` can return borrowed callback-scoped views such as `LuauFunctionView`, `LuauTableView`, `LuauStringView`, `LuauBufferView`, and `LuauUserdataView`.
+An argument can be read as a borrowed callback-scoped view such as `LuauFunctionView`, `LuauTableView`, `LuauStringView`, `LuauBufferView`, and `LuauUserdataView`.
 
 Use them immediately, or promote them to owned references before the callback returns:
 
 ```csharp
 using LuauFunction invokeCallback = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryReadLuauFunction(1, out LuauFunctionView callback, out string? error))
-        return LuauReturn.Error(error);
+    LuauFunctionView callback = args[1].Get<LuauFunctionView>();
 
     using LuauFunction owned = callback.ToOwned();
     owned.Invoke();
@@ -157,9 +166,8 @@ A callback built with `CreateFunctionManual(...)` asks for an awaiter before it 
 ```csharp
 using LuauFunction delay = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryReadNumber(1, out int milliseconds, out string? error))
-        return LuauReturn.Error(error);
-    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+    int milliseconds = args[1].Get<int>();
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
         return LuauReturn.Error(error);
     return awaiter.Await(new ValueTask(Task.Delay(milliseconds, args.CancellationToken)));
 });
@@ -174,7 +182,8 @@ Scripts that call such a callback must run through `ExecuteAsync(...)`, `InvokeA
 
 Callback failures become normal Luau errors:
 
-- argument conversion failures become Luau errors,
+- an argument that cannot be read becomes a Luau error that names the argument, what was expected and what was passed,
+- a nullable parameter of a `CreateFunction(...)` delegate may be omitted by the script and is then `null`,
 - `LuauReturn.Error(...)` produces a Luau error with your message,
 - thrown exceptions are caught and surfaced as managed callback failures,
 - `pcall(...)` can catch those errors on the Luau side.

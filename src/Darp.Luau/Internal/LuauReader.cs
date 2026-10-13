@@ -18,7 +18,15 @@ internal readonly unsafe ref struct ReadSource
 {
     private readonly double _number;
 
-    private ReadSource(LuauState? state, lua_State* L, int index, lua_Type type, ulong trackedHandle, double number)
+    private ReadSource(
+        LuauState? state,
+        lua_State* L,
+        int index,
+        lua_Type type,
+        ulong trackedHandle,
+        double number,
+        bool isMissing = false
+    )
     {
         State = state;
         this.L = L;
@@ -26,6 +34,7 @@ internal readonly unsafe ref struct ReadSource
         Type = type;
         TrackedHandle = trackedHandle;
         _number = number;
+        IsMissing = isMissing;
     }
 
     /// <summary> The state the value belongs to. A number, a boolean or nil may have none. </summary>
@@ -43,11 +52,27 @@ internal readonly unsafe ref struct ReadSource
 
     public bool IsNil => Type is lua_Type.LUA_TNIL;
 
+    /// <summary> Whether the value was not passed at all, like an omitted argument. It is nil. </summary>
+    public bool IsMissing { get; }
+
+    /// <summary> Whether the read only asks if the value has a type, like <c>TryGet</c> does. </summary>
+    /// <remarks>
+    /// Such a read fails often and nobody looks at why. Its failure therefore does not name the type that was
+    /// found: the name of a userdata type has to be fetched from Luau and decoded.
+    /// </remarks>
+    public bool IsProbe { get; private init; }
+
+    /// <summary> The same value, read to find out whether it has a type. See <see cref="IsProbe"/>. </summary>
+    public ReadSource AsProbe() => this with { IsProbe = true };
+
     public double Number => L is null ? _number : lua_tonumber(L, Index);
 
     public bool Boolean => L is null ? _number != 0 : lua_toboolean(L, Index) != 0;
 
     public static ReadSource Nil => new(null, null, 0, lua_Type.LUA_TNIL, 0, 0);
+
+    /// <summary> A value that was not passed. It is never looked up on a stack: a temporary may be where it would be. </summary>
+    public static ReadSource Missing => new(null, null, 0, lua_Type.LUA_TNIL, 0, 0, isMissing: true);
 
     public static ReadSource FromStack(LuauState state, lua_State* L, int index) =>
         new(state, L, index, (lua_Type)lua_type(L, index), 0, 0);
@@ -77,12 +102,71 @@ internal readonly unsafe ref struct ReadSource
 }
 
 /// <summary> Why a value could not be read. </summary>
-/// <param name="Reason">What was expected and what was found, such as <c>number expected, got string</c>.</param>
-/// <param name="IsNotSupported">
-/// Whether the requested type or the value has no managed form at all. That is an error of the host, not of the value.
-/// </param>
-internal readonly record struct ReadFailure(string Reason, bool IsNotSupported)
+/// <remarks>
+/// A read that only asks whether a value has a type, like <c>TryGet</c>, fails often and never looks at the reason.
+/// The text is therefore built when it is asked for, and a failure allocates nothing.
+/// </remarks>
+internal readonly struct ReadFailure
 {
+    private enum Kind
+    {
+        Mismatch,
+        NumberDoesNotFit,
+        NotSupported,
+    }
+
+    private readonly Kind _kind;
+
+    // What was expected: the name of a Luau type, or a managed type whose name stands for it. The name of a managed
+    // type is only read for the text: under Native AOT every read of Type.Name allocates a string.
+    // For a read that is not supported: the whole message.
+    private readonly object _expected;
+
+    // The type that was found. Null for a value that was not passed.
+    private readonly string? _actual;
+    private readonly double _number;
+
+    private ReadFailure(Kind kind, object expected, string? actual = null, double number = 0)
+    {
+        _kind = kind;
+        _expected = expected;
+        _actual = actual;
+        _number = number;
+    }
+
+    /// <summary> The value has another type than was asked for. </summary>
+    /// <param name="expected">The name of the Luau type that was asked for.</param>
+    /// <param name="actual">The name of the type of the value, or null for a value that was not passed.</param>
+    public static ReadFailure Mismatch(string expected, string? actual) => new(Kind.Mismatch, expected, actual);
+
+    /// <summary> The value is not managed userdata of the type that was asked for. </summary>
+    /// <param name="expected">The managed type that was asked for.</param>
+    /// <param name="actual">The name of the type of the value, or null for a value that was not passed.</param>
+    public static ReadFailure Mismatch(Type expected, string? actual) => new(Kind.Mismatch, expected, actual);
+
+    /// <summary> The value is a number that <paramref name="numberType"/> cannot hold. </summary>
+    public static ReadFailure NumberDoesNotFit(Type numberType, double number) =>
+        new(Kind.NumberDoesNotFit, numberType, number: number);
+
+    /// <summary> The requested type, or the value, has no managed form at all. </summary>
+    public static ReadFailure NotSupported(string message) => new(Kind.NotSupported, message);
+
+    private string Expected => _expected as string ?? ((Type)_expected).Name;
+
+    /// <summary> Whether the read is not supported at all. That is an error of the host, not of the value. </summary>
+    public bool IsNotSupported => _kind is Kind.NotSupported;
+
+    /// <summary> What was expected and what was found, such as <c>number expected, got string</c>. </summary>
+    public string Reason =>
+        _kind switch
+        {
+            Kind.Mismatch when _actual is null => $"{Expected} expected",
+            Kind.Mismatch => $"{Expected} expected, got {_actual}",
+            Kind.NumberDoesNotFit =>
+                $"number that fits {Expected} expected, got {_number.ToString(CultureInfo.InvariantCulture)}",
+            _ => Expected,
+        };
+
     /// <summary> The exception a throwing read raises. </summary>
     /// <param name="what">What was read, such as <c>result #1</c>.</param>
     public Exception ToException(string what) =>
@@ -107,7 +191,11 @@ internal static unsafe class LuauReader
     /// Nil is only read by a <typeparamref name="T"/> that has a value for it: a nullable value type, or
     /// <see cref="LuauValue"/>.
     /// </remarks>
-    public static bool TryRead<T>(in ReadSource source, [MaybeNullWhen(false)] out T value, out ReadFailure failure)
+    public static bool TryRead<T>(
+        scoped in ReadSource source,
+        [MaybeNullWhen(false)] out T value,
+        out ReadFailure failure
+    )
         where T : allows ref struct
     {
         // The comparisons of a value type T are decided when the method is compiled for it: one branch remains.
@@ -197,6 +285,50 @@ internal static unsafe class LuauReader
                     : NilOrMismatch<LuauCoroutine, T>(source, "thread", out value, out failure);
             }
 
+            // A borrowed view or span is of the stack slot itself. Only a caller whose slot outlives the read asks for one.
+            if (typeof(T) == typeof(LuauTableView))
+            {
+                return source.Type is lua_Type.LUA_TTABLE
+                    ? Ok(new LuauTableView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "table", out value, out failure);
+            }
+            if (typeof(T) == typeof(LuauFunctionView))
+            {
+                return source.Type is lua_Type.LUA_TFUNCTION
+                    ? Ok(new LuauFunctionView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "function", out value, out failure);
+            }
+            if (typeof(T) == typeof(LuauStringView))
+            {
+                return source.Type is lua_Type.LUA_TSTRING
+                    ? Ok(new LuauStringView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "string", out value, out failure);
+            }
+            if (typeof(T) == typeof(LuauBufferView))
+            {
+                return source.Type is lua_Type.LUA_TBUFFER
+                    ? Ok(new LuauBufferView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "buffer", out value, out failure);
+            }
+            if (typeof(T) == typeof(LuauUserdataView))
+            {
+                return source.Type is lua_Type.LUA_TUSERDATA
+                    ? Ok(new LuauUserdataView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "userdata", out value, out failure);
+            }
+            if (typeof(T) == typeof(LuauCoroutineView))
+            {
+                return source.Type is lua_Type.LUA_TTHREAD
+                    ? Ok(new LuauCoroutineView(State(source), source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "thread", out value, out failure);
+            }
+            if (typeof(T) == typeof(ReadOnlySpan<byte>))
+            {
+                return source.Type is lua_Type.LUA_TSTRING
+                    ? Ok(StringBytes(source.L, source.Index), out value, out failure)
+                    : Mismatch(source, "string", out value, out failure);
+            }
+
             // An enum, or a nullable enum, reads the number its underlying type holds.
             return EnumInfo<T>.UnderlyingTypeCode switch
             {
@@ -257,30 +389,33 @@ internal static unsafe class LuauReader
     }
 
     /// <summary> The name of the type of <paramref name="source"/> as scripts see it: what <c>typeof</c> returns in Luau. </summary>
-    private static string TypeName(in ReadSource source)
-    {
-        // A value on no stack has the name of its Luau type. Only a stack slot can tell what typeof makes of a userdata.
-        if (source.L is null)
+    public static string TypeName(scoped in ReadSource source) =>
+        source.Type switch
         {
-            return source.Type switch
-            {
-                lua_Type.LUA_TNIL => "nil",
-                lua_Type.LUA_TNUMBER => "number",
-                lua_Type.LUA_TBOOLEAN => "boolean",
-                lua_Type.LUA_TSTRING => "string",
-                lua_Type.LUA_TTABLE => "table",
-                lua_Type.LUA_TFUNCTION => "function",
-                lua_Type.LUA_TUSERDATA => "userdata",
-                lua_Type.LUA_TTHREAD => "thread",
-                lua_Type.LUA_TBUFFER => "buffer",
-                _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
-            };
-        }
+            lua_Type.LUA_TNIL => "nil",
+            lua_Type.LUA_TBOOLEAN => "boolean",
+            lua_Type.LUA_TNUMBER => "number",
+            lua_Type.LUA_TSTRING => "string",
+            lua_Type.LUA_TTABLE => "table",
+            lua_Type.LUA_TFUNCTION => "function",
+            lua_Type.LUA_TTHREAD => "thread",
+            lua_Type.LUA_TBUFFER => "buffer",
+            lua_Type.LUA_TVECTOR => "vector",
+            // A userdata type can have a name of its own, which only the value on a stack can tell.
+            _ when source.L is not null => Encoding.UTF8.GetString(
+                MemoryMarshal.CreateReadOnlySpanFromNullTerminated(luaL_typename(source.L, source.Index))
+            ),
+            lua_Type.LUA_TUSERDATA => "userdata",
+            _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
+        };
 
-        return Encoding.UTF8.GetString(
-            MemoryMarshal.CreateReadOnlySpanFromNullTerminated(luaL_typename(source.L, source.Index))
-        );
-    }
+    /// <summary> The name of the type that was found instead of the one that was asked for. </summary>
+    /// <returns>
+    /// Null for a value that was not passed, which has no type to name: the caller reports it as missing. Null also
+    /// for a read whose failure nobody looks at.
+    /// </returns>
+    private static string? ActualTypeName(scoped in ReadSource source) =>
+        source.IsMissing || source.IsProbe ? null : TypeName(source);
 
     /// <summary> Reads a number as <typeparamref name="TNumber"/>. </summary>
     /// <typeparam name="TNumber">The numeric type that holds the number.</typeparam>
@@ -290,7 +425,7 @@ internal static unsafe class LuauReader
     /// </typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool Number<TNumber, T>(
-        in ReadSource source,
+        scoped in ReadSource source,
         [MaybeNullWhen(false)] out T value,
         out ReadFailure failure
     )
@@ -308,16 +443,20 @@ internal static unsafe class LuauReader
 
     /// <summary> Gets a handle of its own for the value: an owned reference is created from it. </summary>
     /// <remarks> A value that is tracked already shares its registry reference instead of taking a second one. </remarks>
-    internal static ulong Own(in ReadSource source)
+    internal static ulong Own(scoped in ReadSource source)
     {
-        LuauState state = source.State ?? throw new InvalidOperationException("No LuauState present.");
+        LuauState state = State(source);
         return source.TrackedHandle != 0
             ? state.ReferenceTracker.CountRefOrThrow(source.TrackedHandle)
             : state.ReferenceTracker.TrackRef(source.L, source.Index);
     }
 
+    /// <summary> The state of a value that is a reference. Only a number, a boolean or nil can be without one. </summary>
+    private static LuauState State(scoped in ReadSource source) =>
+        source.State ?? throw new InvalidOperationException("No LuauState present.");
+
     private static bool ManagedUserdata<T>(
-        in ReadSource source,
+        scoped in ReadSource source,
         [MaybeNullWhen(false)] out T value,
         out ReadFailure failure
     )
@@ -334,7 +473,9 @@ internal static unsafe class LuauReader
             }
         }
 
-        return Mismatch(source, typeof(T).Name, out value, out failure);
+        value = default;
+        failure = ReadFailure.Mismatch(typeof(T), ActualTypeName(source));
+        return false;
     }
 
     /// <summary> Ends a read with <paramref name="read"/>, which is the <typeparamref name="T"/> that was asked for. </summary>
@@ -380,7 +521,7 @@ internal static unsafe class LuauReader
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool NilOrMismatch<TValue, T>(
-        in ReadSource source,
+        scoped in ReadSource source,
         string expected,
         [MaybeNullWhen(false)] out T value,
         out ReadFailure failure
@@ -399,7 +540,7 @@ internal static unsafe class LuauReader
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static bool Mismatch<T>(
-        in ReadSource source,
+        scoped in ReadSource source,
         string expected,
         [MaybeNullWhen(false)] out T value,
         out ReadFailure failure
@@ -407,7 +548,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = new ReadFailure($"{expected} expected, got {TypeName(source)}", IsNotSupported: false);
+        failure = ReadFailure.Mismatch(expected, ActualTypeName(source));
         return false;
     }
 
@@ -420,10 +561,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = new ReadFailure(
-            $"number that fits {typeof(TNumber).Name} expected, got {number.ToString(CultureInfo.InvariantCulture)}",
-            IsNotSupported: false
-        );
+        failure = ReadFailure.NumberDoesNotFit(typeof(TNumber), number);
         return false;
     }
 
@@ -432,7 +570,7 @@ internal static unsafe class LuauReader
         where T : allows ref struct
     {
         value = default;
-        failure = new ReadFailure($"A Luau value cannot be read as {typeof(T)}.", IsNotSupported: true);
+        failure = ReadFailure.NotSupported($"A Luau value cannot be read as {typeof(T)}.");
         return false;
     }
 

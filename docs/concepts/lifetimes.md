@@ -7,7 +7,7 @@ Darp.Luau makes lifetime rules explicit. Every Luau-backed value belongs to exac
 | Kind | Examples | Backing storage | Valid until |
 | --- | --- | --- | --- |
 | Owned references | `LuauTable`, `LuauFunction`, `LuauCoroutine`, `LuauString`, `LuauBuffer`, `LuauUserdata`, reference-backed `LuauValue` | tracked registry reference | you dispose it, or the state is disposed |
-| Borrowed views | `LuauTableView`, `LuauFunctionView`, `LuauCoroutineView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, `LuauArgs`, `LuauArgsSingle` | current callback stack frame | the callback returns |
+| Borrowed views | `LuauTableView`, `LuauFunctionView`, `LuauCoroutineView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, `LuauValueView`, `LuauArgs` | current callback stack frame | the callback returns |
 | Borrowed spans | `ReadOnlySpan<byte>` from string or buffer reads | Luau-owned memory | only while the aliased memory stays valid |
 | Managed copies | `string`, `byte[]`, numbers, booleans | managed memory | normal .NET lifetime |
 
@@ -40,13 +40,13 @@ Generated callbacks are the exception, because the generated code stands between
 | return value | the generated code, after Luau received it |
 | value you read yourself, for example with `TryGet(out LuauValue copy)` | you |
 
-This covers `CreateFunction(...)` delegates, `[LuauModule]` functions, and `[LuauUserdata]` methods. With `CreateFunctionManual(...)` you read and return values yourself: a `LuauValue` from `args.TryReadLuauValue(...)` is yours to dispose, and `LuauReturn.Ok(value)` takes a reference of its own.
+This covers `CreateFunction(...)` delegates, `[LuauModule]` functions, and `[LuauUserdata]` methods. With `CreateFunctionManual(...)` you read and return values yourself: a `LuauValue` from `args[1].Get<LuauValue>()` is yours to dispose, and `LuauReturn.Ok(value)` takes a reference of its own.
 
 A typed call that fails to read one of its results, such as `Execute<LuauTable, int>()` when the second result is not a number, releases the results it had already read before it throws.
 
 ## Borrowed values
 
-Types ending in `View`, plus `LuauArgs` and `LuauArgsSingle`, are callback-scoped.
+Types ending in `View`, plus `LuauArgs`, are callback-scoped.
 
 That rule applies equally to manual callback surfaces such as `CreateFunctionManual(...)`, userdata callbacks, and generated adapters behind `CreateFunction(...)`.
 
@@ -57,8 +57,7 @@ That rule applies equally to manual callback surfaces such as `CreateFunctionMan
 ```csharp
 using LuauFunction capture = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
-        return LuauReturn.Error(error);
+    LuauTableView table = args[1].Get<LuauTableView>();
 
     using LuauTable owned = table.ToOwned();
     return LuauReturn.Ok(owned.GetNumber("value"));
@@ -81,7 +80,7 @@ A callback that awaits has returned before the awaited work runs. Its `LuauArgs`
 
 ## Borrowed spans are still borrowed
 
-Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
+Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
 
 Consume those spans immediately. If you need an independent lifetime, copy into a managed `string` or `byte[]`.
 

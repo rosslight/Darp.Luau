@@ -40,14 +40,49 @@ public readonly struct LuauReturn
     )
     {
         // Only occupied slots are captured, so returning one value does not capture and later release four.
-        _buffer = new IntoLuauCopiedBuffer(
-            valueCount,
-            valueCount > 0 ? value1.CaptureCopied() : default,
-            valueCount > 1 ? value2.CaptureCopied() : default,
-            valueCount > 2 ? value3.CaptureCopied() : default,
-            valueCount > 3 ? value4.CaptureCopied() : default
-        );
+        _buffer =
+            valueCount > 1
+                ? CaptureSeveral(valueCount, value1, value2, value3, value4)
+                : new IntoLuauCopiedBuffer(valueCount, valueCount > 0 ? value1.CaptureCopied() : default);
         IsOk = true;
+    }
+
+    /// <summary> Captures more than one value. When one of them cannot be captured, the ones before it are released. </summary>
+    /// <remarks>
+    /// A captured table, function or other reference holds a registry reference of its own, which nothing else
+    /// would release: the result that was to own it does not come into being.
+    /// </remarks>
+    private static IntoLuauCopiedBuffer CaptureSeveral(
+        int valueCount,
+        scoped in IntoLuau value1,
+        scoped in IntoLuau value2,
+        scoped in IntoLuau value3,
+        scoped in IntoLuau value4
+    )
+    {
+        IntoLuauCopied element0 = default;
+        IntoLuauCopied element1 = default;
+        IntoLuauCopied element2 = default;
+        IntoLuauCopied element3 = default;
+        try
+        {
+            element0 = value1.CaptureCopied();
+            element1 = value2.CaptureCopied();
+            if (valueCount > 2)
+                element2 = value3.CaptureCopied();
+            if (valueCount > 3)
+                element3 = value4.CaptureCopied();
+        }
+        catch
+        {
+            element0.Release();
+            element1.Release();
+            element2.Release();
+            element3.Release();
+            throw;
+        }
+
+        return new IntoLuauCopiedBuffer(valueCount, element0, element1, element2, element3);
     }
 
     private LuauReturn(string error)
@@ -174,9 +209,9 @@ public readonly struct LuauReturn
     private readonly struct IntoLuauCopiedBuffer(
         int length,
         IntoLuauCopied element0,
-        IntoLuauCopied element1,
-        IntoLuauCopied element2,
-        IntoLuauCopied element3
+        IntoLuauCopied element1 = default,
+        IntoLuauCopied element2 = default,
+        IntoLuauCopied element3 = default
     )
     {
         private const int MaxLength = 4;

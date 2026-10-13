@@ -13,10 +13,10 @@ If the data is arbitrary bytes rather than text, see [Buffers](buffers.md).
 
 | Shape | Ownership | Common APIs | Use when |
 | --- | --- | --- | --- |
-| `string` | managed copy | passing `string` into Luau, `GetUtf8String(...)`, `TryReadUtf8String(..., out string?)`, `CreateFunction((string x) => ...)` | normal text interop |
-| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `TryReadUtf8String(...)`, `LuauString.TryGet(...)`, `LuauMarshal.TryGetUtf8StringSpan(...)` | immediate inspection without allocating |
+| `string` | managed copy | passing `string` into Luau, `GetUtf8String(...)`, `args[1].Get<string>()`, `CreateFunction((string x) => ...)` | normal text interop |
+| `ReadOnlySpan<byte>` | borrowed UTF-8 bytes | `args[1].Get<ReadOnlySpan<byte>>()`, `LuauString.TryGet(...)`, `LuauMarshal.TryGetUtf8StringSpan(...)` | immediate inspection without allocating |
 | `LuauString` | owned Luau reference | `CreateString(...)`, `GetLuauString(...)` | keeping or reusing the same Luau string value |
-| `LuauStringView` | borrowed callback view | `TryReadLuauString(...)` | callback code that stays inside the current frame |
+| `LuauStringView` | borrowed callback view | `args[1].Get<LuauStringView>()` | callback code that stays inside the current frame |
 
 The main choice is whether you want managed text or the Luau value itself.
 
@@ -74,17 +74,16 @@ For manual callbacks, read exactly the shape you want:
 ```csharp
 using LuauFunction measure = lua.CreateFunctionManual(static args =>
 {
-    if (!args.TryReadUtf8String(1, out ReadOnlySpan<byte> text, out string? error))
-        return LuauReturn.Error(error);
+    ReadOnlySpan<byte> text = args[1].Get<ReadOnlySpan<byte>>();
 
     return LuauReturn.Ok(text.Length);
 });
 ```
 
 - `CreateFunction((string text) => ...)` is the shortest fixed-signature form.
-- `TryReadUtf8String(..., out ReadOnlySpan<byte>, ...)` borrows UTF-8 bytes.
-- `TryReadUtf8String(..., out string?, ...)` copies into managed text.
-- `TryReadLuauString(...)` returns a `LuauStringView` when you need the Luau value itself.
+- `args[1].Get<ReadOnlySpan<byte>>()` borrows UTF-8 bytes.
+- `args[1].Get<string>()` copies into managed text, and `args[1].GetOrNull<string>()` also takes `nil`.
+- `args[1].Get<LuauStringView>()` borrows the Luau value itself.
 
 ## Lifetime rules
 

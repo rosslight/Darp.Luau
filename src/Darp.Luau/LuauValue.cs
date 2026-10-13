@@ -130,7 +130,8 @@ public readonly struct LuauValue : IDisposable
     /// <exception cref="LuaGetException">Thrown when the value is not a <typeparamref name="T"/>.</exception>
     /// <exception cref="NotSupportedException">Thrown when <typeparamref name="T"/> is not a type a Luau value can be read as.</exception>
     /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
-    public T Get<T>() => Read<T>(out var value, out ReadFailure failure) ? value : throw failure.ToException("value");
+    public T Get<T>() =>
+        Read<T>(isProbe: false, out var value, out ReadFailure failure) ? value : throw failure.ToException("value");
 
     /// <summary> Gets this value as <typeparamref name="T"/>, or <c>null</c> when it is nil. </summary>
     /// <typeparam name="T">A reference type <see cref="Get{T}"/> reads. For a value type, use its nullable form with <see cref="Get{T}"/>.</typeparam>
@@ -152,7 +153,7 @@ public readonly struct LuauValue : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when this value was disposed.</exception>
     public bool TryGet<T>([NotNullWhen(true)] out T? value)
     {
-        if (Read<T>(out var read, out ReadFailure failure))
+        if (Read<T>(isProbe: true, out var read, out ReadFailure failure))
         {
             // Not null, except for the null of a nullable value type, which is what the caller asked to read nil as.
             // Annotated as the framework annotates the out parameter of a generic Try method, so that
@@ -180,16 +181,19 @@ public readonly struct LuauValue : IDisposable
         return true;
     }
 
-    private unsafe bool Read<T>([MaybeNullWhen(false)] out T value, out ReadFailure failure)
+    /// <param name="isProbe">Whether the read only asks if the value is a <typeparamref name="T"/>. See <see cref="ReadSource.IsProbe"/>.</param>
+    /// <param name="value">The value when it was read.</param>
+    /// <param name="failure">Why the value was not read.</param>
+    private unsafe bool Read<T>(bool isProbe, [MaybeNullWhen(false)] out T value, out ReadFailure failure)
     {
         switch (Type)
         {
             case LuauValueType.Nil:
-                return LuauReader.TryRead(ReadSource.Nil, out value, out failure);
+                return Read(ReadSource.Nil, isProbe, out value, out failure);
             case LuauValueType.Boolean:
-                return LuauReader.TryRead(ReadSource.FromBoolean(_state, _union.ValueBool), out value, out failure);
+                return Read(ReadSource.FromBoolean(_state, _union.ValueBool), isProbe, out value, out failure);
             case LuauValueType.Number:
-                return LuauReader.TryRead(ReadSource.FromNumber(_state, _union.ValueDouble), out value, out failure);
+                return Read(ReadSource.FromNumber(_state, _union.ValueDouble), isProbe, out value, out failure);
             default:
                 RegistryReferenceTracker.TrackedReference reference = _state.GetTrackedReferenceOrThrow(
                     _union.ValueHandle
@@ -198,8 +202,9 @@ public readonly struct LuauValue : IDisposable
                 // nothing on the stack.
                 if (typeof(T).IsValueType)
                 {
-                    return LuauReader.TryRead(
+                    return Read(
                         ReadSource.FromTracked(_state, GetLuaType(Type), _union.ValueHandle),
+                        isProbe,
                         out value,
                         out failure
                     );
@@ -207,14 +212,38 @@ public readonly struct LuauValue : IDisposable
 
                 using (reference.PushToTop())
                 {
-                    return LuauReader.TryRead(
+                    return Read(
                         ReadSource.FromStack(_state, _state.L, -1, GetLuaType(Type), _union.ValueHandle),
+                        isProbe,
                         out value,
                         out failure
                     );
                 }
         }
     }
+
+    private static bool Read<T>(
+        scoped in ReadSource source,
+        bool isProbe,
+        [MaybeNullWhen(false)] out T value,
+        out ReadFailure failure
+    ) => LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
+
+    internal static LuauValueType GetValueType(lua_Type type) =>
+        type switch
+        {
+            lua_Type.LUA_TNIL => LuauValueType.Nil,
+            lua_Type.LUA_TBOOLEAN => LuauValueType.Boolean,
+            lua_Type.LUA_TNUMBER => LuauValueType.Number,
+            lua_Type.LUA_TSTRING => LuauValueType.String,
+            lua_Type.LUA_TTABLE => LuauValueType.Table,
+            lua_Type.LUA_TFUNCTION => LuauValueType.Function,
+            lua_Type.LUA_TTHREAD => LuauValueType.Thread,
+            lua_Type.LUA_TUSERDATA => LuauValueType.Userdata,
+            lua_Type.LUA_TVECTOR => LuauValueType.Vector,
+            lua_Type.LUA_TBUFFER => LuauValueType.Buffer,
+            _ => throw new NotSupportedException($"The lua type {type} is not supported!"),
+        };
 
     private static lua_Type GetLuaType(LuauValueType type) =>
         type switch
@@ -288,7 +317,7 @@ public readonly struct LuauValue : IDisposable
     }
 
     /// <summary> Reads <paramref name="source"/> as a value, with a reference of its own when it is reference-backed. </summary>
-    internal static bool TryRead(in ReadSource source, out LuauValue value, out ReadFailure failure)
+    internal static bool TryRead(scoped in ReadSource source, out LuauValue value, out ReadFailure failure)
     {
         failure = default;
         if (source.IsNil)
@@ -325,12 +354,12 @@ public readonly struct LuauValue : IDisposable
                 return true;
             default:
                 value = default;
-                failure = new ReadFailure($"The lua type {source.Type} is not supported!", IsNotSupported: true);
+                failure = ReadFailure.NotSupported($"The lua type {source.Type} is not supported!");
                 return false;
         }
     }
 
-    private static LuauValue Own(in ReadSource source, LuauValueType type) =>
+    private static LuauValue Own(scoped in ReadSource source, LuauValueType type) =>
         new(source.State, type, new LuauValueUnion(LuauReader.Own(source)));
 
     /// <summary>

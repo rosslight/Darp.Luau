@@ -12,8 +12,6 @@ public static partial class CollisionModule
     {
         using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             var returns = global::CollisionModule.returns();
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });

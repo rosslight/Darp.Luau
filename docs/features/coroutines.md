@@ -58,7 +58,7 @@ string result = coroutine.Resume<string>();
 
 - Tables offer `GetLuauCoroutine(...)` and `TryGetLuauCoroutine(...)`.
 - `LuauValue` reports coroutines as `LuauValueType.Thread` and converts them with `TryGet(out LuauCoroutine coroutine)`.
-- Managed callbacks read them with `args.TryReadLuauCoroutine(...)`, which returns a borrowed `LuauCoroutineView`. Call `ToOwned()` to keep or resume it.
+- Managed callbacks read them with `args[1].Get<LuauCoroutineView>()`, a borrowed view. Call `ToOwned()` to keep or resume it, or read `args[1].Get<LuauCoroutine>()` for an owned reference right away.
 
 `LuauCoroutine` converts to `IntoLuau`, so you can pass it to scripts, which can resume it with `coroutine.resume(...)` themselves.
 
@@ -71,12 +71,10 @@ A managed callback built with `CreateFunctionManual(...)` finishes later by aski
 ```csharp
 using LuauFunction fetch = lua.CreateFunctionManual(args =>
 {
-    if (!args.TryReadUtf8String(1, out ReadOnlySpan<byte> utf8Url, out string? error))
-        return LuauReturn.Error(error);
-    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+    string url = args[1].Get<string>();
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
         return LuauReturn.Error(error);
 
-    string url = Encoding.UTF8.GetString(utf8Url);
     return awaiter.Await(
         new ValueTask<string>(httpClient.GetStringAsync(url, args.CancellationToken)),
         static body => LuauReturn.Ok(body)
@@ -147,9 +145,8 @@ In both cases the async host call fails with `LuaException`, and the result of t
 ```csharp
 using LuauFunction later = lua.CreateFunctionManual(args =>
 {
-    if (!args.TryReadLuauFunction(1, out LuauFunctionView callback, out string? error))
-        return LuauReturn.Error(error);
-    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out error))
+    LuauFunctionView callback = args[1].Get<LuauFunctionView>();
+    if (!args.TryGetAwaiter(out LuauAwaiter awaiter, out string? error))
         return LuauReturn.Error(error);
 
     return awaiter.Await(CallLaterAsync(callback.ToOwned()));

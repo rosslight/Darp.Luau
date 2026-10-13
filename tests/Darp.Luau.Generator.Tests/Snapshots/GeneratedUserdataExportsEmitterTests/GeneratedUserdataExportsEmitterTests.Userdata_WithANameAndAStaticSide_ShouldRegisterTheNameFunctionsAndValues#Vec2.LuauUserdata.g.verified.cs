@@ -9,23 +9,17 @@ public sealed partial class Vec2 : global::Darp.Luau.ILuauUserdata<global::Vec2>
     {
         registry.TypeName = "Vec2";
         registry.AddGetter("x", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.X));
-        registry.AddSetter("x", static (self, args) =>
+        registry.AddSetter("x", static (self, value) =>
         {
-            if (!args.TryReadNumber(out double value, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            self.X = value;
+            self.X = value.Get<double>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
         registry.AddGetter("y", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Y));
         registry.AddValue("dimensions", static _ => global::Darp.Luau.LuauReturnSingle.Ok(global::Vec2.Dimensions));
         registry.AddFunction("new", static args =>
         {
-            if (!args.TryValidateArgumentCount(2, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out double a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 2, out double a2, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            double a1 = args[1].Get<double>();
+            double a2 = args[2].Get<double>();
             var returns = global::Vec2.Create(a1, a2);
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
         });

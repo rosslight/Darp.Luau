@@ -9,47 +9,33 @@ public sealed partial class Character : global::Darp.Luau.ILuauUserdata<global::
     {
         registry.TypeName = "Character";
         registry.AddGetter("kind", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok((double)self.Kind));
-        registry.AddSetter("kind", static (self, args) =>
+        registry.AddSetter("kind", static (self, value) =>
         {
-            if (!args.TryReadNumber(out int valueRaw, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            global::CharacterKind value = (global::CharacterKind)valueRaw;
-            self.Kind = value;
+            self.Kind = value.Get<global::CharacterKind>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
         registry.AddGetter("name", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Name));
-        registry.AddSetter("name", static (self, args) =>
+        registry.AddSetter("name", static (self, value) =>
         {
-            if (!args.TryReadUtf8String(out string? value, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            self.Name = value;
+            self.Name = value.Get<string>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
         registry.AddMethod("rename", static (self, args) =>
         {
-            if (!args.TryValidateArgumentCount(2, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-            if (!args.TryReadNumber(parameterIndex: 2, out int a2, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            string a1 = args[1].Get<string>();
+            int a2 = args[2].Get<int>();
             var returns = self.Rename(a1, a2);
             return global::Darp.Luau.LuauReturn.Ok(returns.Item1, returns.Item2);
         });
         registry.AddMethod("reset", static (self, args) =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
             self.Reset();
             return global::Darp.Luau.LuauReturn.Ok();
         });
         registry.AddGetter("score", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Score));
-        registry.AddSetter("secret", static (self, args) =>
+        registry.AddSetter("secret", static (self, value) =>
         {
-            if (!args.TryReadUtf8StringOrNil(out string? value, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            self.Secret = value;
+            self.Secret = value.GetOrNull<string>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
     }

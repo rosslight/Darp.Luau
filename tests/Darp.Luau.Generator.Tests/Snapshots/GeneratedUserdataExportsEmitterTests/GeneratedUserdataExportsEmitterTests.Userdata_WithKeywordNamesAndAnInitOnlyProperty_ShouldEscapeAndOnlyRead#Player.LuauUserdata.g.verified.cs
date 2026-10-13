@@ -10,19 +10,14 @@ public sealed partial class Player : global::Darp.Luau.ILuauUserdata<global::Pla
         registry.TypeName = "Player";
         registry.AddMethod("fallback", static (self, args) =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out int a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
+            int a1 = args[1].Get<int>();
             var returns = self.@default(a1);
             return global::Darp.Luau.LuauReturn.Ok(returns);
         });
         registry.AddGetter("kind", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.@class));
-        registry.AddSetter("kind", static (self, args) =>
+        registry.AddSetter("kind", static (self, value) =>
         {
-            if (!args.TryReadNumber(out int value, out string? error))
-                return global::Darp.Luau.LuauOutcome.Error(error);
-            self.@class = value;
+            self.@class = value.Get<int>();
             return global::Darp.Luau.LuauOutcome.Ok();
         });
         registry.AddGetter("level", static (self, _) => global::Darp.Luau.LuauReturnSingle.Ok(self.Level));

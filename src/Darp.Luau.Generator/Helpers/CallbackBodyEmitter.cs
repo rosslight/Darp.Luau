@@ -12,8 +12,14 @@ internal static class CallbackBodyEmitter
     /// and returns the result as a <c>LuauReturn</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// An argument that cannot be read throws, and the callback boundary reports it to the script. An argument the
+    /// script did not pass is nil, so it is an error only for a parameter that does not take nil.
+    /// </para>
+    /// <para>
     /// A <c>LuauValue</c> holds a reference of its own. One that is passed as an argument belongs to the call and is
     /// released when the call is over. One that is returned is handed over to Luau and released after it was copied.
+    /// </para>
     /// </remarks>
     public static void Write(IndentedTextWriter writer, InteropSignature signature, string callTarget) =>
         Write(writer, signature, arguments => $"{callTarget}({string.Join(", ", arguments)})");
@@ -31,10 +37,6 @@ internal static class CallbackBodyEmitter
         Func<IReadOnlyList<string>, string> formatCall
     )
     {
-        int luauArgumentCount = signature.Parameters.Count(static x => x.Type is not LuauInteropKind.CancellationToken);
-        writer.WriteLine($"if (!args.TryValidateArgumentCount({luauArgumentCount}, out string? error))");
-        writer.WriteLine($"    return {LuauReturn}.Error(error);");
-
         List<string> ownedArguments = GetOwnedArguments(signature);
         if (ownedArguments.Count == 0)
         {
@@ -97,10 +99,8 @@ internal static class CallbackBodyEmitter
             luauIndex++;
             if (parameter.Type is LuauInteropKind.LuauValue)
             {
-                writer.WriteLine(
-                    $"if (!args.TryReadLuauValue(parameterIndex: {luauIndex}, out a{luauIndex}, out error))"
-                );
-                writer.WriteLine($"    return {LuauReturn}.Error(error);");
+                // Declared before the try that releases it.
+                writer.WriteLine($"a{luauIndex} = {LuauMarshalEmitter.FormatRead($"args[{luauIndex}]", parameter)};");
             }
             else
             {
@@ -126,7 +126,7 @@ internal static class CallbackBodyEmitter
 
         // Asked before the call, so the callback never starts work that cannot be awaited. The arguments are read
         // above, so that work never touches the callback-scoped args.
-        writer.WriteLine("if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))");
+        writer.WriteLine("if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))");
         writer.WriteLine($"    return {LuauReturn}.Error(error);");
         string pending =
             signature.Awaitable is AwaitableReturnKind.ValueTask

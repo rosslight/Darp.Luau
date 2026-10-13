@@ -15,13 +15,9 @@ file static class CreateFunctionInterceptors
 
         global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            if (!args.TryValidateArgumentCount(2, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 1, out int a1, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadNumber(parameterIndex: 2, out int a2, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))
+            int a1 = args[1].Get<int>();
+            int a2 = args[2].Get<int>();
+            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
             return awaiter.Await(
                 onLuaCall(a1, a2),

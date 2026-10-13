@@ -12,12 +12,8 @@ public static partial class NetModule
     {
         using global::Darp.Luau.LuauFunction __var0 = state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(1, out string? error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
-                return global::Darp.Luau.LuauReturn.Error(error);
-            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out error))
+            string a1 = args[1].Get<string>();
+            if (!args.TryGetAwaiter(out global::Darp.Luau.LuauAwaiter awaiter, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
             return awaiter.Await(
                 new global::System.Threading.Tasks.ValueTask<string>(global::NetModule.FetchAsync(a1, args.CancellationToken)),

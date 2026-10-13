@@ -99,23 +99,20 @@ Important distinctions:
 
 ## Read callback arguments with `LuauArgs`
 
-`CreateFunctionManual(...)` and userdata callbacks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
-
-These APIs mirror the same broad conversion families, but with callback-focused shapes:
-
-- `TryReadNumber(...)`, `TryReadBoolean(...)`, `TryReadUtf8String(...)`, and `TryReadBuffer(...)`
-- `TryRead*OrNil(...)` variants for supported nullable cases
-- `TryReadLuauTable(...)`, `TryReadLuauFunction(...)`, `TryReadLuauString(...)`, `TryReadLuauBuffer(...)`, `TryReadLuauUserdata(...)` for borrowed views
-- `TryReadUserdata<T>(...)` and `TryReadUserdataOrNil<T>(...)` for direct managed userdata resolution
-- `TryReadLuauValue(...)` for dynamic inspection
+`CreateFunctionManual(...)` and userdata callbacks expose callback arguments through `LuauArgs`. `args[1]` is the first argument, and a userdata setter receives the assigned value the same way. Both are a `LuauValueView`, which reads with the methods of `LuauValue` below: `Get<T>()`, `GetOrNull<T>()`, `TryGet<T>(...)` and `TryGetOrNull<T>(...)`.
 
 ```csharp
-if (!args.TryReadNumber(1, out int amount, out string? error))
-    return LuauReturn.Error(error);
-
-if (!args.TryReadLuauTable(2, out LuauTableView table, out error))
-    return LuauReturn.Error(error);
+int amount = args[1].Get<int>();
+string? label = args[2].GetOrNull<string>();
+LuauTableView table = args[3].Get<LuauTableView>();
 ```
+
+An argument reads as every type a `LuauValue` reads as, and as two kinds of borrowed value on top:
+
+- a borrowed view: `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, `LuauCoroutineView`,
+- `ReadOnlySpan<byte>` for the UTF-8 bytes of a string.
+
+An argument the script did not pass is `nil`. A read that fails throws `LuaGetException`, which reaches the script as a Luau error such as `invalid argument #1 (number expected, got string)`; a callback does not catch it. See [Functions](../features/functions.md#use-createfunctionmanual-for-manual-callbacks).
 
 Borrowed `*View` values and any spans returned here are callback-scoped. Convert them to owned references with `ToOwned()` if they must outlive the current callback frame.
 
@@ -127,7 +124,7 @@ It is a good fit for fixed signatures built from common primitives, supported nu
 
 For userdata specifically, `CreateFunction(...)` supports two different shapes: `LuauUserdataView` for a borrowed raw userdata view, and self-typed managed userdata for generated `[LuauUserdata]` types or manual `ILuauUserdata<TSelf>` implementations.
 
-It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionManual(...)` and manual `LuauArgs` handling.
+It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionManual(...)` and reading `LuauArgs` yourself.
 
 ## Use `LuauValue` for dynamic code
 
@@ -137,7 +134,7 @@ You get it from APIs such as:
 
 - `table[key]`,
 - `TryGetLuauValue(...)`,
-- `TryReadLuauValue(...)`.
+- `args[1].Get<LuauValue>()`.
 
 Then read it as a managed type:
 
@@ -193,11 +190,11 @@ A Luau number is a `double`. Reading it as another numeric type only succeeds wh
 
 What a rejected number does depends on where it is read:
 
-- `TryReadNumber(...)` and `TryGetNumber(...)` return `false`. `TryReadNumber(...)` names the parameter, the type and the number in its error.
-- A generated callback raises a Luau error, which the script can catch with `pcall(...)`.
+- `TryGetNumber(...)` and `TryGet(...)` return `false`.
+- An argument read with `Get<T>()`, in a manual or a generated callback, raises a Luau error that names the argument, the type and the number. The script can catch it with `pcall(...)`.
 - A typed result such as `Execute<int>()` throws `LuaGetException`.
 
-`TryReadNumber<T>(...)` and `TryGetNumber<T>(...)` are generic over the numeric type, so `out int`, `out byte`, `out Int128` or `out decimal` all use the same call.
+`TryGetNumber<T>(...)` is generic over the numeric type, so `out int`, `out byte`, `out Int128` or `out decimal` all use the same call.
 
 An enum value does not have to be one of the named values: `7` is read into an enum that only names `1` and `2`. Check that in your callback when it matters.
 

@@ -410,28 +410,28 @@ public sealed class UserdataRegistryTests
             registry.AddMethod(
                 "dot",
                 static (self, args) =>
-                    args.TryReadUserdata(1, out Vec? other, out string? error)
-                        ? LuauReturn.Ok(self.X * other.X + self.Y * other.Y)
-                        : LuauReturn.Error(error)
+                {
+                    Vec other = args[1].Get<Vec>();
+                    return LuauReturn.Ok(self.X * other.X + self.Y * other.Y);
+                }
             );
 
             registry.AddMetamethod(
                 LuauMetamethod.Add,
                 static args =>
-                    TryReadBoth(args, out Vec? a, out Vec? b, out string? error)
-                        ? LuauReturn.Ok(new Vec(a.X + b.X, a.Y + b.Y))
-                        : LuauReturn.Error(error)
+                {
+                    (Vec a, Vec b) = ReadBoth(args);
+                    return LuauReturn.Ok(new Vec(a.X + b.X, a.Y + b.Y));
+                }
             );
             registry.AddMetamethod(
                 LuauMetamethod.Mul,
                 static args =>
                 {
                     // The vector can be either operand.
-                    if (
-                        args.TryReadUserdata(1, out Vec? left, out _) && args.TryReadNumber(2, out double factor, out _)
-                    )
+                    if (args[1].TryGet(out Vec? left) && args[2].TryGet(out double factor))
                         return LuauReturn.Ok(new Vec(left.X * factor, left.Y * factor));
-                    if (args.TryReadNumber(1, out factor, out _) && args.TryReadUserdata(2, out Vec? right, out _))
+                    if (args[1].TryGet(out factor) && args[2].TryGet(out Vec? right))
                         return LuauReturn.Ok(new Vec(right.X * factor, right.Y * factor));
                     return LuauReturn.Error("a vector can only be multiplied with a number");
                 }
@@ -439,61 +439,56 @@ public sealed class UserdataRegistryTests
             registry.AddMetamethod(
                 LuauMetamethod.Unm,
                 static args =>
-                    args.TryReadUserdata(1, out Vec? self, out string? error)
-                        ? LuauReturn.Ok(new Vec(-self.X, -self.Y))
-                        : LuauReturn.Error(error)
+                {
+                    Vec self = args[1].Get<Vec>();
+                    return LuauReturn.Ok(new Vec(-self.X, -self.Y));
+                }
             );
             registry.AddMetamethod(
                 LuauMetamethod.Eq,
                 static args =>
                 {
                     EqualityChecks++;
-                    return TryReadBoth(args, out Vec? a, out Vec? b, out string? error)
-                        ? LuauReturn.Ok(a.X == b.X && a.Y == b.Y)
-                        : LuauReturn.Error(error);
+                    (Vec a, Vec b) = ReadBoth(args);
+                    return LuauReturn.Ok(a.X == b.X && a.Y == b.Y);
                 }
             );
             registry.AddMetamethod(
                 LuauMetamethod.Lt,
                 static args =>
-                    TryReadBoth(args, out Vec? a, out Vec? b, out string? error)
-                        ? LuauReturn.Ok(a.X + a.Y < b.X + b.Y)
-                        : LuauReturn.Error(error)
+                {
+                    (Vec a, Vec b) = ReadBoth(args);
+                    return LuauReturn.Ok(a.X + a.Y < b.X + b.Y);
+                }
             );
             registry.AddMetamethod(
                 LuauMetamethod.Le,
                 static args =>
-                    TryReadBoth(args, out Vec? a, out Vec? b, out string? error)
-                        ? LuauReturn.Ok(a.X + a.Y <= b.X + b.Y)
-                        : LuauReturn.Error(error)
+                {
+                    (Vec a, Vec b) = ReadBoth(args);
+                    return LuauReturn.Ok(a.X + a.Y <= b.X + b.Y);
+                }
             );
             registry.AddMetamethod(LuauMetamethod.Len, static _ => LuauReturn.Ok(2));
             registry.AddMetamethod(
                 LuauMetamethod.Concat,
                 static args =>
                 {
-                    if (!args.TryReadUserdata(1, out Vec? self, out string? error))
-                        return LuauReturn.Error(error);
-                    if (!args.TryReadUtf8String(2, out string? suffix, out error))
-                        return LuauReturn.Error(error);
+                    Vec self = args[1].Get<Vec>();
+                    string suffix = args[2].Get<string>();
                     return LuauReturn.Ok(self.ToString() + suffix);
                 }
             );
             registry.AddMetamethod(
                 LuauMetamethod.ToString,
-                static args =>
-                    args.TryReadUserdata(1, out Vec? self, out string? error)
-                        ? LuauReturn.Ok(self.ToString())
-                        : LuauReturn.Error(error)
+                static args => LuauReturn.Ok(args[1].Get<Vec>().ToString())
             );
             registry.AddMetamethod(
                 LuauMetamethod.Call,
                 static args =>
                 {
-                    if (!args.TryReadUserdata(1, out Vec? self, out string? error))
-                        return LuauReturn.Error(error);
-                    if (!args.TryReadNumber(2, out double factor, out error))
-                        return LuauReturn.Error(error);
+                    Vec self = args[1].Get<Vec>();
+                    double factor = args[2].Get<double>();
                     return LuauReturn.Ok((self.X + self.Y) * factor);
                 }
             );
@@ -502,10 +497,8 @@ public sealed class UserdataRegistryTests
                 "new",
                 static args =>
                 {
-                    if (!args.TryReadNumber(1, out double x, out string? error))
-                        return LuauReturn.Error(error);
-                    if (!args.TryReadNumber(2, out double y, out error))
-                        return LuauReturn.Error(error);
+                    double x = args[1].Get<double>();
+                    double y = args[2].Get<double>();
                     return LuauReturn.Ok(new Vec(x, y));
                 }
             );
@@ -513,16 +506,7 @@ public sealed class UserdataRegistryTests
             registry.AddValue("zero", static _ => LuauReturnSingle.Ok(s_zero));
         }
 
-        private static bool TryReadBoth(
-            LuauArgs args,
-            [NotNullWhen(true)] out Vec? a,
-            [NotNullWhen(true)] out Vec? b,
-            [NotNullWhen(false)] out string? error
-        )
-        {
-            b = null;
-            return args.TryReadUserdata(1, out a, out error) && args.TryReadUserdata(2, out b, out error);
-        }
+        private static (Vec Left, Vec Right) ReadBoth(LuauArgs args) => (args[1].Get<Vec>(), args[2].Get<Vec>());
 
         public override string ToString() => FormattableString.Invariant($"({X}, {Y})");
 
@@ -557,8 +541,7 @@ public sealed class UserdataRegistryTests
                 LuauMetamethod.Index,
                 static args =>
                 {
-                    if (!args.TryReadUserdata(1, out Fallbacks? self, out string? error))
-                        return LuauReturn.Error(error);
+                    Fallbacks self = args[1].Get<Fallbacks>();
                     string key = ReadKey(args, 2);
                     self.Reads.Add(key);
                     return LuauReturn.Ok($"read {key}");
@@ -568,8 +551,7 @@ public sealed class UserdataRegistryTests
                 LuauMetamethod.NewIndex,
                 static args =>
                 {
-                    if (!args.TryReadUserdata(1, out Fallbacks? self, out string? error))
-                        return LuauReturn.Error(error);
+                    Fallbacks self = args[1].Get<Fallbacks>();
                     self.Writes.Add($"{ReadKey(args, 2)}={ReadKey(args, 3)}");
                     return LuauReturn.Ok();
                 }
@@ -577,8 +559,8 @@ public sealed class UserdataRegistryTests
         }
 
         private static string ReadKey(LuauArgs args, int index) =>
-            args.TryReadUtf8String(index, out string? text, out _) ? text
-            : args.TryReadNumber(index, out double number, out _) ? FormattableString.Invariant($"{number}")
+            args[index].TryGet(out string? text) ? text
+            : args[index].TryGet(out double number) ? FormattableString.Invariant($"{number}")
             : "?";
 
         public static implicit operator IntoLuau(Fallbacks value) => IntoLuau.FromUserdata(value);
@@ -628,17 +610,17 @@ public sealed class UserdataRegistryTests
             registry.AddSetter(
                 "next",
                 static (self, value) =>
-                    value.TryReadUserdataOrNil(out self._next, out string? error)
-                        ? LuauOutcome.Ok()
-                        : LuauOutcome.Error(error)
+                {
+                    self._next = value.GetOrNull<Node>();
+                    return LuauOutcome.Ok();
+                }
             );
             registry.AddGetter("owner", static (self, _) => LuauReturnSingle.Ok(self._owner?.Name));
             registry.AddSetter(
                 "owner",
                 static (self, value) =>
                 {
-                    if (!value.TryReadUserdata(out Node? owner, out string? error))
-                        return LuauOutcome.Error(error);
+                    Node owner = value.Get<Node>();
                     self._owner = owner;
                     return LuauOutcome.Ok();
                 }
@@ -655,14 +637,11 @@ public sealed class UserdataRegistryTests
                 LuauMetamethod.Index,
                 static args =>
                 {
-                    if (!args.TryReadUtf8String(2, out string? name, out string? error))
-                        return LuauReturn.Error(error);
+                    string name = args[2].Get<string>();
 
                     // The function is a method like any other: it gets the instance as its first argument.
                     LuauFunction method = args.State.CreateFunctionManual(call =>
-                        call.TryReadUtf8String(2, out string? who, out string? callError)
-                            ? LuauReturn.Ok($"{name} {who}")
-                            : LuauReturn.Error(callError)
+                        LuauReturn.Ok($"{name} {call[2].Get<string>()}")
                     );
                     return LuauReturn.Ok(method.DisposeAndToLuauValue());
                 }

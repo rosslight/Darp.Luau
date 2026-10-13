@@ -115,10 +115,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
-                return LuauReturn.Error(error);
-
-            return LuauReturn.Ok(a + b);
+            return LuauReturn.Ok(args[1].Get<int>() + args[2].Get<int>());
         });
         _state.Globals.Set("add", func);
 
@@ -147,10 +144,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
-                return LuauReturn.Error(error);
-
-            return LuauReturn.Ok(a + b);
+            return LuauReturn.Ok(args[1].Get<int>() + args[2].Get<int>());
         });
         _state.Globals.Set("add", func);
 
@@ -281,9 +275,6 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return LuauReturn.Error(error);
-
             using LuauTable table = _state.CreateTable();
             table.Set("value", 42);
             return LuauReturn.Ok(table, 5);
@@ -773,8 +764,7 @@ public sealed class FunctionTests : IDisposable
         using LuauBuffer buffer = _state.CreateBuffer(Convert.FromHexString(expectedValue));
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauBuffer(1, out LuauBufferView b, out string? error))
-                return LuauReturn.Error(error);
+            LuauBufferView b = args[1].Get<LuauBufferView>();
 
             return LuauReturn.Ok(b);
         });
@@ -797,8 +787,7 @@ public sealed class FunctionTests : IDisposable
         byte[] expected = [0x01, 0x02, 0x03];
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUtf8String(1, out string? hex, out string? error))
-                return LuauReturn.Error(error);
+            string hex = args[1].Get<string>();
 
             return LuauReturn.Ok(Convert.FromHexString(hex));
         });
@@ -817,8 +806,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauString(1, out LuauStringView value, out string? error))
-                return LuauReturn.Error(error);
+            LuauStringView value = args[1].Get<LuauStringView>();
 
             return LuauReturn.Ok(value);
         });
@@ -835,8 +823,7 @@ public sealed class FunctionTests : IDisposable
         var input = new ArgsUserdataA { Value = 42 };
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdata(1, out ArgsUserdataA? value, out string? error))
-                return LuauReturn.Error(error);
+            ArgsUserdataA value = args[1].Get<ArgsUserdataA>();
 
             return LuauReturn.Ok(value.Value);
         });
@@ -864,8 +851,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdata<ArgsUserdataA>(1, out _, out string? error))
-                return LuauReturn.Error(error);
+            _ = args[1].Get<ArgsUserdataA>();
 
             return LuauReturn.Ok();
         });
@@ -883,7 +869,7 @@ public sealed class FunctionTests : IDisposable
             .Execute();
 
         _state.Globals.GetBoolean("ok").ShouldBeFalse();
-        _state.Globals.GetUtf8String("err").ShouldContain("must be userdata of type");
+        _state.Globals.GetUtf8String("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
     }
 
     [Fact]
@@ -904,7 +890,7 @@ public sealed class FunctionTests : IDisposable
             .Execute();
 
         _state.Globals.GetBoolean("ok").ShouldBeFalse();
-        _state.Globals.GetUtf8String("err").ShouldContain("must be userdata of type");
+        _state.Globals.GetUtf8String("err").ShouldBe("invalid argument #1 (ArgsUserdataA expected, got userdata)");
     }
 
     [Fact]
@@ -912,8 +898,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
-                return LuauReturn.Error(error);
+            ArgsUserdataA? value = args[1].GetOrNull<ArgsUserdataA>();
 
             return LuauReturn.Ok(value is null ? "nil" : "value");
         });
@@ -1077,8 +1062,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauUserdata(1, out LuauUserdataView value, out string? error))
-                return LuauReturn.Error(error);
+            LuauUserdataView value = args[1].Get<LuauUserdataView>();
 
             return LuauReturn.Ok(value);
         });
@@ -1154,8 +1138,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             using LuauTable table = function.Invoke<LuauTable>();
             if (!table.TryGet("value", out int value))
@@ -1185,8 +1168,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             return LuauReturn.Ok(function.Invoke<int>());
         });
@@ -1224,8 +1206,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             (int number, string? text) = function.Invoke<int, string?>();
             return LuauReturn.Ok($"{number}:{text}");
@@ -1253,8 +1234,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             function.Invoke();
             return LuauReturn.Ok("done");
@@ -1282,8 +1262,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             (int number, string? text, bool flag) = function.Invoke<int, string?, bool>();
             return LuauReturn.Ok($"{number}:{text}:{flag}");
@@ -1311,8 +1290,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             (int number, string? text, bool flag, int value) = function.Invoke<int, string?, bool, int>();
             return LuauReturn.Ok($"{number}:{text}:{flag}:{value}");
@@ -1340,8 +1318,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction callAndRead = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
-                return LuauReturn.Error(error);
+            LuauFunctionView function = args[1].Get<LuauFunctionView>();
 
             LuauValue[] values = function.InvokeMulti();
             if (values.Length != 3)
@@ -1435,8 +1412,6 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return LuauReturn.Error(error);
             using LuauTable x = _state.CreateTable();
             x.Set("value", 99);
             return LuauReturn.Ok(x);
@@ -1453,8 +1428,7 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction echoTable = _state.CreateFunctionManual(static args =>
         {
-            if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
-                return LuauReturn.Error(error);
+            LuauTableView table = args[1].Get<LuauTableView>();
 
             return LuauReturn.Ok(table);
         });
@@ -1488,8 +1462,6 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction func = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out var error))
-                return LuauReturn.Error(error);
             return LuauReturn.Ok(x);
         });
 
@@ -1505,8 +1477,6 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionManual(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out string? error))
-                return LuauReturn.Error(error);
             using LuauBuffer x = _state.CreateBuffer([0x01, 0x02, 0x03]);
             return LuauReturn.Ok(x);
         });

@@ -669,8 +669,7 @@ public sealed class UserdataTests
                 "value",
                 static (self, value) =>
                 {
-                    if (!value.TryReadNumber(out int number, out string? error))
-                        return LuauOutcome.Error(error);
+                    int number = value.Get<int>();
                     self.Value = number;
                     return LuauOutcome.Ok();
                 }
@@ -680,10 +679,9 @@ public sealed class UserdataTests
                 static (self, args) =>
                 {
                     RecordCall("add", args);
-                    if (args.ArgumentCount != 1)
-                        return LuauReturn.Error($"expected 1 arguments, got {args.ArgumentCount}");
-                    if (!args.TryReadNumber(1, out int offset, out string? error))
-                        return LuauReturn.Error(error);
+                    if (args.Count != 1)
+                        return LuauReturn.Error($"expected 1 arguments, got {args.Count}");
+                    int offset = args[1].Get<int>();
 
                     return LuauReturn.Ok(self.Value + offset);
                 }
@@ -693,8 +691,8 @@ public sealed class UserdataTests
                 static (self, args) =>
                 {
                     RecordCall("pair", args);
-                    if (args.ArgumentCount != 0)
-                        return LuauReturn.Error($"expected 0 arguments, got {args.ArgumentCount}");
+                    if (args.Count != 0)
+                        return LuauReturn.Error($"expected 0 arguments, got {args.Count}");
 
                     return LuauReturn.Ok(self.Value, self.Value + 1);
                 }
@@ -704,8 +702,8 @@ public sealed class UserdataTests
                 static (self, args) =>
                 {
                     RecordCall("touch", args);
-                    if (args.ArgumentCount != 0)
-                        return LuauReturn.Error($"expected 0 arguments, got {args.ArgumentCount}");
+                    if (args.Count != 0)
+                        return LuauReturn.Error($"expected 0 arguments, got {args.Count}");
 
                     self.Value++;
                     return LuauReturn.Ok();
@@ -716,7 +714,7 @@ public sealed class UserdataTests
         private static void RecordCall(string methodName, LuauArgs args)
         {
             LastMethodName = methodName;
-            LastParameterCount = args.ArgumentCount;
+            LastParameterCount = args.Count;
         }
 
         public static implicit operator IntoLuau(CounterUserdata value) => IntoLuau.FromUserdata(value);
