@@ -548,9 +548,9 @@ public class GeneratedExportsTests
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
     }
 
-    /// <summary> A struct is copied where a module and a userdata type are shared, so nothing is generated for it. </summary>
+    /// <summary> Nothing is generated for a struct. The compiler already rejects [LuauUserdata] on one. </summary>
     [Fact]
-    public async Task StructTypes_ShouldFail()
+    public async Task StructModule_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
@@ -560,20 +560,6 @@ public class GeneratedExportsTests
             {
                 [LuauMember("open")]
                 public static void Open() { }
-            }
-
-            [LuauUserdata("Account")]
-            public partial struct Account
-            {
-                [LuauMember("close")]
-                public void Close() { }
-            }
-
-            [LuauUserdata("Money")]
-            public partial record struct Money
-            {
-                [LuauMember("amount")]
-                public int Amount { get; set; }
             }
             """;
 
