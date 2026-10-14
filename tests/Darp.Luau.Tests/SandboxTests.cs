@@ -476,6 +476,20 @@ public sealed class SandboxTests
             .Message.ShouldContain("readonly");
     }
 
+    [Theory]
+    [InlineData("function() end")]
+    [InlineData("function() error('no new globals') end")]
+    public void Modules_ShouldBeRequiredWhateverTheGlobalsDoWithNewNames(string newIndex)
+    {
+        using var state = new LuauState();
+        state.Load($"setmetatable(_G, {{ __newindex = {newIndex} }})").Execute();
+
+        state.EnableSandbox();
+        state.RegisterModule("game", static (LuauState _, in LuauTable module) => module.Set("answer", 42));
+
+        state.Load("return require('game').answer").Execute<int>().ShouldBe(42);
+    }
+
     [Fact]
     public void HostModule_ShouldBeChangeableWithoutASandbox()
     {
