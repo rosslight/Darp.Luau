@@ -17,7 +17,8 @@ namespace Darp.Luau.Internal;
 /// </para>
 /// <para>
 /// Queued work runs in a drain: on a thread-pool worker, or on the host dispatcher when one was given. A drain
-/// that is scheduled reserves the state, so that an async call does not start ahead of what is queued.
+/// that is scheduled reserves the state, and a turn that ends with work queued passes the state to its drain, so
+/// that an async call does not start ahead of what is queued.
 /// </para>
 /// <para>
 /// This class is the only place in the library that synchronizes threads. They meet in the owner word and in the
@@ -99,9 +100,9 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     public void EndTurn()
     {
         Debug.Assert(IsEntered);
-        if (_finishedCalls is not null)
+        if (_finishedCalls is not null || Volatile.Read(ref _queue) is not null)
         {
-            EndTurnAndCompleteCalls();
+            EndTurnAndHandOn();
             return;
         }
         // A full fence. A post that does not find the state idle has queued its work before this exchange, so it
@@ -166,21 +167,28 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void TakeReservationOrThrow(int currentThreadId)
     {
+        // A drain that is scheduled has not started. The sync call goes first and schedules it again when it ends,
+        // so a call on the thread of a host dispatcher never fails because of what is queued.
+        if (!TryTakeFreeState(currentThreadId))
+        {
+            throw new InvalidOperationException(
+                "The LuauState is in use by another thread, which runs a script or the continuation of an "
+                    + "async callback. A synchronous call does not wait for it: make the call from a "
+                    + "callback, or when the async calls of the state have completed."
+            );
+        }
+    }
+
+    /// <summary> Takes the state when it is idle or reserved for a drain that has not started. </summary>
+    private bool TryTakeFreeState(int currentThreadId)
+    {
         while (true)
         {
             int owner = Volatile.Read(ref _owner);
-            // A drain that is scheduled has not started. The sync call goes first and schedules it again when it
-            // ends, so a call on the thread of a host dispatcher never fails because of what is queued.
             if (owner is not (Idle or Reserved))
-            {
-                throw new InvalidOperationException(
-                    "The LuauState is in use by another thread, which runs a script or the continuation of an "
-                        + "async callback. A synchronous call does not wait for it: make the call from a "
-                        + "callback, or when the async calls of the state have completed."
-                );
-            }
+                return false;
             if (Interlocked.CompareExchange(ref _owner, currentThreadId, owner) == owner)
-                return;
+                return true;
         }
     }
 
@@ -195,15 +203,22 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void EndRootTurn() => EndTurn();
 
+    /// <summary> <see cref="EndTurn"/> for a turn that has calls to complete or may have queued work. </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void EndTurnAndCompleteCalls()
+    private void EndTurnAndHandOn()
     {
         IDetachedCall? finishedCalls = _finishedCalls;
         _finishedCalls = null;
-        Interlocked.Exchange(ref _owner, Idle);
+        // Work queued before the turn ended goes first: the state passes to its drain without being idle in
+        // between, so that no async call starts ahead of it. Work queued after this read is seen below.
+        bool isQueued = Volatile.Read(ref _queue) is { IsEmpty: false };
+        Interlocked.Exchange(ref _owner, isQueued ? Reserved : Idle);
         for (; finishedCalls is not null; finishedCalls = finishedCalls.Next)
             finishedCalls.Complete();
-        ScheduleQueuedWork();
+        if (isQueued)
+            PostDrain();
+        else
+            ScheduleQueuedWork();
     }
 
     /// <summary> Schedules a drain when work is queued and nobody has the state. </summary>
@@ -212,12 +227,17 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     {
         // Reserved before the drain is published, so that no async call starts ahead of what is queued.
         if (
-            Volatile.Read(ref _queue) is not { IsEmpty: false }
-            || Interlocked.CompareExchange(ref _owner, Reserved, Idle) != Idle
+            Volatile.Read(ref _queue) is { IsEmpty: false }
+            && Interlocked.CompareExchange(ref _owner, Reserved, Idle) == Idle
         )
         {
-            return;
+            PostDrain();
         }
+    }
+
+    /// <summary> Publishes a drain for the reservation that the caller made. </summary>
+    private void PostDrain()
+    {
         if (_hostContext is null)
         {
             ThreadPool.UnsafeQueueUserWorkItem(static context => context.Drain(), this, preferLocal: false);
@@ -232,6 +252,7 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         {
             // No drain will run, for example because the dispatcher has shut down. Give the reservation back,
             // unless a sync call took it, so that the state stays usable: the next turn hands on what is queued.
+            // The reservation may be that of another drain by now; that drain finds the state idle and runs.
             Interlocked.CompareExchange(ref _owner, Idle, Reserved);
             throw;
         }
@@ -240,8 +261,10 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     private void Drain()
     {
         int currentThreadId = Environment.CurrentManagedThreadId;
-        // A sync call may have taken the reservation. It schedules a drain again when it ends.
-        if (Interlocked.CompareExchange(ref _owner, currentThreadId, Reserved) != Reserved)
+        // A sync call may have taken the reservation. It schedules a drain again when it ends. A drain that finds
+        // the state idle runs all the same: a post that failed may have given its reservation back. Drains are
+        // interchangeable, and one that finds nothing queued ends at once.
+        if (!TryTakeFreeState(currentThreadId))
             return;
 
         SynchronizationContext? previousContext = Current;
