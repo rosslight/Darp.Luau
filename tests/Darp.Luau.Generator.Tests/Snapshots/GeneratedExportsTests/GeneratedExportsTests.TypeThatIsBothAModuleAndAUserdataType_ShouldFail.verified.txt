@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+[LuauModule("bank")]
+ ^^^^^^^^^^^^^^^^^^
+[LuauUserdata("Bank")]
+*/
+ : (2,1)-(2,19),
+      Message: Invalid generated export shape: type 'Bank' cannot be both a [LuauModule] and a [LuauUserdata],
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

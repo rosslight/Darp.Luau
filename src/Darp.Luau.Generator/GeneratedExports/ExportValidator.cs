@@ -5,191 +5,172 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class ExportValidator
 {
-    public static bool ValidateTypeShape(
-        DiscoveredExportType discoveredType,
-        LuauApiSymbols context,
-        List<Diagnostic> diagnostics
-    )
-    {
-        return ValidateType(discoveredType, context, diagnostics);
-    }
-
-    public static ValidatedExportType ValidateMembers(
-        DiscoveredExportType discoveredType,
-        NormalizedExportType normalizedType,
-        List<Diagnostic> diagnostics
-    )
-    {
-        ReportDuplicateNames(discoveredType.Symbol, normalizedType.Kind, normalizedType.Members, diagnostics);
-
-        ValidatedModuleExportNode? moduleRoot =
-            normalizedType.Kind == LuauExportedTypeKind.Module
-                ? ExportTreeBuilder.BuildModuleTree(normalizedType, diagnostics)
-                : null;
-        return new ValidatedExportType(normalizedType, moduleRoot);
-    }
-
-    private static bool ValidateType(
-        DiscoveredExportType discoveredType,
+    /// <summary> Checks that generated code can add to <paramref name="type"/>. </summary>
+    /// <returns>
+    /// The name the attribute gives the module or the userdata type, or null when no source can be generated for
+    /// the type.
+    /// </returns>
+    public static string? ValidateType(
+        INamedTypeSymbol type,
+        LuauExportedTypeKind kind,
+        AttributeData attribute,
+        Location location,
         LuauApiSymbols context,
         List<Diagnostic> diagnostics
     )
     {
         bool hasFatalTypeErrors = false;
-        if (!SymbolExtensions.IsPartial(discoveredType.Symbol))
+        if (!SymbolExtensions.IsPartial(type))
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
-                    discoveredType.Kind == LuauExportedTypeKind.Module
+                    kind == LuauExportedTypeKind.Module
                         ? DiagnosticDescriptors.LuauModuleTypeMustBePartialDescriptor
                         : DiagnosticDescriptors.LuauUserdataTypeMustBePartialDescriptor,
-                    discoveredType.Origin.Location
+                    location
                 )
             );
         }
 
-        if (discoveredType.Symbol.IsFileLocal())
+        if (type.IsFileLocal())
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    discoveredType.Origin.Location,
+                    location,
                     "file-local generated export types are not supported because generated partial sources are emitted into separate files"
                 )
             );
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Module)
+        if (kind == LuauExportedTypeKind.Module)
         {
-            string? moduleName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
-            if (string.IsNullOrWhiteSpace(moduleName))
+            string? moduleName = AttributeReader.GetStringConstructorArgument(attribute);
+            if (moduleName is null || string.IsNullOrWhiteSpace(moduleName))
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
+                        location,
                         "root modules must supply a non-empty name via [LuauModule(\"...\")]"
                     )
                 );
             }
-            else if (IsReservedModuleName(moduleName!))
+            else if (IsReservedModuleName(moduleName))
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
+                        location,
                         "module names must be bare require names; './', '../', '/', '\\', '@', and slash-containing names are reserved for script modules"
                     )
                 );
             }
 
-            if (discoveredType.Symbol.ContainingType is not null)
+            if (type.ContainingType is not null)
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
+                        location,
                         "nested module types are not supported in v1"
                     )
                 );
             }
 
-            if (discoveredType.Symbol.TypeParameters.Length > 0)
+            if (type.TypeParameters.Length > 0)
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
+                        location,
                         "generic module types are not supported in v1"
                     )
                 );
             }
 
-            hasFatalTypeErrors |= ReportGeneratedModuleMemberNameConflicts(discoveredType.Symbol, diagnostics);
+            hasFatalTypeErrors |= ReportGeneratedModuleMemberNameConflicts(type, diagnostics);
 
-            if (discoveredType.Symbol.TypeKind == TypeKind.Struct)
+            if (type.TypeKind == TypeKind.Struct)
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
-                    Diagnostic.Create(
-                        DiagnosticDescriptors.InstanceModuleStructNotSupportedDescriptor,
-                        discoveredType.Origin.Location
-                    )
+                    Diagnostic.Create(DiagnosticDescriptors.InstanceModuleStructNotSupportedDescriptor, location)
                 );
             }
 
-            return hasFatalTypeErrors;
+            return hasFatalTypeErrors ? null : moduleName;
         }
 
-        if (discoveredType.Symbol.TypeKind != TypeKind.Class)
+        if (type.TypeKind != TypeKind.Class)
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    discoveredType.Origin.Location,
+                    location,
                     "types marked with [LuauUserdata] must be classes"
                 )
             );
         }
 
         // Scripts see the name as typeof(value), and a declaration of the type for an editor needs an identifier.
-        string? typeName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
+        string? typeName = AttributeReader.GetStringConstructorArgument(attribute);
         if (typeName is null || !ExportPathParser.IsLuauDotPathIdentifier(typeName) || IsLuauTypeName(typeName))
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    discoveredType.Origin.Location,
+                    location,
                     $"userdata type name '{typeName}' must be a Luau identifier that is not the name of a built-in Luau type"
                 )
             );
         }
 
-        if (discoveredType.Symbol.ContainingType is not null)
+        if (type.ContainingType is not null)
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    discoveredType.Origin.Location,
+                    location,
                     "nested userdata types are not supported in v1"
                 )
             );
         }
 
-        if (discoveredType.Symbol.TypeParameters.Length > 0)
+        if (type.TypeParameters.Length > 0)
         {
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                    discoveredType.Origin.Location,
+                    location,
                     "generic userdata types are not supported in v1"
                 )
             );
         }
 
-        foreach (ISymbol hookMember in discoveredType.Symbol.GetManualUserdataHookMembers(context))
+        foreach (ISymbol hookMember in type.GetManualUserdataHookMembers(context))
         {
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.GeneratedUserdataManualInteropConflictDescriptor,
                     SymbolExtensions.GetSymbolLocation(hookMember),
-                    discoveredType.Symbol.Name
+                    type.Name
                 )
             );
             hasFatalTypeErrors = true;
         }
 
-        return hasFatalTypeErrors;
+        return hasFatalTypeErrors ? null : typeName;
     }
 
     private static bool IsLuauTypeName(string name) =>
@@ -238,25 +219,25 @@ internal static class ExportValidator
         return hasConflicts;
     }
 
-    private static void ReportDuplicateNames(
+    public static void ReportDuplicateNames(
         INamedTypeSymbol type,
         LuauExportedTypeKind exportedTypeKind,
-        ImmutableEquatableArray<NormalizedExportMember> members,
+        List<AnalyzedExportMember> members,
         List<Diagnostic> diagnostics
     )
     {
         // The instance and the static side of a userdata type are different tables, so a name can be on both.
         var names = new HashSet<(bool IsStatic, string Name)>();
-        foreach (NormalizedExportMember member in members)
+        foreach (AnalyzedExportMember member in members)
         {
-            bool isStatic = exportedTypeKind == LuauExportedTypeKind.Userdata && member.Symbol.IsStatic;
-            if (!names.Add((isStatic, member.LuauName)))
+            bool isStatic = exportedTypeKind == LuauExportedTypeKind.Userdata && member.Member.IsStatic;
+            if (!names.Add((isStatic, member.Member.LuauName)))
             {
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.DuplicateLuauMemberNameDescriptor,
-                        SymbolExtensions.GetSymbolLocation(member.Symbol),
-                        member.LuauName,
+                        member.Location,
+                        member.Member.LuauName,
                         exportedTypeKind == LuauExportedTypeKind.Module ? "module" : "userdata",
                         type.Name
                     )

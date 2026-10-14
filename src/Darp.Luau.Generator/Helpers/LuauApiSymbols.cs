@@ -111,6 +111,4 @@ internal sealed class LuauApiSymbols
             .FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, value))
             ?.Name;
     }
-
-    public bool ImplementsManualUserdataHooks(INamedTypeSymbol type) => type.ImplementsManualUserdataHooks(this);
 }

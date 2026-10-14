@@ -10,12 +10,6 @@ internal enum LuauExportedTypeKind
     Userdata,
 }
 
-internal enum LuauExportedMemberKind
-{
-    Property,
-    Method,
-}
-
 internal enum LuauExportPropertyAccess
 {
     Auto = 0,
@@ -24,126 +18,69 @@ internal enum LuauExportPropertyAccess
     ReadWrite = 3,
 }
 
-internal sealed record SourceOrigin(string DisplayName, Location Location);
-
-internal sealed record DiscoveredExportType(
-    INamedTypeSymbol Symbol,
-    LuauExportedTypeKind Kind,
-    AttributeData Attribute,
-    SourceOrigin Origin,
-    ImmutableEquatableArray<DiscoveredExportMember> Members,
-    ImmutableEquatableArray<DiscoveredExportMetamethod> Metamethods
-);
-
-internal sealed record DiscoveredExportMetamethod(IMethodSymbol Symbol, AttributeData Attribute, SourceOrigin Origin);
-
-internal abstract record DiscoveredExportMember(string ManagedName, AttributeData Attribute, SourceOrigin Origin);
-
-internal sealed record DiscoveredExportProperty(IPropertySymbol Symbol, AttributeData Attribute, SourceOrigin Origin)
-    : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
-
-internal sealed record DiscoveredExportMethod(IMethodSymbol Symbol, AttributeData Attribute, SourceOrigin Origin)
-    : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
-
-internal sealed record NormalizedExportType(
-    INamedTypeSymbol Symbol,
-    LuauExportedTypeKind Kind,
-    string? ModuleName,
-    string? UserdataTypeName,
-    SourceOrigin Origin,
-    ImmutableEquatableArray<NormalizedExportMember> Members,
-    ImmutableEquatableArray<GeneratedMetamethodIr> Metamethods
-);
-
-internal abstract record NormalizedExportMember(
-    string ManagedName,
-    string LuauName,
-    ImmutableEquatableArray<string> PathSegments,
-    SourceOrigin Origin
-)
-{
-    public abstract ISymbol Symbol { get; }
-}
-
-internal sealed record NormalizedExportPropertyMember(
-    IPropertySymbol PropertySymbol,
-    string ManagedName,
-    string LuauName,
-    ImmutableEquatableArray<string> PathSegments,
-    SourceOrigin Origin,
-    NormalizedPropertyContract Property
-) : NormalizedExportMember(ManagedName, LuauName, PathSegments, Origin)
-{
-    public override ISymbol Symbol => PropertySymbol;
-}
-
-internal sealed record NormalizedExportMethodMember(
-    IMethodSymbol MethodSymbol,
-    string ManagedName,
-    string LuauName,
-    ImmutableEquatableArray<string> PathSegments,
-    SourceOrigin Origin,
-    InteropSignature Signature
-) : NormalizedExportMember(ManagedName, LuauName, PathSegments, Origin)
-{
-    public override ISymbol Symbol => MethodSymbol;
-}
-
-internal sealed record NormalizedPropertyContract(
-    NormalizedPropertyAccessor? Getter,
-    NormalizedPropertyAccessor? Setter
-);
-
-internal sealed record NormalizedPropertyAccessor(InteropType Type);
-
-internal sealed record ValidatedExportType(NormalizedExportType Type, ValidatedModuleExportNode? ModuleRoot);
-
-internal sealed record ValidatedModuleExportNode(
-    string Name,
-    NormalizedExportMember? Member,
-    ImmutableEquatableArray<ValidatedModuleExportNode> Children
-);
-
-internal sealed record GeneratedExportSurfaceIr(
+/// <summary> The declaration of the partial type that generated code adds to. </summary>
+/// <param name="ManagedTypeName">The qualified name of the type.</param>
+/// <param name="NamespaceName">The namespace of the type, or null for the global namespace.</param>
+/// <param name="TypeDeclaration">The modifiers, the keyword and the name, as the generated part repeats them.</param>
+/// <param name="IsStatic">Whether the type is static.</param>
+/// <param name="HintName">The name of the generated file.</param>
+internal sealed record GeneratedExportTypeIr(
     string ManagedTypeName,
     string? NamespaceName,
     string TypeDeclaration,
     bool IsStatic,
-    string HintName,
-    LuauExportedTypeKind Kind,
-    string? ModuleName,
-    string? UserdataTypeName,
+    string HintName
+);
+
+/// <summary> A host module, as the generator emits it. </summary>
+/// <param name="Type">The type marked with <c>[LuauModule]</c>.</param>
+/// <param name="ModuleName">The name scripts pass to <c>require</c>.</param>
+/// <param name="Root">The table scripts get. Its children are the members of the module.</param>
+internal sealed record GeneratedModuleIr(
+    GeneratedExportTypeIr Type,
+    string ModuleName,
+    GeneratedModuleExportNodeIr Root
+);
+
+/// <summary> A userdata type, as the generator emits it. </summary>
+/// <param name="Type">The type marked with <c>[LuauUserdata]</c>.</param>
+/// <param name="TypeName">The name scripts see for a value of the type.</param>
+/// <param name="Members">The members of the instance and of the static side.</param>
+/// <param name="Metamethods">The metamethods of the type.</param>
+internal sealed record GeneratedUserdataIr(
+    GeneratedExportTypeIr Type,
+    string TypeName,
     ImmutableEquatableArray<GeneratedExportMemberIr> Members,
-    ImmutableEquatableArray<GeneratedMetamethodIr> Metamethods,
-    GeneratedModuleExportNodeIr? ModuleRoot
+    ImmutableEquatableArray<GeneratedMetamethodIr> Metamethods
 );
 
-internal abstract record GeneratedExportMemberIr(
-    bool IsStatic,
-    string ManagedName,
-    string LuauName,
-    ImmutableEquatableArray<string> PathSegments
-);
+/// <param name="IsStatic">Whether the member is static.</param>
+/// <param name="ManagedName">The name generated code refers to the member by.</param>
+/// <param name="LuauName">The name scripts refer to the member by. For a member of a module it is a path.</param>
+internal abstract record GeneratedExportMemberIr(bool IsStatic, string ManagedName, string LuauName);
 
+/// <param name="IsStatic">Whether the property is static.</param>
+/// <param name="ManagedName">The name generated code reads the property by, qualified for a static property.</param>
+/// <param name="LuauName">The name scripts refer to the property by.</param>
+/// <param name="Type">The type of the property.</param>
+/// <param name="HasGetter">Whether scripts can read it. False only for a write-only property of a userdata type.</param>
+/// <param name="HasSetter">Whether scripts can write it. Only an instance property of a userdata type can.</param>
 internal sealed record GeneratedExportPropertyIr(
     bool IsStatic,
     string ManagedName,
     string LuauName,
-    ImmutableEquatableArray<string> PathSegments,
-    GeneratedExportAccessorIr? Getter,
-    GeneratedExportAccessorIr? Setter
-) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName, PathSegments);
+    InteropType Type,
+    bool HasGetter,
+    bool HasSetter
+) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName);
 
 internal sealed record GeneratedExportMethodIr(
     string ContainingTypeName,
     bool IsStatic,
     string ManagedName,
     string LuauName,
-    ImmutableEquatableArray<string> PathSegments,
     InteropSignature Signature
-) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName, PathSegments);
-
-internal sealed record GeneratedExportAccessorIr(InteropType Type);
+) : GeneratedExportMemberIr(IsStatic, ManagedName, LuauName);
 
 internal enum MetamethodCallKind
 {
@@ -169,14 +106,22 @@ internal sealed record GeneratedMetamethodOverloadIr(
     InteropSignature Signature
 );
 
+/// <summary> An entry of a module table: a member, or a table of further entries. </summary>
+/// <param name="Name">The key of the entry in its table.</param>
+/// <param name="Member">The member, or null for a table.</param>
+/// <param name="Children">The entries of the table.</param>
 internal sealed record GeneratedModuleExportNodeIr(
     string Name,
     GeneratedExportMemberIr? Member,
     ImmutableEquatableArray<GeneratedModuleExportNodeIr> Children
 );
 
-internal sealed record GeneratedExportsTypeAnalysis(
-    GeneratedExportSurfaceIr? Model,
-    ImmutableArray<Diagnostic> Diagnostics,
-    bool CanEmitSource
+/// <summary> A member together with what only the diagnostics of its type need. </summary>
+/// <param name="Member">The member, as the generator emits it.</param>
+/// <param name="PathSegments">The Luau name, split at its dots.</param>
+/// <param name="Location">Where the member is declared.</param>
+internal sealed record AnalyzedExportMember(
+    GeneratedExportMemberIr Member,
+    ImmutableArray<string> PathSegments,
+    Location Location
 );

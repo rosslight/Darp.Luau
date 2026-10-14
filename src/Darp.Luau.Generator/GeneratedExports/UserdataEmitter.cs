@@ -1,5 +1,4 @@
 using System.CodeDom.Compiler;
-using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -11,34 +10,28 @@ internal static class UserdataEmitter
     private const string LuauReturnSingle = "global::Darp.Luau.LuauReturnSingle";
     private const string ArgumentException = "global::System.ArgumentException";
 
-    public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
+    public static string Emit(GeneratedUserdataIr model)
     {
-        if (model.Kind != LuauExportedTypeKind.Userdata)
-        {
-            source = null;
-            return false;
-        }
-
         using var stringWriter = new StringWriter();
         using var writer = new IndentedTextWriter(stringWriter);
         WriteFile(writer, model);
-        source = stringWriter.ToString();
-        return true;
+        return stringWriter.ToString();
     }
 
-    private static void WriteFile(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteFile(IndentedTextWriter writer, GeneratedUserdataIr model)
     {
+        GeneratedExportTypeIr type = model.Type;
         ExportEmitterHelper.WriteFileHeader(writer);
-        bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, model.NamespaceName);
+        bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, type.NamespaceName);
 
-        string userdataInterface = $"global::Darp.Luau.ILuauUserdata<{model.ManagedTypeName}>";
-        writer.WriteLine(ExportEmitterHelper.WithBaseList(model.TypeDeclaration, userdataInterface));
+        string userdataInterface = $"global::Darp.Luau.ILuauUserdata<{type.ManagedTypeName}>";
+        writer.WriteLine(ExportEmitterHelper.WithBaseList(type.TypeDeclaration, userdataInterface));
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         // Implemented explicitly: the type keeps the name 'Register' for its own members.
         writer.WriteLine(
-            $"static void {userdataInterface}.Register(global::Darp.Luau.LuauUserdataRegistry<{model.ManagedTypeName}> registry)"
+            $"static void {userdataInterface}.Register(global::Darp.Luau.LuauUserdataRegistry<{type.ManagedTypeName}> registry)"
         );
         writer.WriteLine("{");
         writer.Indent++;
@@ -51,12 +44,9 @@ internal static class UserdataEmitter
         ExportEmitterHelper.WriteNamespaceEnd(writer, hasNamespace);
     }
 
-    private static void WriteRegistrations(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteRegistrations(IndentedTextWriter writer, GeneratedUserdataIr model)
     {
-        if (model.UserdataTypeName is not null)
-            writer.WriteLine(
-                $"registry.TypeName = {SymbolDisplay.FormatLiteral(model.UserdataTypeName, quote: true)};"
-            );
+        writer.WriteLine($"registry.TypeName = {SymbolDisplay.FormatLiteral(model.TypeName, quote: true)};");
 
         foreach (
             GeneratedExportMemberIr member in model
@@ -218,29 +208,24 @@ internal static class UserdataEmitter
     private static void WriteProperty(IndentedTextWriter writer, GeneratedExportPropertyIr property)
     {
         string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
-        if (property.Getter is not null)
+        if (property.HasGetter)
         {
-            string value = LuauMarshalEmitter.FormatIntoLuauExpression(
-                $"self.{property.ManagedName}",
-                property.Getter.Type
-            );
+            string value = LuauMarshalEmitter.FormatIntoLuauExpression($"self.{property.ManagedName}", property.Type);
             writer.WriteLine($"registry.AddGetter({keyLiteral}, static (self, _) => {LuauReturnSingle}.Ok({value}));");
         }
 
-        if (property.Setter is null)
+        if (!property.HasSetter)
             return;
 
         writer.WriteLine(
-            $"registry.AddSetter({keyLiteral}, static (self, value) => self.{property.ManagedName} = {LuauMarshalEmitter.FormatRead("value", property.Setter.Type)});"
+            $"registry.AddSetter({keyLiteral}, static (self, value) => self.{property.ManagedName} = {LuauMarshalEmitter.FormatRead("value", property.Type)});"
         );
     }
 
     private static void WriteStaticValue(IndentedTextWriter writer, GeneratedExportPropertyIr property)
     {
-        GeneratedExportAccessorIr getter =
-            property.Getter ?? throw new InvalidOperationException("A static userdata property must have a getter.");
         string keyLiteral = SymbolDisplay.FormatLiteral(property.LuauName, quote: true);
-        string value = LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, getter.Type);
+        string value = LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, property.Type);
         writer.WriteLine($"registry.AddValue({keyLiteral}, static _ => {LuauReturnSingle}.Ok({value}));");
     }
 

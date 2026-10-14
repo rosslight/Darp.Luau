@@ -151,6 +151,12 @@ public class GeneratedExportsTests
 
                 [LuauMember("Field..u16")]
                 public static int CreateU16() => 16;
+
+                [LuauMember("Text.Format")]
+                public static string Format(int value) => value.ToString();
+
+                [LuauMember("Text")]
+                public static string Text => "";
             }
             """;
 
@@ -540,6 +546,43 @@ public class GeneratedExportsTests
             """;
 
         await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    /// <summary> Nothing is generated for a struct. The compiler already rejects [LuauUserdata] on one. </summary>
+    [Fact]
+    public async Task StructModule_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("bank")]
+            public partial struct BankModule
+            {
+                [LuauMember("open")]
+                public static void Open() { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSourceWithErrors(code);
+    }
+
+    /// <summary> Reported once, and neither a module nor a userdata type is generated. </summary>
+    [Fact]
+    public async Task TypeThatIsBothAModuleAndAUserdataType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("bank")]
+            [LuauUserdata("Bank")]
+            public sealed partial class Bank
+            {
+                [LuauMember("open")]
+                public void Open() { }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSourceWithErrors(code);
     }
 
     [Fact]

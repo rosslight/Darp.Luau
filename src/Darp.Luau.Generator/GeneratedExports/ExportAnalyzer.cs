@@ -1,84 +1,117 @@
 using System.Collections.Immutable;
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Darp.Luau.Generator.GeneratedExports;
 
+/// <summary>
+/// Reads a type marked with <c>[LuauModule]</c> or <c>[LuauUserdata]</c> into what the generator emits for it. The
+/// generator takes the result and the analyzer the diagnostics.
+/// </summary>
 internal static class ExportAnalyzer
 {
-    public static GeneratedExportsTypeAnalysis AnalyzeType(
+    /// <summary> Reads a type marked with <c>[LuauModule]</c>. </summary>
+    /// <returns>The module, or null when no source can be generated for the type. The diagnostics say why.</returns>
+    public static GeneratedModuleIr? AnalyzeModule(
         INamedTypeSymbol type,
-        LuauExportedTypeKind expectedKind,
-        Compilation compilation
-    )
-    {
-        var diagnostics = new List<Diagnostic>();
-        LuauApiSymbols? context = LuauApiSymbols.Create(compilation);
-        if (context is null)
-            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitSource: false);
-
-        DiscoveredExportType? discoveredType = ExportDiscovery.DiscoverType(type, expectedKind, context, diagnostics);
-        if (discoveredType is null)
-            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitSource: false);
-
-        bool hasFatalTypeErrors = ExportValidator.ValidateTypeShape(discoveredType, context, diagnostics);
-        NormalizedExportType normalizedType = Normalize(discoveredType, context, diagnostics);
-        ValidatedExportType validatedType = ExportValidator.ValidateMembers(
-            discoveredType,
-            normalizedType,
-            diagnostics
-        );
-        GeneratedExportSurfaceIr model = ExportProjector.Project(validatedType);
-        return new GeneratedExportsTypeAnalysis(
-            model,
-            diagnostics.ToImmutableArray(),
-            CanEmitSource: !hasFatalTypeErrors
-        );
-    }
-
-    public static NormalizedExportType Normalize(
-        DiscoveredExportType discoveredType,
+        AttributeData attribute,
         LuauApiSymbols context,
         List<Diagnostic> diagnostics
     )
     {
-        string? name = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
-        bool isModule = discoveredType.Kind == LuauExportedTypeKind.Module;
-
-        var members = new List<NormalizedExportMember>();
-        foreach (DiscoveredExportMember member in discoveredType.Members)
+        Location location = SymbolExtensions.GetAttributeLocation(attribute, type);
+        if (context.GetUserdataAttribute(type) is not null)
         {
-            NormalizedExportMember? normalizedMember = member switch
-            {
-                DiscoveredExportProperty property => NormalizeProperty(discoveredType, property, context, diagnostics),
-                DiscoveredExportMethod method => NormalizeMethod(discoveredType, method, context, diagnostics),
-                _ => null,
-            };
-
-            if (normalizedMember is not null)
-                members.Add(normalizedMember);
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    location,
+                    $"type '{type.Name}' cannot be both a [LuauModule] and a [LuauUserdata]"
+                )
+            );
+            return null;
         }
 
-        return new NormalizedExportType(
-            discoveredType.Symbol,
-            discoveredType.Kind,
-            ModuleName: isModule ? name : null,
-            UserdataTypeName: isModule ? null : name,
-            discoveredType.Origin,
-            members.ToImmutableEquatableArray(),
-            MetamethodAnalyzer.Analyze(discoveredType, context, diagnostics)
-        );
+        const LuauExportedTypeKind kind = LuauExportedTypeKind.Module;
+        string? moduleName = ExportValidator.ValidateType(type, kind, attribute, location, context, diagnostics);
+        List<AnalyzedExportMember> members = AnalyzeMembers(type, kind, context, diagnostics);
+        MetamethodAnalyzer.ReportMetamethodsWithoutUserdataType(type, context, diagnostics);
+        ExportValidator.ReportDuplicateNames(type, kind, members, diagnostics);
+        GeneratedModuleExportNodeIr root = ExportTreeBuilder.BuildModuleTree(members, diagnostics);
+        return moduleName is null ? null : new GeneratedModuleIr(ReadType(type, kind), moduleName, root);
     }
 
-    private static NormalizedExportPropertyMember? NormalizeProperty(
-        DiscoveredExportType discoveredType,
-        DiscoveredExportProperty discoveredProperty,
+    /// <summary> Reads a type marked with <c>[LuauUserdata]</c>. </summary>
+    /// <returns>The userdata type, or null when no source can be generated for it. The diagnostics say why.</returns>
+    public static GeneratedUserdataIr? AnalyzeUserdata(
+        INamedTypeSymbol type,
+        AttributeData attribute,
         LuauApiSymbols context,
         List<Diagnostic> diagnostics
     )
     {
-        IPropertySymbol property = discoveredProperty.Symbol;
-        Location location = discoveredProperty.Origin.Location;
+        // A type that is both is reported once, as a module.
+        if (context.GetModuleAttribute(type) is not null)
+            return null;
+
+        const LuauExportedTypeKind kind = LuauExportedTypeKind.Userdata;
+        Location location = SymbolExtensions.GetAttributeLocation(attribute, type);
+        string? typeName = ExportValidator.ValidateType(type, kind, attribute, location, context, diagnostics);
+        List<AnalyzedExportMember> members = AnalyzeMembers(type, kind, context, diagnostics);
+        ImmutableEquatableArray<GeneratedMetamethodIr> metamethods = MetamethodAnalyzer.Analyze(
+            type,
+            context,
+            diagnostics
+        );
+        ExportValidator.ReportDuplicateNames(type, kind, members, diagnostics);
+        return typeName is null
+            ? null
+            : new GeneratedUserdataIr(
+                ReadType(type, kind),
+                typeName,
+                members.Select(static x => x.Member).ToImmutableEquatableArray(),
+                metamethods
+            );
+    }
+
+    private static List<AnalyzedExportMember> AnalyzeMembers(
+        INamedTypeSymbol type,
+        LuauExportedTypeKind kind,
+        LuauApiSymbols context,
+        List<Diagnostic> diagnostics
+    )
+    {
+        var members = new List<AnalyzedExportMember>();
+        foreach (ISymbol member in type.GetMembers())
+        {
+            if (member.IsImplicitlyDeclared || context.GetMemberAttribute(member) is not { } attribute)
+                continue;
+
+            Location location = SymbolExtensions.GetAttributeLocation(attribute, member);
+            AnalyzedExportMember? analyzed = member switch
+            {
+                IPropertySymbol property => AnalyzeProperty(property, attribute, kind, context, location, diagnostics),
+                IMethodSymbol method => AnalyzeMethod(method, attribute, kind, context, location, diagnostics),
+                _ => null,
+            };
+            if (analyzed is not null)
+                members.Add(analyzed);
+        }
+
+        return members;
+    }
+
+    private static AnalyzedExportMember? AnalyzeProperty(
+        IPropertySymbol property,
+        AttributeData attribute,
+        LuauExportedTypeKind kind,
+        LuauApiSymbols context,
+        Location location,
+        List<Diagnostic> diagnostics
+    )
+    {
         if (property.IsIndexer)
         {
             diagnostics.Add(
@@ -103,7 +136,7 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Module && !property.IsStatic)
+        if (kind == LuauExportedTypeKind.Module && !property.IsStatic)
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -115,7 +148,7 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        string? exportedName = AttributeReader.GetStringConstructorArgument(discoveredProperty.Attribute);
+        string? exportedName = AttributeReader.GetStringConstructorArgument(attribute);
         if (exportedName is null)
         {
             diagnostics.Add(
@@ -128,32 +161,43 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (
-            !TryGetPropertyAccess(
-                discoveredProperty.Attribute,
-                location,
-                diagnostics,
-                out LuauExportPropertyAccess requestedAccess
-            )
-        )
+        if (!TryGetPropertyAccess(attribute, location, diagnostics, out LuauExportPropertyAccess requestedAccess))
             return null;
 
         if (
-            !TryNormalizePropertyContract(
+            !TryResolvePropertyAccess(
                 property,
-                discoveredType.Kind,
                 requestedAccess,
-                context,
-                location,
-                diagnostics,
-                out NormalizedPropertyContract propertyContract
+                out bool hasGetter,
+                out bool hasSetter,
+                out string? reason
             )
         )
         {
+            diagnostics.Add(
+                Diagnostic.Create(DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor, location, reason)
+            );
             return null;
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Module && propertyContract.Setter is not null)
+        if (
+            !InteropTypeMapper.TryMapType(property.Type, context, out InteropType type)
+            || !InteropTypeMapper.CanBeProperty(type.Type)
+        )
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedGeneratedPropertyTypeDescriptor,
+                    location,
+                    property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    kind == LuauExportedTypeKind.Module ? "module property" : "userdata property",
+                    property.Name
+                )
+            );
+            return null;
+        }
+
+        if (kind == LuauExportedTypeKind.Module && hasSetter)
         {
             diagnostics.Add(
                 Diagnostic.Create(DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor, location, property.Name)
@@ -162,11 +206,7 @@ internal static class ExportAnalyzer
         }
 
         // The static side of a userdata type holds the value the property had when a state first asked for it.
-        if (
-            discoveredType.Kind == LuauExportedTypeKind.Userdata
-            && property.IsStatic
-            && propertyContract is not { Getter: not null, Setter: null }
-        )
+        if (kind == LuauExportedTypeKind.Userdata && property.IsStatic && (!hasGetter || hasSetter))
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -180,37 +220,46 @@ internal static class ExportAnalyzer
 
         if (
             !TryParsePath(
-                discoveredType.Kind,
+                kind,
                 exportedName,
                 property.Name,
                 location,
                 diagnostics,
-                out ImmutableEquatableArray<string> pathSegments
+                out ImmutableArray<string> pathSegments
             )
         )
         {
             return null;
         }
 
-        return new NormalizedExportPropertyMember(
-            property,
-            property.Name,
-            exportedName,
+        string name = EmitterHelper.EscapeIdentifier(property.Name);
+        return new AnalyzedExportMember(
+            new GeneratedExportPropertyIr(
+                property.IsStatic,
+                // A static property is read by its qualified name: a bare name such as 'module' or 'state' would
+                // bind to a local of the generated method instead.
+                property.IsStatic
+                    ? $"{property.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}.{name}"
+                    : name,
+                exportedName,
+                type,
+                hasGetter,
+                hasSetter
+            ),
             pathSegments,
-            discoveredProperty.Origin,
-            propertyContract
+            SymbolExtensions.GetSymbolLocation(property)
         );
     }
 
-    private static NormalizedExportMethodMember? NormalizeMethod(
-        DiscoveredExportType discoveredType,
-        DiscoveredExportMethod discoveredMethod,
+    private static AnalyzedExportMember? AnalyzeMethod(
+        IMethodSymbol method,
+        AttributeData attribute,
+        LuauExportedTypeKind kind,
         LuauApiSymbols context,
+        Location location,
         List<Diagnostic> diagnostics
     )
     {
-        IMethodSymbol method = discoveredMethod.Symbol;
-        Location location = discoveredMethod.Origin.Location;
         if (method.MethodKind != MethodKind.Ordinary)
         {
             diagnostics.Add(
@@ -236,7 +285,7 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        string? exportedName = AttributeReader.GetStringConstructorArgument(discoveredMethod.Attribute);
+        string? exportedName = AttributeReader.GetStringConstructorArgument(attribute);
         if (exportedName is null)
         {
             diagnostics.Add(
@@ -251,12 +300,12 @@ internal static class ExportAnalyzer
 
         if (
             !TryParsePath(
-                discoveredType.Kind,
+                kind,
                 exportedName,
                 method.Name,
                 location,
                 diagnostics,
-                out ImmutableEquatableArray<string> pathSegments
+                out ImmutableArray<string> pathSegments
             )
         )
         {
@@ -266,65 +315,17 @@ internal static class ExportAnalyzer
         if (!TryReadSignature(method, context, location, diagnostics, out InteropSignature signature))
             return null;
 
-        return new NormalizedExportMethodMember(
-            method,
-            method.Name,
-            exportedName,
+        return new AnalyzedExportMember(
+            new GeneratedExportMethodIr(
+                method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                method.IsStatic,
+                EmitterHelper.EscapeIdentifier(method.Name),
+                exportedName,
+                signature
+            ),
             pathSegments,
-            discoveredMethod.Origin,
-            signature
+            SymbolExtensions.GetSymbolLocation(method)
         );
-    }
-
-    private static bool TryNormalizePropertyContract(
-        IPropertySymbol property,
-        LuauExportedTypeKind exportedTypeKind,
-        LuauExportPropertyAccess requestedAccess,
-        LuauApiSymbols context,
-        Location location,
-        List<Diagnostic> diagnostics,
-        out NormalizedPropertyContract propertyContract
-    )
-    {
-        if (
-            !TryResolvePropertyAccess(
-                property,
-                requestedAccess,
-                out bool exposeGetter,
-                out bool exposeSetter,
-                out string? reason
-            )
-        )
-        {
-            diagnostics.Add(
-                Diagnostic.Create(DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor, location, reason)
-            );
-            propertyContract = default!;
-            return false;
-        }
-
-        if (
-            !InteropTypeMapper.TryMapType(property.Type, context, out InteropType type)
-            || !InteropTypeMapper.CanBeProperty(type.Type)
-        )
-        {
-            diagnostics.Add(
-                Diagnostic.Create(
-                    DiagnosticDescriptors.UnsupportedGeneratedPropertyTypeDescriptor,
-                    location,
-                    property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                    exportedTypeKind == LuauExportedTypeKind.Module ? "module property" : "userdata property",
-                    property.Name
-                )
-            );
-            propertyContract = default!;
-            return false;
-        }
-
-        NormalizedPropertyAccessor? getter = exposeGetter ? new NormalizedPropertyAccessor(type) : null;
-        NormalizedPropertyAccessor? setter = exposeSetter ? new NormalizedPropertyAccessor(type) : null;
-        propertyContract = new NormalizedPropertyContract(getter, setter);
-        return true;
     }
 
     /// <summary> Reads the signature of a method that generated code calls by its name. </summary>
@@ -481,26 +482,69 @@ internal static class ExportAnalyzer
     }
 
     private static bool TryParsePath(
-        LuauExportedTypeKind exportedTypeKind,
+        LuauExportedTypeKind kind,
         string exportedName,
         string memberName,
         Location location,
         List<Diagnostic> diagnostics,
-        out ImmutableEquatableArray<string> pathSegments
-    )
+        out ImmutableArray<string> pathSegments
+    ) =>
+        kind == LuauExportedTypeKind.Module
+            ? ExportPathParser.TryParseModulePath(exportedName, location, diagnostics, out pathSegments)
+            : ExportPathParser.TryParseUserdataPath(exportedName, memberName, location, diagnostics, out pathSegments);
+
+    private static GeneratedExportTypeIr ReadType(INamedTypeSymbol type, LuauExportedTypeKind kind) =>
+        new(
+            type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            type.ContainingNamespace.IsGlobalNamespace ? null : type.ContainingNamespace.ToDisplayString(),
+            GetTypeDeclaration(type),
+            type.IsStatic,
+            GetHintName(type, kind)
+        );
+
+    private static string GetTypeDeclaration(INamedTypeSymbol type)
     {
-        ImmutableArray<string> rawSegments;
-        bool success =
-            exportedTypeKind == LuauExportedTypeKind.Module
-                ? ExportPathParser.TryParseModulePath(exportedName, location, diagnostics, out rawSegments)
-                : ExportPathParser.TryParseUserdataPath(
-                    exportedName,
-                    memberName,
-                    location,
-                    diagnostics,
-                    out rawSegments
-                );
-        pathSegments = success ? rawSegments.ToImmutableEquatableArray() : ImmutableEquatableArray<string>.Empty;
-        return success;
+        TypeDeclarationSyntax syntax = type
+            .DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
+            .OfType<TypeDeclarationSyntax>()
+            .First();
+
+        string modifiers = string.Join(
+            " ",
+            syntax
+                .Modifiers.Where(static x =>
+                    x.IsKind(SyntaxKind.PublicKeyword)
+                    || x.IsKind(SyntaxKind.InternalKeyword)
+                    || x.IsKind(SyntaxKind.PrivateKeyword)
+                    || x.IsKind(SyntaxKind.ProtectedKeyword)
+                    || x.IsKind(SyntaxKind.StaticKeyword)
+                    || x.IsKind(SyntaxKind.AbstractKeyword)
+                    || x.IsKind(SyntaxKind.SealedKeyword)
+                    || x.IsKind(SyntaxKind.PartialKeyword)
+                )
+                .Select(static x => x.Text)
+        );
+
+        return syntax switch
+        {
+            ClassDeclarationSyntax classDeclaration => $"{modifiers} class {classDeclaration.Identifier.Text}",
+            RecordDeclarationSyntax recordDeclaration =>
+                $"{modifiers} record {recordDeclaration.ClassOrStructKeyword.Text} {recordDeclaration.Identifier.Text}",
+            _ => throw new InvalidOperationException(
+                $"Unsupported generated export type declaration '{syntax.Kind()}'."
+            ),
+        };
+    }
+
+    private static string GetHintName(INamedTypeSymbol type, LuauExportedTypeKind kind)
+    {
+        string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        const string globalPrefix = "global::";
+        if (name.StartsWith(globalPrefix, StringComparison.Ordinal))
+            name = name[globalPrefix.Length..];
+        // A type or namespace named like a keyword is displayed as '@class', and a hint name must not contain '@'.
+        name = name.Replace("@", string.Empty);
+
+        return name + (kind == LuauExportedTypeKind.Module ? ".LuauModule.g.cs" : ".LuauUserdata.g.cs");
     }
 }

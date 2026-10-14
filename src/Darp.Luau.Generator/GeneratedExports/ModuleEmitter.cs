@@ -1,5 +1,4 @@
 using System.CodeDom.Compiler;
-using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -8,47 +7,41 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class ModuleEmitter
 {
-    public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
+    public static string Emit(GeneratedModuleIr model)
     {
-        if (model.ModuleRoot is null || string.IsNullOrWhiteSpace(model.ModuleName))
-        {
-            source = null;
-            return false;
-        }
-
         using var stringWriter = new StringWriter();
         using var writer = new IndentedTextWriter(stringWriter);
         WriteFile(writer, model);
-        source = stringWriter.ToString();
-        return true;
+        return stringWriter.ToString();
     }
 
-    private static void WriteFile(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
+    private static void WriteFile(IndentedTextWriter writer, GeneratedModuleIr model)
     {
+        GeneratedExportTypeIr type = model.Type;
         ExportEmitterHelper.WriteFileHeader(writer);
-        bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, model.NamespaceName);
+        bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, type.NamespaceName);
 
         writer.WriteLine(
             ExportEmitterHelper.WithBaseList(
-                model.TypeDeclaration,
-                model.IsStatic ? null : $"global::Darp.Luau.ILuauModule<{model.ManagedTypeName}>"
+                type.TypeDeclaration,
+                type.IsStatic ? null : $"global::Darp.Luau.ILuauModule<{type.ManagedTypeName}>"
             )
         );
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         writer.WriteLine(
-            $"public static string ModuleName => {SymbolDisplay.FormatLiteral(model.ModuleName!, quote: true)};"
+            $"public static string ModuleName => {SymbolDisplay.FormatLiteral(model.ModuleName, quote: true)};"
         );
         writer.WriteLine();
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         writer.WriteLine(
-            $"public {GetOnLoadModifier(model)}void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)"
+            $"public {(type.IsStatic ? "static " : string.Empty)}void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)"
         );
         writer.WriteLine("{");
         writer.Indent++;
         var localNames = new ExportEmitterHelper.LocalNameAllocator();
-        WriteModuleNodeContents(writer, model.ModuleRoot!, "module", localNames);
+        WriteModuleNodeContents(writer, model.Root, "module", localNames);
         writer.Indent--;
         writer.WriteLine("}");
         writer.Indent--;
@@ -78,53 +71,34 @@ internal static class ModuleEmitter
                 continue;
             }
 
-            WriteMember(writer, child.Member, tableVariableName, localNames);
+            string keyLiteral = SymbolDisplay.FormatLiteral(child.Name, quote: true);
+            switch (child.Member)
+            {
+                case GeneratedExportPropertyIr property:
+                    writer.WriteLine(
+                        $"{tableVariableName}.Set({keyLiteral}, {LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, property.Type)});"
+                    );
+                    break;
+                case GeneratedExportMethodIr method:
+                    WriteMethod(writer, method, tableVariableName, keyLiteral, localNames);
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported generated module member '{child.Member.GetType().Name}'."
+                    );
+            }
         }
-    }
-
-    private static void WriteMember(
-        IndentedTextWriter writer,
-        GeneratedExportMemberIr member,
-        string tableVariableName,
-        ExportEmitterHelper.LocalNameAllocator localNames
-    )
-    {
-        switch (member)
-        {
-            case GeneratedExportPropertyIr property:
-                WriteProperty(writer, property, tableVariableName);
-                break;
-            case GeneratedExportMethodIr method:
-                WriteMethod(writer, method, tableVariableName, localNames);
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported generated module member '{member.GetType().Name}'.");
-        }
-    }
-
-    private static void WriteProperty(
-        IndentedTextWriter writer,
-        GeneratedExportPropertyIr property,
-        string tableVariableName
-    )
-    {
-        GeneratedExportAccessorIr accessor =
-            property.Getter ?? throw new InvalidOperationException("Generated module properties must have a getter.");
-        string keyLiteral = SymbolDisplay.FormatLiteral(property.PathSegments[^1], quote: true);
-        writer.WriteLine(
-            $"{tableVariableName}.Set({keyLiteral}, {LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, accessor.Type)});"
-        );
     }
 
     private static void WriteMethod(
         IndentedTextWriter writer,
         GeneratedExportMethodIr method,
         string tableVariableName,
+        string keyLiteral,
         ExportEmitterHelper.LocalNameAllocator localNames
     )
     {
         string functionVariableName = localNames.Next();
-        string keyLiteral = SymbolDisplay.FormatLiteral(method.PathSegments[^1], quote: true);
 
         writer.WriteLine(
             $"using global::Darp.Luau.LuauFunction {functionVariableName} = state.CreateFunctionManual(args =>"
@@ -138,7 +112,4 @@ internal static class ModuleEmitter
         writer.WriteLine("});");
         writer.WriteLine($"{tableVariableName}.Set({keyLiteral}, {functionVariableName});");
     }
-
-    private static string GetOnLoadModifier(GeneratedExportSurfaceIr model) =>
-        model.IsStatic ? "static " : string.Empty;
 }

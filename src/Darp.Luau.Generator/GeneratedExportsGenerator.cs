@@ -1,5 +1,6 @@
 using System.Text;
 using Darp.Luau.Generator.GeneratedExports;
+using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -15,60 +16,54 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<GeneratedExportSurfaceIr> moduleModels =
-            context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<GeneratedModuleIr> moduleModels = context
+            .SyntaxProvider.ForAttributeWithMetadataName(
                 "Darp.Luau.LuauModuleAttribute",
                 static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Module)
+                static (ctx, _) => Analyze(ctx, ExportAnalyzer.AnalyzeModule)
             )
             .Where(static model => model is not null)
             .Select(static (model, _) => model!)
             .WithTrackingName("GeneratedExportsModuleModels");
 
-        IncrementalValuesProvider<GeneratedExportSurfaceIr> userdataModels =
-            context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<GeneratedUserdataIr> userdataModels = context
+            .SyntaxProvider.ForAttributeWithMetadataName(
                 "Darp.Luau.LuauUserdataAttribute",
                 static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Userdata)
+                static (ctx, _) => Analyze(ctx, ExportAnalyzer.AnalyzeUserdata)
             )
             .Where(static model => model is not null)
             .Select(static (model, _) => model!)
             .WithTrackingName("GeneratedExportsUserdataModels");
 
-        context.RegisterSourceOutput(moduleModels, Emit);
-        context.RegisterSourceOutput(userdataModels, Emit);
-    }
-
-    private static GeneratedExportSurfaceIr? AnalyzeType(
-        GeneratorAttributeSyntaxContext context,
-        LuauExportedTypeKind expectedKind
-    )
-    {
-        if (context.TargetSymbol is not INamedTypeSymbol type)
-            return null;
-
-        GeneratedExportsTypeAnalysis analysis = ExportAnalyzer.AnalyzeType(
-            type,
-            expectedKind,
-            context.SemanticModel.Compilation
+        context.RegisterSourceOutput(
+            moduleModels,
+            static (spc, model) => AddSource(spc, model.Type, ModuleEmitter.Emit(model))
         );
-        return analysis.CanEmitSource ? analysis.Model : null;
+        context.RegisterSourceOutput(
+            userdataModels,
+            static (spc, model) => AddSource(spc, model.Type, UserdataEmitter.Emit(model))
+        );
     }
 
-    private static void Emit(SourceProductionContext spc, GeneratedExportSurfaceIr model)
+    /// <summary> Reads the type an attribute is on. The diagnostics are the analyzer's to report. </summary>
+    private static T? Analyze<T>(
+        GeneratorAttributeSyntaxContext context,
+        Func<INamedTypeSymbol, AttributeData, LuauApiSymbols, List<Diagnostic>, T?> analyze
+    )
+        where T : class
     {
-        string? source;
-        bool emitted = model.Kind switch
+        if (
+            context.TargetSymbol is not INamedTypeSymbol type
+            || LuauApiSymbols.Create(context.SemanticModel.Compilation) is not { } apiSymbols
+        )
         {
-            LuauExportedTypeKind.Module => ModuleEmitter.TryEmit(model, out source),
-            LuauExportedTypeKind.Userdata => UserdataEmitter.TryEmit(model, out source),
-            _ => throw new InvalidOperationException($"Unsupported export kind '{model.Kind}'."),
-        };
+            return null;
+        }
 
-        if (!emitted)
-            return;
-
-        var sourceText = SourceText.From(source ?? string.Empty, Encoding.UTF8, SourceHashAlgorithm.Sha256);
-        spc.AddSource(model.HintName, sourceText);
+        return analyze(type, context.Attributes[0], apiSymbols, []);
     }
+
+    private static void AddSource(SourceProductionContext spc, GeneratedExportTypeIr type, string source) =>
+        spc.AddSource(type.HintName, SourceText.From(source, Encoding.UTF8, SourceHashAlgorithm.Sha256));
 }

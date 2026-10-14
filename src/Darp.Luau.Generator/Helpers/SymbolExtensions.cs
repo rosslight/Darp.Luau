@@ -22,11 +22,6 @@ internal static class SymbolExtensions
             .Any(static x => x.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.FileKeyword)));
     }
 
-    public static bool ImplementsManualUserdataHooks(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
-    {
-        return type.GetManualUserdataHookMembers(apiSymbols).Any();
-    }
-
     /// <summary> Gets the <c>Register</c> methods a type wrote itself. </summary>
     public static IEnumerable<ISymbol> GetManualUserdataHookMembers(
         this INamedTypeSymbol type,

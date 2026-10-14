@@ -16,15 +16,18 @@ internal static class MetamethodAnalyzer
     );
 
     public static ImmutableEquatableArray<GeneratedMetamethodIr> Analyze(
-        DiscoveredExportType discoveredType,
+        INamedTypeSymbol type,
         LuauApiSymbols context,
         List<Diagnostic> diagnostics
     )
     {
         var candidates = new List<Candidate>();
-        foreach (DiscoveredExportMetamethod metamethod in discoveredType.Metamethods)
+        foreach (IMethodSymbol method in type.GetMembers().OfType<IMethodSymbol>())
         {
-            Candidate? candidate = AnalyzeMethod(discoveredType, metamethod, context, diagnostics);
+            if (context.GetMetamethodAttribute(method) is not { } attribute)
+                continue;
+
+            Candidate? candidate = AnalyzeMethod(type, method, attribute, context, diagnostics);
             if (candidate is not null)
                 candidates.Add(candidate);
         }
@@ -46,26 +49,40 @@ internal static class MetamethodAnalyzer
         return metamethods.OrderBy(static x => x.Name, StringComparer.Ordinal).ToImmutableEquatableArray();
     }
 
-    private static Candidate? AnalyzeMethod(
-        DiscoveredExportType discoveredType,
-        DiscoveredExportMetamethod discovered,
+    /// <summary>
+    /// Reports the metamethods of a type that is no userdata type. The generator only looks at types with
+    /// <c>[LuauUserdata]</c>. On any other type the attribute would do nothing, for example on a module or on a type
+    /// that registers its members by hand.
+    /// </summary>
+    public static void ReportMetamethodsWithoutUserdataType(
+        INamedTypeSymbol type,
         LuauApiSymbols context,
         List<Diagnostic> diagnostics
     )
     {
-        IMethodSymbol method = discovered.Symbol;
-        Location location = discovered.Origin.Location;
-        if (discoveredType.Kind != LuauExportedTypeKind.Userdata)
+        foreach (IMethodSymbol method in type.GetMembers().OfType<IMethodSymbol>())
         {
+            if (context.GetMetamethodAttribute(method) is not { } attribute)
+                continue;
+
             Report(
                 diagnostics,
-                location,
+                SymbolExtensions.GetAttributeLocation(attribute, method),
                 $"method '{method.Name}' is a metamethod, which only a [LuauUserdata] type has"
             );
-            return null;
         }
+    }
 
-        string? metamethod = LuauApiSymbols.GetMetamethodName(discovered.Attribute);
+    private static Candidate? AnalyzeMethod(
+        INamedTypeSymbol type,
+        IMethodSymbol method,
+        AttributeData attribute,
+        LuauApiSymbols context,
+        List<Diagnostic> diagnostics
+    )
+    {
+        Location location = SymbolExtensions.GetAttributeLocation(attribute, method);
+        string? metamethod = LuauApiSymbols.GetMetamethodName(attribute);
         if (metamethod is null)
         {
             Report(diagnostics, location, $"method '{method.Name}' names a metamethod that does not exist");
@@ -116,16 +133,16 @@ internal static class MetamethodAnalyzer
         var operandTypes = new List<ITypeSymbol>();
         if (!method.IsStatic)
         {
-            if (!InteropTypeMapper.TryMapGeneratedUserdataType(discoveredType.Symbol, context, out InteropType self))
+            if (!InteropTypeMapper.TryMapGeneratedUserdataType(type, context, out InteropType self))
                 return null;
             operands.Add(new InteropParameter(self with { IsNullable = false }));
-            operandTypes.Add(discoveredType.Symbol);
+            operandTypes.Add(type);
         }
         operands.AddRange(read.Parameters);
         operandTypes.AddRange(method.Parameters.Select(static x => x.Type));
 
         InteropSignature signature = read with { Parameters = operands.ToImmutableEquatableArray() };
-        string ownTypeName = discoveredType.Symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string ownTypeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         string? shapeError = GetShapeError(metamethod, signature, ownTypeName);
         if (shapeError is not null)
         {
