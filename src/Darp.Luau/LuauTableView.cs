@@ -22,6 +22,9 @@ namespace Darp.Luau;
 // The native calls of the success path stand outside of try blocks and using scopes on purpose. On 64-bit targets the
 // JIT does not inline a P/Invoke that sits in a protected region and calls it through a stub instead, which costs
 // about as much as the access itself. Only pushing the key and the value can throw, so only those are guarded.
+// For the same reason an access ends its host call by hand on every path instead of with a using scope. Nothing
+// between its begin and its end throws, except what is guarded: the table is checked before, and a key or a value
+// that cannot be pushed ends the call in PushOrEnd.
 public readonly unsafe ref struct LuauTableView
 {
     private readonly LuauSlot _slot;
@@ -147,18 +150,23 @@ public readonly unsafe ref struct LuauTableView
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
+        _slot.ThrowIfReleased();
+#pragma warning disable CA2000 // Ended by hand on every path, see the remark on the type.
+        HostCall.SyncScope hostCall = HostCall.EnterSyncInlined(state);
+#pragma warning restore CA2000
         _slot.Push(state); // [table]
-        PushOrPop(state, L, key, pushedCount: 1); // [table, key]
-        PushOrPop(state, L, value, pushedCount: 2); // [table, key, value]
+        PushOrEnd(state, L, key, pushedCount: 1, hostCall); // [table, key]
+        PushOrEnd(state, L, value, pushedCount: 2, hostCall); // [table, key, value]
 
         int status = LuauVm.SetTable(state, L, -3); // [table] or [table, error]
         if (status != (int)lua_Status.LUA_OK)
         {
-            string error = PopErrorMessage(L);
-            lua_pop(L, 1);
+            string error = PopError(L);
+            hostCall.Dispose();
             throw new LuaException($"Lua invocation lua_settable failed with status {status}: {error}");
         }
         lua_pop(L, 1);
+        hostCall.Dispose();
     }
 
     /// <summary> Determines whether <paramref name="key"/> resolves to a value that is not nil. </summary>
@@ -172,9 +180,15 @@ public readonly unsafe ref struct LuauTableView
         if (key.Type is IntoLuau.Kind.Nil)
             throw new ArgumentNullException(nameof(key), "Cannot look up a table value with nil key");
         lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
-            throw new LuaException($"Could not get the table value: {PopError(L)}");
+        HostCall.SyncScope hostCall = BeginRead(state, L, key, out lua_Type type, out bool isPushed);
+        if (!isPushed)
+        {
+            string error = PopError(L);
+            hostCall.Dispose();
+            throw new LuaException($"Could not get the table value: {error}");
+        }
         lua_pop(L, 2);
+        hostCall.Dispose();
         return type != lua_Type.LUA_TNIL;
     }
 
@@ -310,9 +324,11 @@ public readonly unsafe ref struct LuauTableView
         isNil = false;
         LuauState state = _slot.State;
         lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
+        HostCall.SyncScope hostCall = BeginRead(state, L, key, out lua_Type type, out bool isPushed);
+        if (!isPushed)
         {
             lua_pop(L, 2);
+            hostCall.Dispose();
             return false;
         }
 
@@ -323,6 +339,7 @@ public readonly unsafe ref struct LuauTableView
                 expectedType is lua_Type.LUA_TSTRING ? LuauReader.StringBytes(L, -1) : LuauReader.BufferBytes(L, -1);
         }
         lua_pop(L, 2);
+        hostCall.Dispose();
         return type == expectedType;
     }
 
@@ -342,7 +359,8 @@ public readonly unsafe ref struct LuauTableView
     {
         LuauState state = _slot.State;
         lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
+        HostCall.SyncScope hostCall = BeginRead(state, L, key, out lua_Type type, out bool isPushed);
+        if (!isPushed)
         {
             value = default;
             isNil = false;
@@ -356,32 +374,49 @@ public readonly unsafe ref struct LuauTableView
             {
                 failure = ReadFailure.Error(PopError(L));
             }
+            hostCall.Dispose();
             return false;
         }
 
         isNil = type is lua_Type.LUA_TNIL;
-        // The reader reports what it finds instead of throwing, so the two values are popped on every path.
+        // The reader reports what it finds instead of throwing, so the two values are popped and the host call
+        // ends on every path.
         ReadSource source = ReadSource.FromStack(state, L, -1, type);
         bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
         lua_pop(L, 2);
+        hostCall.Dispose();
         return isRead;
     }
 
-    /// <summary> Pushes the table and the value at <paramref name="key"/>. </summary>
-    /// <returns>
+    /// <summary> Begins the host call of a read and pushes the table and the value at <paramref name="key"/>. </summary>
+    /// <param name="state">The state of the table.</param>
+    /// <param name="L">The main stack of the state.</param>
+    /// <param name="key">The key to look up.</param>
+    /// <param name="type">The type of the value.</param>
+    /// <param name="isPushed">
     /// <c>false</c> when <c>__index</c> raised an error. The error object is then above the table instead of the
     /// value, and the caller pops both as well.
-    /// </returns>
+    /// </param>
+    /// <returns>The host call, which the caller ends when it has popped the two values.</returns>
     /// <remarks> Inlined into the reads, so that a read is one call into the VM. </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryPushValue(LuauState state, lua_State* L, scoped in IntoLuau key, out lua_Type type)
+    private HostCall.SyncScope BeginRead(
+        LuauState state,
+        lua_State* L,
+        scoped in IntoLuau key,
+        out lua_Type type,
+        out bool isPushed
+    )
     {
+        _slot.ThrowIfReleased();
+        HostCall.SyncScope hostCall = HostCall.EnterSyncInlined(state);
         _slot.Push(state); // [table]
-        PushOrPop(state, L, key, pushedCount: 1); // [table, key]
+        PushOrEnd(state, L, key, pushedCount: 1, hostCall); // [table, key]
 
         int result = LuauVm.GetTable(state, L, -2); // [table, value] or [table, error]
         type = (lua_Type)result;
-        return result >= 0;
+        isPushed = result >= 0;
+        return hostCall;
     }
 
     /// <summary> Reads the error object above the table as text and pops both. </summary>
@@ -395,9 +430,15 @@ public readonly unsafe ref struct LuauTableView
 
     /// <summary>
     /// Pushes <paramref name="value"/>. When that throws, pops the <paramref name="pushedCount"/> values the caller
-    /// has pushed before, so that a failed access leaves the stack as it found it.
+    /// has pushed before and ends its host call, so that a failed access leaves the state as it found it.
     /// </summary>
-    private static void PushOrPop(LuauState state, lua_State* L, scoped in IntoLuau value, int pushedCount)
+    private static void PushOrEnd(
+        LuauState state,
+        lua_State* L,
+        scoped in IntoLuau value,
+        int pushedCount,
+        HostCall.SyncScope hostCall
+    )
     {
         try
         {
@@ -406,6 +447,7 @@ public readonly unsafe ref struct LuauTableView
         catch
         {
             lua_pop(L, pushedCount);
+            hostCall.Dispose();
             throw;
         }
     }

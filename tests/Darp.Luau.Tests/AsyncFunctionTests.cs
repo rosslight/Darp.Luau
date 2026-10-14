@@ -578,19 +578,44 @@ public sealed class AsyncFunctionTests : IDisposable
     }
 
     [Fact]
-    public async Task StateDisposed_DuringAwait_ShouldFaultThePendingInvocation()
+    public async Task StateDisposed_DuringAwait_ShouldFailThePendingInvocationWithoutItsWork()
     {
         var state = new LuauState();
-        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using LuauFunction wait = state.CreateFunctionManual(args => args.AwaitOrError(() => AddLater(gate.Task, 0)));
+        var never = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = state.CreateFunctionManual(args => args.AwaitOrError(() => AddLater(never.Task, 0)));
         state.Globals.Set("wait", wait);
 
         ValueTask pending = state.Load("wait()").ExecuteAsync([], TestToken);
         pending.IsCompleted.ShouldBeFalse();
         state.Dispose();
-        gate.SetResult(1);
 
         await Should.ThrowAsync<ObjectDisposedException>(() => pending.AsTask());
+    }
+
+    [Fact]
+    public async Task StateDisposed_InsideATurn_ShouldFailEveryInvocationInFlight()
+    {
+        var state = new LuauState();
+        var never = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = state.CreateFunctionManual(args => args.AwaitOrError(() => AddLater(never.Task, 0)));
+        state.Globals.Set("wait", wait);
+        using LuauFunction quit = state.CreateFunctionManual(args =>
+            args.AwaitOrError(async () =>
+            {
+                await Task.Yield();
+                // The code after a captured await runs in a turn, but not inside the VM.
+                state.Dispose();
+                return LuauReturn.Ok();
+            })
+        );
+        state.Globals.Set("quit", quit);
+
+        ValueTask waiting = state.Load("wait()").ExecuteAsync([], TestToken);
+        ValueTask quitting = state.Load("quit()").ExecuteAsync([], TestToken);
+
+        await Should.ThrowAsync<ObjectDisposedException>(() => waiting.AsTask());
+        await Should.ThrowAsync<ObjectDisposedException>(() => quitting.AsTask());
+        state.IsDisposed.ShouldBeTrue();
     }
 
     [Fact]

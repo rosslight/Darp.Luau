@@ -19,13 +19,18 @@ namespace Darp.Luau.Internal;
 /// <para>
 /// An async drive is registered in the <see cref="AsyncDriveTable"/> of its state. A managed callback running on
 /// the coroutine finds it there to hand over its pending work (<see cref="TryAwait"/>). A sync drive is not
-/// registered: its callbacks cannot suspend the coroutine.
+/// registered: its callbacks cannot suspend the coroutine. It is one sync <see cref="HostCall"/>, which its caller
+/// entered; an async drive enters a scope for every stretch in which it runs the script.
 /// </para>
 /// <para>
 /// A cancelled token stops the script at its next safepoint (<see cref="ScriptInterrupt"/>) and finishes the
 /// coroutine. An error that ends the script after the token was cancelled finishes it as cancelled too. Awaited
 /// work is not stopped: the driver awaits it as is, and the token only reaches it through the callback. Work that
 /// ends with <see cref="OperationCanceledException"/> after the token was cancelled finishes the coroutine.
+/// </para>
+/// <para>
+/// Disposing the state ends the drive: its wait is over at once, and it fails with
+/// <see cref="ObjectDisposedException"/> without touching the VM, which is closed.
 /// </para>
 /// <para>
 /// Only the driver continues a coroutine that waits in a managed callback. Luau fails any other resume of it and
@@ -43,6 +48,8 @@ internal readonly struct CoroutineDriver
 
     private const string CoroutineLostError =
         "Lua invocation failed: a script resumed or closed the coroutine while it awaited a managed callback";
+
+    private const string StateDisposedError = "The LuauState was disposed while awaiting.";
 
     private const int NoSlot = -1;
 
@@ -145,9 +152,7 @@ internal readonly struct CoroutineDriver
         try
         {
             // An argument can run host code, which may call a script. That is part of an async call too.
-            using ScriptInterrupt.Scope _ = allowsAwait
-                ? ScriptInterrupt.Enter(state, cancellationToken)
-                : ScriptInterrupt.KeepToken;
+            using HostCall.AsyncScope _ = allowsAwait ? HostCall.EnterAsync(state, cancellationToken) : default;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -180,9 +185,7 @@ internal readonly struct CoroutineDriver
         try
         {
             // An argument can run host code, which may call a script. That is part of an async call too.
-            using ScriptInterrupt.Scope _ = allowsAwait
-                ? ScriptInterrupt.Enter(state, cancellationToken)
-                : ScriptInterrupt.KeepToken;
+            using HostCall.AsyncScope _ = allowsAwait ? HostCall.EnterAsync(state, cancellationToken) : default;
             int argumentCount = PushArguments(state, coroutine, args);
             return new CoroutineDriver(
                 state,
@@ -303,14 +306,21 @@ internal readonly struct CoroutineDriver
                 Exception? failure;
                 try
                 {
-                    await pending.Task;
+                    // Disposing the state ends the wait: the call does not outlive the state for as long as the
+                    // work takes.
+                    await pending.Task.WaitAsync(_state.DisposedToken);
                     failure = null;
+                }
+                catch (OperationCanceledException) when (_state.IsDisposed)
+                {
+                    // The work goes on, but nobody is left to give its result to.
+                    pending.Abandon();
+                    throw new ObjectDisposedException(nameof(LuauState), StateDisposedError);
                 }
                 catch (OperationCanceledException) when (drives.IsCancellationRequested(_slot))
                 {
                     // The host cancelled its call. That ends the coroutine and the call; a script pcall cannot
                     // catch it. Work that is cancelled for any other reason fails like other work.
-                    ThrowIfStateDisposed();
                     if (IsWaiting())
                         Finish();
                     throw;
@@ -321,7 +331,7 @@ internal readonly struct CoroutineDriver
                 }
 
                 // The conversion of the result is part of this call too: it may run a script with a sync host call.
-                using ScriptInterrupt.Scope _ = ScriptInterrupt.Enter(_state, StoppingToken);
+                using HostCall.AsyncScope _ = HostCall.EnterAsync(_state, StoppingToken);
                 LuauReturn result = failure is null
                     ? GetResult(pending)
                     : LuauReturn.Error(LuauStateMarshal.FormatCallbackException(failure));
@@ -374,9 +384,7 @@ internal readonly struct CoroutineDriver
 
     private unsafe int Resume(int argumentCount)
     {
-        // A sync resume takes no token. Like every sync host call, it runs under the token that is in charge.
-        using ScriptInterrupt.Scope _ =
-            _slot == NoSlot ? ScriptInterrupt.KeepToken : ScriptInterrupt.Enter(_state, StoppingToken);
+        using HostCall.AsyncScope _ = _slot == NoSlot ? default : HostCall.EnterAsync(_state, StoppingToken);
         return LuauVm.Resume(_state, _coroutine, null, argumentCount);
     }
 
@@ -387,7 +395,7 @@ internal readonly struct CoroutineDriver
     private void ThrowIfStateDisposed()
     {
         if (_state.IsDisposed)
-            throw new ObjectDisposedException(nameof(LuauState), "The LuauState was disposed while awaiting.");
+            throw new ObjectDisposedException(nameof(LuauState), StateDisposedError);
     }
 
     /// <summary> Resets the suspended coroutine, so it is finished. </summary>

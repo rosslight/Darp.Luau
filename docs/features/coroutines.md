@@ -232,14 +232,26 @@ Three more details:
 
 ## Threading
 
-A `LuauState` runs async work in turns: synchronous stretches of execution, of which exactly one runs at a time.
+A `LuauState` runs in turns: synchronous stretches of execution, of which exactly one runs at a time. Every call that runs a script is part of a turn.
 
 - An async host call (`ExecuteAsync(...)`, `InvokeAsync(...)`, `ResumeAsync(...)`) on an idle state runs on the calling thread until the script finishes or waits for a callback. If nothing waits, the call completes without any thread switch.
 - Managed callbacks run inside that turn. While they run, the state installs its own `SynchronizationContext`, so every `await` in a callback's work captures it.
 - Code after such an `await` is queued and runs in a later turn, never while another turn executes Luau. It may therefore use the state: invoke Luau functions, create tables, or return owned references with `LuauReturn.Ok(...)`.
 - Queued turns run on a thread-pool thread, one after another.
 - An async host call that starts while another thread executes a turn is queued and starts in a later turn. Its arguments are copied when you call it; reference arguments such as a `LuauTable` must stay alive until the call completes. A start queued because another thread owns the state resolves its function or coroutine handle when its turn runs, so keep those handles alive until the returned task has completed.
-- An async host call completes inside a turn, but your code after `await lua.Load(...).ExecuteAsync(...)` is kept out of it: it runs on your own context, or on a thread-pool thread.
+- An async host call completes when the turn that finished it has ended. Your code after `await lua.Load(...).ExecuteAsync(...)` runs on your own context, or on a thread-pool thread, and can use the state right away.
+
+### Synchronous calls
+
+`Execute(...)`, `Invoke(...)`, `Resume(...)`, reading and writing a table by key, and `Dispose()` take the turn for as long as they run. They never wait for it:
+
+- Inside a turn, that is, in a managed callback or in the code after its captured `await`, they are part of that turn.
+- On an idle state they run on the calling thread. Work that async calls queue in the meantime runs when they have returned, and so does an async host call that one of their callbacks starts, once it waits for a callback.
+- While another thread executes a turn, they throw `InvalidOperationException` and leave the state as it is.
+
+Without a host dispatcher, an async call that is in flight runs its next turn on a thread-pool thread at any moment, and a synchronous call from your own thread fails if it meets that turn. Make it when the async calls of the state have completed, or pass a host dispatcher.
+
+The rest of the synchronous API is not checked: creating values such as tables and strings, enumerating a table, and disposing owned references. Use it inside a turn, or when no other thread can execute one.
 
 ### Host dispatcher
 
@@ -251,34 +263,30 @@ var lua = new LuauState(LuauLibraries.All, null, SynchronizationContext.Current)
 ```
 
 - Start async calls on the dispatcher thread. Calls started on another thread are posted to the dispatcher and start there.
+- A synchronous call on the dispatcher thread gets the turn whatever is in flight, as long as no other thread uses the state: what is queued for the dispatcher runs after it.
 - The state never picks up `SynchronizationContext.Current` on its own: a context does not guarantee that it runs one thing at a time. Only pass a context that runs its work on a single thread.
-
-### Rules for the host
-
-The synchronous API (`Execute`, `Invoke`, `Resume`, table access, `Dispose`) does not take part in the turns: it does not wait for one and does not start one. Use it only
-
-- when no async host call is outstanding: await all of them first,
-- inside turns, that is, in managed callbacks and in the code after their captured `await`s, or
-- on the dispatcher thread, when you passed a host dispatcher.
-
-Without a host dispatcher, an outstanding async call may run its next turn on a thread-pool thread at any moment, so synchronous use from your own thread is not safe until you awaited it.
-
-Await in-flight async calls before you dispose the state. If the state is disposed between turns anyway, the pending call fails with `ObjectDisposedException`.
-
-`Dispose()` throws `InvalidOperationException` while the state runs a script. That is the case inside every callback of it: managed functions, userdata members, module loaders, and the file system that `require(...)` uses. Luau would continue in a closed state otherwise. Dispose the state after the host call that runs the script has returned.
 
 If the host dispatcher throws when work is posted to it, for example because it has shut down, a call that could not start fails with that exception and the state stays usable. A call that was already waiting for a callback cannot continue anywhere else and never completes, so await in-flight calls before you shut the dispatcher down.
 
+### Disposing the state
+
+`Dispose()` closes the state and ends its async host calls. Every call that is in flight fails with `ObjectDisposedException`, whether the work its callback awaits has finished or not. That work is not stopped: it goes on without the state, and its result is dropped. Cancel the token of a call to stop its work.
+
+`Dispose()` throws `InvalidOperationException`
+
+- while the state runs a script. That is the case inside every callback of it: managed functions, userdata members, module loaders, and the file system that `require(...)` uses. Luau would continue in a closed state otherwise. Dispose the state after the host call that runs the script has returned.
+- while another thread executes a turn, like every synchronous call.
+
 ### Code that leaves the turn
 
-Some code runs outside the state's turns. It must not use the state until it is back after a captured `await`:
+Some code runs outside the state's turns:
 
 - code after `await ...ConfigureAwait(false)` inside a callback's work,
 - the body of `Task.Run(...)` and other work started on other threads,
 - continuations of custom awaiters that ignore `SynchronizationContext`.
 
-Do not block on async work inside a turn, for example with `.Result` or `.Wait()` on a nested `InvokeAsync(...)`: the nested call needs a later turn, which cannot start while the current one blocks.
+It uses the state like any other thread does: its synchronous calls fail while a turn executes, and what is not checked must wait until the code is back after a captured `await`.
 
-Do not start async host calls from callbacks of a synchronous call such as `Execute(...)`; the synchronous call is not a turn and keeps running while the async call continues elsewhere.
+Do not block on async work inside a turn, for example with `.Result` or `.Wait()` on a nested `InvokeAsync(...)`: the nested call needs a later turn, which cannot start while the current one blocks. That holds in the callbacks of a synchronous call too.
 
 Do not resume a coroutine from a script while the host is awaiting a callback inside it. The resume fails and ends the host call; see [While a callback awaits](#while-a-callback-awaits).

@@ -324,6 +324,7 @@ public readonly struct LuauCoroutine : IDisposable
     private TResult ResumeCore<TResult>(scoped in RefEnumerable<IntoLuau> args, Func<LuauArgs, TResult> resultSelector)
     {
         _state.ThrowIfDisposed();
+        using HostCall.SyncScope _ = HostCall.EnterSync(_state);
         return CoroutineDriver
             .StartResume(_state, _handle, args, allowsAwait: false, CancellationToken.None)
             .Run(resultSelector);
@@ -337,16 +338,14 @@ public readonly struct LuauCoroutine : IDisposable
     {
         LuauState state = _state.GetTrackedReferenceOrThrow(_handle).State;
         LuauSynchronizationContext context = state.AsyncContext;
-        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        using LuauSynchronizationContext.Turn turn = context.TryEnter();
+        if (turn.IsEntered)
         {
-            using (turn)
-            {
-                return LuauSynchronizationContext.Detach(
-                    CoroutineDriver
-                        .StartResume(state, _handle, args, allowsAwait: true, cancellationToken)
-                        .RunAsync(resultSelector, yieldIsError: false)
-                );
-            }
+            return context.Detach(
+                CoroutineDriver
+                    .StartResume(state, _handle, args, allowsAwait: true, cancellationToken)
+                    .RunAsync(resultSelector, yieldIsError: false)
+            );
         }
 
         // Another thread executes the state: resume in a later turn, with copies of the arguments.
