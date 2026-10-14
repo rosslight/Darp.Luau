@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.0](https://github.com/rosslight/Darp.Luau/compare/v0.4.0...v0.5.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* a sandbox freezes host modules and every table in the globals
+* a callback fails by throwing
+* enumerate a table through its view ([#71](https://github.com/rosslight/Darp.Luau/issues/71))
+* read tables through views with the four read verbs ([#70](https://github.com/rosslight/Darp.Luau/issues/70))
+* read callback arguments through LuauValueView
+* read typed results and LuauValue through one reader ([#67](https://github.com/rosslight/Darp.Luau/issues/67))
+
+### Features
+
+* a callback fails by throwing ([cad7bbb](https://github.com/rosslight/Darp.Luau/commit/cad7bbb28993149d4416b2238999733ef65bc3c1))
+* a generated callback takes the default value of a parameter ([#77](https://github.com/rosslight/Darp.Luau/issues/77)) ([9433391](https://github.com/rosslight/Darp.Luau/commit/9433391c2d397b7e52819ca52aa9fcd82ae2e2f0))
+* a sandbox freezes host modules and every table in the globals ([ccd6aba](https://github.com/rosslight/Darp.Luau/commit/ccd6abad371aab08e804c0d5f9463ad35adb2d7b))
+* enumerate a table through its view ([#71](https://github.com/rosslight/Darp.Luau/issues/71)) ([d0e4891](https://github.com/rosslight/Darp.Luau/commit/d0e48910a42c7fb8dfc03dd2f1df65b844cc9784))
+* intercept CreateFunction with a generic interceptor ([#78](https://github.com/rosslight/Darp.Luau/issues/78)) ([9dd7385](https://github.com/rosslight/Darp.Luau/commit/9dd7385e5ea413197cc6ab980f963fb2c5f4991f))
+* read callback arguments through LuauValueView ([a510db4](https://github.com/rosslight/Darp.Luau/commit/a510db42714b6d6809e6c1ebc2cee8c867fd18cb))
+* read tables through views with the four read verbs ([#70](https://github.com/rosslight/Darp.Luau/issues/70)) ([a396e39](https://github.com/rosslight/Darp.Luau/commit/a396e39c8db87c1693be72bca49c4a3bb86e1590))
+* read typed results and LuauValue through one reader ([#67](https://github.com/rosslight/Darp.Luau/issues/67)) ([05d9ff5](https://github.com/rosslight/Darp.Luau/commit/05d9ff5a158662d59fd9d40e2f5da85505876cf9))
+
+
+### Bug Fixes
+
+* give a callback the token of the async call it is part of ([#74](https://github.com/rosslight/Darp.Luau/issues/74)) ([3a7f294](https://github.com/rosslight/Darp.Luau/commit/3a7f2946fc158d0ece8956bfaa99fcc04eae4a15))
+* intercept CreateFunction calls that pass a custom delegate ([4249e07](https://github.com/rosslight/Darp.Luau/commit/4249e074e36411b26d4b9d691261ba18ed402de8))
+* report one set of signature errors for every generated callback ([#79](https://github.com/rosslight/Darp.Luau/issues/79)) ([d3773b5](https://github.com/rosslight/Darp.Luau/commit/d3773b55a5f5c3665863da0fe79cf3629a1c643e))
+
 ## [0.4.0](https://github.com/rosslight/Darp.Luau/compare/v0.3.0...v0.4.0) (2026-10-12)
 
 
