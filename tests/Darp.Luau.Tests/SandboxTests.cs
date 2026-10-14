@@ -603,12 +603,13 @@ public sealed class SandboxTests
         using var state = new LuauState();
         state.Load("setfenv(0, setmetatable({ marker = 'replaced' }, { __index = _G }))").Execute();
         state.Load("return marker").Execute<string>().ShouldBe("replaced");
+        state.RegisterModule("before", static (LuauState _, in LuauTable module) => module.Set("answer", 41));
 
         state.EnableSandbox();
-        state.RegisterModule("game", static (LuauState _, in LuauTable module) => module.Set("answer", 42));
+        state.RegisterModule("after", static (LuauState _, in LuauTable module) => module.Set("answer", 1));
 
         state.Load("return marker == nil and getfenv == nil and setfenv == nil").Execute<bool>().ShouldBeTrue();
-        state.Load("return require('game').answer").Execute<int>().ShouldBe(42);
+        state.Load("return require('before').answer + require('after').answer").Execute<int>().ShouldBe(42);
     }
 
     [Fact]
