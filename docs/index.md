@@ -201,6 +201,19 @@ lua.Load(
 
 See [Modules and require](features/modules.md) for generated modules, manual `RegisterModule(...)`, file-backed script modules, nested paths, and current generator boundaries.
 
+## Protect the host API
+
+Once the globals and modules are set up, `EnableSandbox()` makes them and the standard libraries read-only for scripts and gives every script globals of its own. Scripts call built-in functions such as `math.floor` faster in a sandboxed state:
+
+```csharp
+lua.RegisterModule(GameModule.ModuleName, GameModule.OnLoad);
+lua.EnableSandbox();
+
+int result = lua.Load("return require('game').add(20, 22)").Execute<int>();
+```
+
+A script returns what the host reads. See [Sandbox](features/sandbox.md).
+
 ## Where to next
 
 - [Chunks](features/chunks.md)

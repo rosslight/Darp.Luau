@@ -43,6 +43,8 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
         _hostModules.RegisterModule(name, onLoad);
     }
 
+    public void FreezeHostModules() => _hostModules.FreezeLoaded();
+
     private void InstallRequireFunction()
     {
 #if DEBUG

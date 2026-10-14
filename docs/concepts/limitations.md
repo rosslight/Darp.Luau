@@ -69,7 +69,7 @@ These are deliberate. The library does not guard against them, so your code has 
 
 ### Sandbox
 
-- A sandbox makes the globals and the tables directly in them read-only, not what those tables contain. Nested tables, the members of a userdata and the table a module returned stay writable.
+- A sandbox makes the globals, every table in them and the tables of host modules read-only. The members of a userdata, the metatable of a table and the table a script module returned stay writable.
 - A script in an environment does not get the faster calls of built-in functions that a sandboxed state gives a script with globals of its own.
 - A sandbox is not a boundary for scripts the host does not trust and sets no limit on memory or running time.
 

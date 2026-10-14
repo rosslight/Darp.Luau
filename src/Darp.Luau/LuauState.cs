@@ -102,8 +102,16 @@ public sealed unsafe class LuauState : IDisposable
         // A script may have given the main thread other globals. The ones of the state are frozen and used.
         PushGlobals();
         lua_replace(L, LUA_GLOBALSINDEX);
+        // With 'require' in place, modules can be registered and enabled afterwards: that changes no global.
+        LuauModuleRequirer requirer = GetOrCreateModuleRequirer();
 
-        // Freezes the global table, every table directly in it and the metatable of strings.
+        // Freezes the global table and every table in it, at any depth.
+        PushGlobals();
+        LuauSandbox.FreezeTables(L);
+        lua_pop(L, 1);
+        // The host modules are part of the host's API as well. A module that is loaded later is frozen then.
+        requirer.FreezeHostModules();
+        // Freezes the metatable of strings; the tables in the globals are frozen already.
         luaL_sandbox(L);
         // It leaves a metatable of the globals writable. With it a script gives every other script another
         // '__index', and through that other globals.
@@ -336,9 +344,7 @@ public sealed unsafe class LuauState : IDisposable
 
     internal LuauModuleRequirer GetOrCreateModuleRequirer()
     {
-        // The first module installs the global 'require'.
-        if (_moduleRequirer is null)
-            ThrowIfSandboxed("Register the first module or enable script modules");
+        // The first module installs the global 'require'. A sandboxed state has it already.
         _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
     }

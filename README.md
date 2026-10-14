@@ -195,6 +195,19 @@ lua.RegisterModule("game", static (state, in LuauTable module) =>
 
 Host modules are loaded from Luau with `require("game")`. Generated and manual modules share the same require context as file-backed script modules.
 
+## Protect the host API
+
+Once the globals and modules are set up, `EnableSandbox()` makes them and the standard libraries read-only for scripts and gives every script globals of its own. Scripts call built-in functions such as `math.floor` faster in a sandboxed state:
+
+```csharp
+lua.RegisterModule(GameModule.ModuleName, GameModule.OnLoad);
+lua.EnableSandbox();
+
+int result = lua.Load("return require('game').add(20, 22)").Execute<int>();
+```
+
+A script returns what the host reads. See [Sandbox](docs/features/sandbox.md).
+
 ## Ownership and lifetime
 
 - `LuauTable`, `LuauFunction`, `LuauCoroutine`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.

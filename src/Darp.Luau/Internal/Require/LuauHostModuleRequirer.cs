@@ -1,3 +1,5 @@
+using Darp.Luau.Utils;
+
 namespace Darp.Luau.Internal.Require;
 
 internal sealed class LuauHostModuleRequirer : IDisposable
@@ -31,6 +33,9 @@ internal sealed class LuauHostModuleRequirer : IDisposable
             try
             {
                 registration.OnLoad(_state, loaded);
+                // Every script that requires the module shares the table, so in a sandbox none may change it.
+                if (_state.IsSandboxed)
+                    Freeze(loaded);
             }
             catch
             {
@@ -51,6 +56,22 @@ internal sealed class LuauHostModuleRequirer : IDisposable
         {
             registration.IsLoading = false;
         }
+    }
+
+    /// <summary> Freezes the modules that were loaded before the state was sandboxed. </summary>
+    public void FreezeLoaded()
+    {
+        foreach (HostModule module in _hostModules.Values)
+        {
+            if (module.CachedValue is { } loaded)
+                Freeze(loaded);
+        }
+    }
+
+    private unsafe void Freeze(LuauTable module)
+    {
+        using (_state.GetTrackedReferenceOrThrow(module.GetHandleOrThrow()).PushToTop())
+            LuauSandbox.FreezeTables(_state.L);
     }
 
     public void Dispose()
