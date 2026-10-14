@@ -179,7 +179,8 @@ For file-backed entry scripts, pass a chunk name that starts with `@` and points
 - reserves `./`, `../`, `/`, `\`, and `@` prefixes for script-module paths,
 - installs the shared require context if it was not installed already,
 - loads the module lazily on the first matching `require(...)`,
-- caches the module table after a successful load.
+- caches the module table after a successful load,
+- freezes the module table and every table in it in a [sandboxed](sandbox.md#host-modules-are-read-only-too) state.
 
 `EnableScriptModules()` adds file-backed script resolution to the same require context:
 

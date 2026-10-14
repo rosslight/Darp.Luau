@@ -28,7 +28,21 @@ _G.log = nil                           -- globals of the host as well
 setfenv(0, {})                         -- getfenv and setfenv are removed
 ```
 
-Read-only are the global table, every table directly in it (the standard libraries and tables of the host), and the metatable of strings. If the host gave the global table a metatable, that is read-only too.
+Read-only are the global table, every table in it at any depth (the standard libraries and tables of the host), and the metatable of strings. If the host gave the global table a metatable, that is read-only too.
+
+## Host modules are read-only too
+
+Every script that requires a [host module](modules.md) gets the same table. In a sandboxed state that table is frozen once the module is built, together with every table in it, so no script can change the module for the others:
+
+```lua
+local game = require("game")
+game.answer = 41        -- attempt to modify a readonly table
+game.tools.hammer = nil -- nested tables as well
+```
+
+This holds for modules that were loaded before `EnableSandbox()` as well. The host builds a module in its `OnLoad`, and cannot change its table afterwards. Give the module a function, a property or a userdata for a value that changes.
+
+The table a [script module](modules.md#file-backed-script-modules) returns belongs to that script and stays writable. A script module that should not be changed can freeze its table with `table.freeze`.
 
 ## Every script has globals of its own
 
@@ -68,7 +82,7 @@ A script in an environment does not get this. The host can change an environment
 
 What the host put into the globals keeps working as before:
 
-- A userdata, or a table that can still change, is read every time a script uses it.
+- A userdata, or a table with a metatable, is read every time a script uses it.
 - A built-in function that the host replaced or removed before enabling the sandbox is called by what its name holds now. A library that was not loaded stays unavailable.
 
 A function that was loaded before `EnableSandbox()` keeps working and keeps looking everything up. Enable the sandbox before loading scripts.
@@ -82,12 +96,11 @@ The globals are read-only for the host as well:
 ```csharp
 lua.Globals.Set("late", 1);                    // LuaException
 lua.LoadStandardLibraries(LuauLibraries.Os);   // InvalidOperationException
-lua.EnableScriptModules();                     // InvalidOperationException, unless require was set up before
 ```
 
-Everything that does not change the globals still works: registering another host module once one was registered or script modules were enabled, creating functions, tables, userdata and environments.
+Everything that does not change the globals still works: registering host modules, enabling script modules, creating functions, tables, userdata and environments. A sandboxed state always has `require`, also when the host registered no module before.
 
 ## What it is not
 
-- Only the tables directly in the globals are read-only. A script can still write to `config.limits.max`, to the members of a userdata, and to the table a module returned, which every script that requires the module shares.
+- Tables are read-only, not what decides their members. A script can still write to the members of a userdata, to the metatable of a table, and to the table a script module returned, which every script that requires the module shares.
 - It is not a boundary for scripts you do not trust, and it sets no limit on memory or running time. Run such scripts in a state of their own that only has what they may use. A script can be stopped through the cancellation token of an async call; see [Coroutines](coroutines.md).

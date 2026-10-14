@@ -43,6 +43,8 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
         _hostModules.RegisterModule(name, onLoad);
     }
 
+    public void FreezeHostModules() => _hostModules.FreezeLoaded();
+
     private void InstallRequireFunction()
     {
 #if DEBUG
@@ -55,14 +57,17 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
         );
 
         lua_State* L = _state.L;
-        LuauStateMarshal.PushString(L, "require"u8); // [name]
+        _state.PushWritableGlobals(); // [globals]
 #pragma warning disable CA2000 // The native require callback captures this stack value as an upvalue.
-        _ = proxyRequireReference.PushToTop(); // [name, proxy]
+        _ = proxyRequireReference.PushToTop(); // [globals, proxy]
 #pragma warning restore CA2000
         fixed (byte* pRequireName = "require\0"u8)
-            darp_luau_pushrequirecallback(L, &RequireCallback, ToVoidPtr(), pRequireName); // [name, require]
-        // The globals may be frozen or have metamethods by now, so Luau decides whether this works.
-        LuaException.ThrowIfNotOk(L, LuauVm.SetTable(_state, L, LUA_GLOBALSINDEX), "lua_settable");
+        {
+            darp_luau_pushrequirecallback(L, &RequireCallback, ToVoidPtr(), pRequireName); // [globals, require]
+            // The global of the library, set raw: no metamethod of a script can redirect it.
+            lua_rawsetfield(L, -2, pRequireName); // [globals]
+        }
+        lua_pop(L, 1);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

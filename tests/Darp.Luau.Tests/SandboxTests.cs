@@ -87,10 +87,6 @@ public sealed class SandboxTests
         state.IsSandboxed.ShouldBeTrue();
         Should.Throw<LuaException>(() => state.Globals.Set("answer", 42));
         Should.Throw<InvalidOperationException>(() => state.LoadStandardLibraries(LuauLibraries.Math));
-        Should.Throw<InvalidOperationException>(() => state.EnableScriptModules());
-        Should.Throw<InvalidOperationException>(() =>
-            state.RegisterModule("late", static (LuauState _, in LuauTable _) => { })
-        );
         // A library that is there already is no change.
         state.LoadStandardLibraries(LuauLibraries.Base);
         state.Load("return 1").Execute<int>().ShouldBe(1);
@@ -388,14 +384,28 @@ public sealed class SandboxTests
         moduleFloor.Invoke<int>().ShouldBe(42);
     }
 
-    [Fact]
-    public void Freeze_ShouldOnlyReachTheTablesDirectlyInTheGlobals()
+    [Theory]
+    [InlineData("host.nested.value = 2")]
+    [InlineData("host.nested.again.value = 2")]
+    [InlineData("host.proxy.value = 2")]
+    public void Freeze_ShouldReachEveryTableInTheGlobals(string script)
     {
-        using LuauState state = CreateSandboxed();
+        using var state = new LuauState();
+        using LuauTable host = state
+            .Load(
+                """
+                local nested = { value = 1 }
+                nested.again = nested
+                return { nested = nested, proxy = setmetatable({ value = 1 }, {}) }
+                """
+            )
+            .Execute<LuauTable>();
+        state.Globals.Set("host", host);
+        state.EnableSandbox();
 
-        state.Load("host.nested.value = 2").Execute();
+        Should.Throw<LuaException>(() => state.Load(script).Execute()).Message.ShouldContain("readonly");
 
-        state.Load("return host.nested.value").Execute<int>().ShouldBe(2);
+        state.Load("return host.nested.value + host.proxy.value").Execute<int>().ShouldBe(2);
     }
 
     [Fact]
@@ -423,22 +433,83 @@ public sealed class SandboxTests
             .Message.ShouldContain("readonly", Case.Insensitive);
     }
 
+    [Theory]
+    [InlineData("require('game').answer = 41")]
+    [InlineData("require('game').tools.hammer = nil")]
+    [InlineData("require('loaded').answer = 41")]
+    [InlineData("require('late').answer = 41")]
+    public void HostModule_ShouldNotBeChangedByAScript(string script)
+    {
+        using var state = new LuauState();
+        state.RegisterModule("game", OnLoad);
+        state.RegisterModule("loaded", OnLoad);
+        state.Load("require('loaded')").Execute();
+        state.EnableSandbox();
+        state.RegisterModule("late", OnLoad);
+
+        Should.Throw<LuaException>(() => state.Load(script).Execute()).Message.ShouldContain("readonly");
+
+        state.Load("return require('game').tools.hammer + require('loaded').answer").Execute<int>().ShouldBe(43);
+        return;
+
+        static void OnLoad(LuauState state, in LuauTable module)
+        {
+            module.Set("answer", 42);
+            using LuauTable tools = state.CreateTable();
+            tools.Set("hammer", 1);
+            module.Set("tools", tools);
+        }
+    }
+
     [Fact]
-    public void HostModule_ShouldBeBuiltWhenItIsFirstRequiredAndItsTableStaysWritable()
+    public void Freeze_ShouldReachATableNestedDeeperThanTheStackOfLuau()
+    {
+        using var state = new LuauState();
+        state.Load("local t = {}; deep = t; for i = 1, 20000 do t.next = {}; t = t.next end; t.value = 1").Execute();
+
+        state.EnableSandbox();
+
+        Should
+            .Throw<LuaException>(() =>
+                state.Load("local t = deep; while t.next do t = t.next end; t.value = 2").Execute()
+            )
+            .Message.ShouldContain("readonly");
+    }
+
+    [Theory]
+    [InlineData("function() end")]
+    [InlineData("function() error('no new globals') end")]
+    public void Modules_ShouldBeRequiredWhateverTheGlobalsDoWithNewNames(string newIndex)
+    {
+        using var state = new LuauState();
+        state.Load($"setmetatable(_G, {{ __newindex = {newIndex} }})").Execute();
+
+        state.EnableSandbox();
+        state.RegisterModule("game", static (LuauState _, in LuauTable module) => module.Set("answer", 42));
+
+        state.Load("return require('game').answer").Execute<int>().ShouldBe(42);
+    }
+
+    [Fact]
+    public void HostModule_ShouldBeChangeableWithoutASandbox()
     {
         using var state = new LuauState();
         state.RegisterModule("game", static (LuauState _, in LuauTable module) => module.Set("answer", 42));
+
+        state.Load("require('game').answer = 41; return require('game').answer").Execute<int>().ShouldBe(41);
+    }
+
+    [Fact]
+    public void Modules_ShouldBeRegisteredAndEnabledAfterTheSandbox()
+    {
+        var fileSystem = new FakeFileSystem([("./script.luau", "return 2")]);
+        using var state = new LuauState(LuauLibraries.Minimal, fileSystem);
         state.EnableSandbox();
-        // 'require' exists, so a later module changes no global.
-        state.RegisterModule("late", static (LuauState _, in LuauTable module) => module.Set("value", 1));
 
-        int sum = state
-            .Load(
-                "local game = require('game'); game.answer = 41; return require('game').answer + require('late').value"
-            )
-            .Execute<int>();
+        state.RegisterModule("host", static (LuauState _, in LuauTable module) => module.Set("value", 1));
+        state.EnableScriptModules();
 
-        sum.ShouldBe(42);
+        state.Load("return require('host').value + require('./script')").Execute<int>().ShouldBe(3);
     }
 
     [Fact]
@@ -532,21 +603,25 @@ public sealed class SandboxTests
         using var state = new LuauState();
         state.Load("setfenv(0, setmetatable({ marker = 'replaced' }, { __index = _G }))").Execute();
         state.Load("return marker").Execute<string>().ShouldBe("replaced");
+        state.RegisterModule("before", static (LuauState _, in LuauTable module) => module.Set("answer", 41));
 
         state.EnableSandbox();
+        state.RegisterModule("after", static (LuauState _, in LuauTable module) => module.Set("answer", 1));
 
         state.Load("return marker == nil and getfenv == nil and setfenv == nil").Execute<bool>().ShouldBeTrue();
+        state.Load("return require('before').answer + require('after').answer").Execute<int>().ShouldBe(42);
     }
 
     [Fact]
     public void Script_ShouldSeeLiveHostObjectsAndReplacedBuiltinsAsBefore()
     {
         using var state = new LuauState();
-        using LuauTable host = state.Load("return { nested = { value = 1 } }").Execute<LuauTable>();
-        state.Globals.Set("host", host);
         var live = new Live { Value = 1 };
         using LuauUserdata liveUserdata = state.GetOrCreateUserdata(live);
         state.Globals.Set("live", liveUserdata);
+        using LuauTable host = state.CreateTable();
+        host.Set("live", liveUserdata);
+        state.Globals.Set("host", host);
         using LuauFunction floor = state.CreateFunctionManual(static _ => LuauReturn.Ok(42));
         using (LuauTable math = state.Globals.Get<LuauTable>("math"))
             math.Set("floor", floor);
@@ -555,12 +630,11 @@ public sealed class SandboxTests
 
         // Luau can resolve 'a.b.c' and call built-in functions when a script is loaded instead of when it runs.
         // Nothing here may be read early or bypassed.
-        using LuauFunction read = state.Load("return live.value").ToFunction();
+        using LuauFunction read = state.Load("return live.value + host.live.value").ToFunction();
         live.Reads.ShouldBe(0);
-        read.Invoke<int>().ShouldBe(1);
+        read.Invoke<int>().ShouldBe(2);
         live.Value = 7;
-        read.Invoke<int>().ShouldBe(7);
-        state.Load("host.nested.value = 2; return host.nested.value").Execute<int>().ShouldBe(2);
+        read.Invoke<int>().ShouldBe(14);
         state.Load("return math.floor(1.5)").Execute<int>().ShouldBe(42);
         Should.Throw<LuaException>(() => state.Load("rawset({}, 'a', 1)").Execute());
     }

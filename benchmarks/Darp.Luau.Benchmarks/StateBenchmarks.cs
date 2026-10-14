@@ -9,4 +9,11 @@ public class StateBenchmarks
     {
         using var state = new LuauState();
     }
+
+    [Benchmark]
+    public void CreateSandboxedAndDispose()
+    {
+        using var state = new LuauState();
+        state.EnableSandbox();
+    }
 }

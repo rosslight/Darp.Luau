@@ -13,6 +13,12 @@ namespace Darp.Luau.Internal;
 /// </remarks>
 internal sealed unsafe class LuauSandbox : IDisposable
 {
+    /// <summary>
+    /// The built-in functions of a state with all libraries, and the libraries with theirs. A built-in function
+    /// is a native function, the same one in every state of the process, so one state is read once.
+    /// </summary>
+    private static readonly Lazy<OriginalGlobal[]> Originals = new(ReadOriginals);
+
     /// <summary> Globals whose members are looked up every time. Null-terminated. </summary>
     public byte** MutableGlobals { get; private set; }
 
@@ -53,10 +59,51 @@ internal sealed unsafe class LuauSandbox : IDisposable
         options.disabledBuiltins = DisabledBuiltins;
     }
 
+    /// <summary> Freezes the table on top, every table in it, and so on through every depth. </summary>
+    /// <remarks>
+    /// A metatable is not entered, nor a userdata or a function: what it holds belongs to whatever made it.
+    /// </remarks>
+    public static void FreezeTables(lua_State* L)
+    {
+        if (lua_checkstack(L, 4) == 0)
+            throw new InvalidOperationException("The Luau stack is full.");
+        // A table can hold itself or a table that holds it.
+        var frozen = new HashSet<nint>();
+        // The tables still to be walked wait in a table, so a deep nesting takes no stack.
+        lua_newtable(L); // [root, pending]
+        int pending = lua_gettop(L);
+        int pendingCount = 0;
+        lua_pushvalue(L, -2); // [root, pending, table]
+        while (true)
+        {
+            if (frozen.Add((nint)lua_topointer(L, -1)))
+            {
+                lua_setreadonly(L, -1, 1);
+                int table = lua_gettop(L);
+                for (int i = lua_rawiter(L, table, 0); i >= 0; i = lua_rawiter(L, table, i)) // [.., table, key, value]
+                {
+                    if (
+                        (lua_Type)lua_type(L, -1) is lua_Type.LUA_TTABLE
+                        && !frozen.Contains((nint)lua_topointer(L, -1))
+                    )
+                        lua_rawseti(L, pending, ++pendingCount);
+                    else
+                        lua_pop(L, 1);
+                    lua_pop(L, 1);
+                }
+            }
+            lua_pop(L, 1); // [root, pending]
+            if (pendingCount == 0)
+                break;
+            _ = lua_rawgeti(L, pending, pendingCount--); // [root, pending, table]
+        }
+        lua_pop(L, 1); // [root]
+    }
+
     /// <summary>
-    /// A global does not change when reading <c>global.a.b</c> gives the same value every time: a frozen table
-    /// of values, functions and such tables. A userdata decides what a member is when it is read, and so does a
-    /// table with a metatable. A table that is not frozen can be given another member.
+    /// A global does not change when reading <c>global.a.b</c> gives the same value every time: a table of
+    /// values, functions and such tables. Every table in the globals is frozen, so only a userdata, which decides
+    /// what a member is when it is read, and a table with a metatable, which does the same, can change.
     /// </summary>
     private static HashSet<string> FindGlobalsThatChange(lua_State* L)
     {
@@ -73,7 +120,7 @@ internal sealed unsafe class LuauSandbox : IDisposable
         return names;
     }
 
-    /// <summary> Whether the members of the value on top can change. The globals are frozen, their tables too. </summary>
+    /// <summary> Whether the members of the value on top can change. </summary>
     private static bool Changes(lua_State* L)
     {
         var type = (lua_Type)lua_type(L, -1);
@@ -88,9 +135,7 @@ internal sealed unsafe class LuauSandbox : IDisposable
         for (int i = lua_rawiter(L, table, 0); i >= 0; i = lua_rawiter(L, table, i)) // [table, key, member]
         {
             var member = (lua_Type)lua_type(L, -1);
-            bool changes =
-                member is lua_Type.LUA_TUSERDATA
-                || (member is lua_Type.LUA_TTABLE && (lua_getreadonly(L, -1) == 0 || HasMetatable(L)));
+            bool changes = member is lua_Type.LUA_TUSERDATA || (member is lua_Type.LUA_TTABLE && HasMetatable(L));
             lua_pop(L, 2);
             if (changes)
                 return true;
@@ -119,78 +164,91 @@ internal sealed unsafe class LuauSandbox : IDisposable
     private static List<string> FindBuiltinsThatAreNotTheOriginals(lua_State* L, HashSet<string> mutableGlobals)
     {
         var names = new List<string>();
-        using var original = new LuauState(LuauLibraries.All);
-        lua_State* O = original.L;
-        lua_pushvalue(O, LUA_GLOBALSINDEX);
-        int globals = lua_gettop(O);
-        for (int i = lua_rawiter(O, globals, 0); i >= 0; i = lua_rawiter(O, globals, i)) // O: [globals, name, value]
+        foreach (OriginalGlobal global in Originals.Value)
         {
-            if ((lua_Type)lua_type(O, -2) is lua_Type.LUA_TSTRING)
+            LuauStateMarshal.PushString(L, global.Name);
+            _ = lua_rawget(L, LUA_GLOBALSINDEX); // [value]
+            if (global.Members is { } functions)
             {
-                PushSameString(O, -2, L);
-                _ = lua_rawget(L, LUA_GLOBALSINDEX); // L: [value]
-                switch ((lua_Type)lua_type(O, -1))
-                {
-                    case lua_Type.LUA_TFUNCTION:
-                        if (!IsSameFunction(O, L))
-                        {
-                            names.Add(ReadString(O, -2));
-                            mutableGlobals.Add(ReadString(O, -2));
-                        }
-                        break;
-                    case lua_Type.LUA_TTABLE:
-                        if (AddLibraryFunctionsThatDiffer(O, L, ReadString(O, -2), names))
-                            mutableGlobals.Add(ReadString(O, -2));
-                        break;
-                }
-                lua_pop(L, 1);
+                if (AddLibraryFunctionsThatDiffer(L, global.Name, functions, names))
+                    mutableGlobals.Add(global.Name);
             }
-            lua_pop(O, 2);
+            else if (!IsFunction(L, global.Function))
+            {
+                names.Add(global.Name);
+                mutableGlobals.Add(global.Name);
+            }
+            lua_pop(L, 1);
         }
-        lua_pop(O, 1);
         return names;
     }
 
-    /// <summary> Compares the functions of the library on top of <paramref name="O"/> with the value on top of <paramref name="L"/>. </summary>
+    /// <summary> Compares the functions of a library with the value on top. </summary>
     /// <returns>Whether a function of the library differs.</returns>
-    private static bool AddLibraryFunctionsThatDiffer(lua_State* O, lua_State* L, string library, List<string> names)
+    private static bool AddLibraryFunctionsThatDiffer(
+        lua_State* L,
+        string library,
+        OriginalGlobal[] functions,
+        List<string> names
+    )
     {
         int namesBefore = names.Count;
         bool isTable = (lua_Type)lua_type(L, -1) is lua_Type.LUA_TTABLE;
-        int table = lua_gettop(O);
-        for (int i = lua_rawiter(O, table, 0); i >= 0; i = lua_rawiter(O, table, i)) // O: [library, name, function]
+        foreach (OriginalGlobal function in functions)
         {
-            if (
-                (lua_Type)lua_type(O, -2) is lua_Type.LUA_TSTRING
-                && (lua_Type)lua_type(O, -1) is lua_Type.LUA_TFUNCTION
-            )
+            bool isSame = false;
+            if (isTable)
             {
-                bool isSame = false;
-                if (isTable)
-                {
-                    PushSameString(O, -2, L);
-                    _ = lua_rawget(L, -2); // L: [library, function]
-                    isSame = IsSameFunction(O, L);
-                    lua_pop(L, 1);
-                }
-                if (!isSame)
-                    names.Add($"{library}.{ReadString(O, -2)}");
+                LuauStateMarshal.PushString(L, function.Name);
+                _ = lua_rawget(L, -2); // [library, function]
+                isSame = IsFunction(L, function.Function);
+                lua_pop(L, 1);
             }
-            lua_pop(O, 2);
+            if (!isSame)
+                names.Add($"{library}.{function.Name}");
         }
         return names.Count > namesBefore;
     }
 
-    /// <summary> A built-in function is a native function, the same one in every state of the process. </summary>
-    private static bool IsSameFunction(lua_State* O, lua_State* L) =>
-        lua_iscfunction(L, -1) != 0 && (nint)lua_tocfunction(L, -1) == (nint)lua_tocfunction(O, -1);
-
-    private static void PushSameString(lua_State* from, int index, lua_State* to)
+    private static OriginalGlobal[] ReadOriginals()
     {
-        nuint length = 0;
-        byte* text = lua_tolstring(from, index, &length);
-        lua_pushlstring(to, text, length);
+        using var original = new LuauState(LuauLibraries.All);
+        lua_State* O = original.L;
+        lua_pushvalue(O, LUA_GLOBALSINDEX);
+        OriginalGlobal[] globals = ReadFunctionsAndLibraries(O, readLibraries: true);
+        lua_pop(O, 1);
+        return globals;
     }
+
+    /// <summary> Reads the functions of the table on top, and with <paramref name="readLibraries"/> its tables. </summary>
+    private static OriginalGlobal[] ReadFunctionsAndLibraries(lua_State* O, bool readLibraries)
+    {
+        var globals = new List<OriginalGlobal>();
+        int table = lua_gettop(O);
+        for (int i = lua_rawiter(O, table, 0); i >= 0; i = lua_rawiter(O, table, i)) // [table, name, value]
+        {
+            if ((lua_Type)lua_type(O, -2) is lua_Type.LUA_TSTRING)
+            {
+                switch ((lua_Type)lua_type(O, -1))
+                {
+                    case lua_Type.LUA_TFUNCTION:
+                        globals.Add(new OriginalGlobal(ReadString(O, -2), (nint)lua_tocfunction(O, -1), Members: null));
+                        break;
+                    case lua_Type.LUA_TTABLE when readLibraries:
+                        globals.Add(new OriginalGlobal(ReadString(O, -2), 0, ReadFunctionsAndLibraries(O, false)));
+                        break;
+                }
+            }
+            lua_pop(O, 2);
+        }
+        return [.. globals];
+    }
+
+    /// <summary> A built-in function, or with <see cref="Members"/> a library of them. </summary>
+    private sealed record OriginalGlobal(string Name, nint Function, OriginalGlobal[]? Members);
+
+    private static bool IsFunction(lua_State* L, nint function) =>
+        lua_iscfunction(L, -1) != 0 && (nint)lua_tocfunction(L, -1) == function;
 
     private static string ReadString(lua_State* L, int index)
     {
