@@ -483,6 +483,7 @@ public class InterceptorTests
                 {
                     state.CreateFunction((object p1) => {});
                     state.CreateFunction(() => new object());
+                    state.CreateFunction(() => (Count: 1, Tag: new object()));
                 }
             }
             """;
@@ -646,6 +647,29 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
 
+    /// <summary> The interceptor writes the type of the tuple, so a name that is a keyword has to stay escaped. </summary>
+    [Fact]
+    public async Task AsyncTupleReturnWithAnElementNamedLikeAKeyword()
+    {
+        const string code = """
+            using System.Threading.Tasks;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(async Task<(int @class, int value)> (int value) =>
+                    {
+                        await Task.Yield();
+                        return (value, value);
+                    });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
     /// <summary> The rules of a parameter of a module function hold for a parameter of a delegate. </summary>
     [Fact]
     public async Task ParametersWithParamsOrADefaultGeneratedCodeCannotUse_ShouldFail()
@@ -721,6 +745,27 @@ public class InterceptorTests
                     state.CreateFunction<Counter>(() => ref _hits);
                     state.CreateFunction(ref readonly int () => ref _hits);
                 }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    /// <summary> A span of bytes has no conversion to a Luau value, for a callback as for a module function. </summary>
+    [Fact]
+    public async Task ByteSpanReturn_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(Bytes);
+                }
+
+                private static ReadOnlySpan<byte> Bytes() => "abc"u8;
             }
             """;
         await VerifyHelper.VerifyGeneratorWithErrors(code);

@@ -8,12 +8,12 @@
     public int Unsupported(ref int value) => value;
 */
  : (10,5)-(10,30),
-      Message: Generated module function 'Unsupported' uses an unsupported parameter or return shape: parameter 'value' cannot use ref, in, or out,
+      Message: Type 'int' used for parameter 'value', which is passed by reference (ref, in or out) is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

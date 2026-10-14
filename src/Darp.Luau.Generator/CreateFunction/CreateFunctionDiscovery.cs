@@ -21,6 +21,7 @@ internal static class CreateFunctionDiscovery
 
     public static IInvocationOperation? GetMatchingInvocation(
         GeneratorSyntaxContext context,
+        LuauApiSymbols apiSymbols,
         CancellationToken cancellationToken
     )
     {
@@ -28,7 +29,6 @@ internal static class CreateFunctionDiscovery
         if (context.SemanticModel.GetOperation(invocation, cancellationToken) is not IInvocationOperation operation)
             return null;
 
-        var apiSymbols = LuauApiSymbols.Create(context.SemanticModel.Compilation);
-        return apiSymbols is not null && apiSymbols.IsCreateFunctionMethod(operation.TargetMethod) ? operation : null;
+        return apiSymbols.IsCreateFunctionMethod(operation.TargetMethod) ? operation : null;
     }
 }

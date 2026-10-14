@@ -141,12 +141,12 @@
     public Money Add(System.Uri source) => this;
 */
  : (35,5)-(35,39),
-      Message: Generated userdata method 'Add' uses an unsupported parameter or return shape: parameter 'source' has unsupported type 'global::System.Uri',
+      Message: Type 'System.Uri' used for parameter 'source' is not supported for Luau parameter/return marshalling,
       Severity: Error,
       Descriptor: {
-        Id: DLUAU1006,
-        Title: Unsupported generated function shape,
-        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

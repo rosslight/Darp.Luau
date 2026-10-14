@@ -13,12 +13,13 @@ public sealed class GeneratedExportsAnalyzer : DiagnosticAnalyzer
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [
+            DiagnosticDescriptors.UnsupportedTypeDescriptor,
+            DiagnosticDescriptors.UnsupportedReturnTupleDescriptor,
             DiagnosticDescriptors.LuauModuleTypeMustBePartialDescriptor,
             DiagnosticDescriptors.LuauUserdataTypeMustBePartialDescriptor,
             DiagnosticDescriptors.DuplicateLuauMemberNameDescriptor,
             DiagnosticDescriptors.UnsupportedGeneratedPropertyTypeDescriptor,
             DiagnosticDescriptors.InstanceModuleStructNotSupportedDescriptor,
-            DiagnosticDescriptors.UnsupportedGeneratedFunctionShapeDescriptor,
             DiagnosticDescriptors.LuauExportPathConflictDescriptor,
             DiagnosticDescriptors.InvalidLuauExportPathDescriptor,
             DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor,

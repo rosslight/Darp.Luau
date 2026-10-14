@@ -263,21 +263,8 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (
-            !TryMapMethodSignature(
-                method,
-                discoveredType.Kind,
-                context,
-                location,
-                diagnostics,
-                out ImmutableEquatableArray<InteropParameter> parameters,
-                out ImmutableEquatableArray<InteropType> returns,
-                out AwaitableReturnKind awaitable
-            )
-        )
-        {
+        if (!TryReadSignature(method, context, location, diagnostics, out InteropSignature signature))
             return null;
-        }
 
         return new NormalizedExportMethodMember(
             method,
@@ -285,7 +272,7 @@ internal static class ExportAnalyzer
             exportedName,
             pathSegments,
             discoveredMethod.Origin,
-            new InteropSignature(parameters, returns, awaitable)
+            signature
         );
     }
 
@@ -316,73 +303,10 @@ internal static class ExportAnalyzer
             return false;
         }
 
-        NormalizedPropertyAccessor? getter = null;
-        if (exposeGetter)
-        {
-            LuauInteropTypeUsage getterUsage =
-                exportedTypeKind == LuauExportedTypeKind.Module
-                    ? LuauInteropTypeUsage.ModuleProperty
-                    : LuauInteropTypeUsage.UserdataPropertyGet;
-            if (
-                !TryMapPropertyType(
-                    property,
-                    getterUsage,
-                    exportedTypeKind,
-                    location,
-                    context,
-                    diagnostics,
-                    out InteropType getterType
-                )
-            )
-            {
-                propertyContract = default!;
-                return false;
-            }
-
-            getter = new NormalizedPropertyAccessor(getterType);
-        }
-
-        NormalizedPropertyAccessor? setter = null;
-        if (exposeSetter)
-        {
-            LuauInteropTypeUsage setterUsage =
-                exportedTypeKind == LuauExportedTypeKind.Module
-                    ? LuauInteropTypeUsage.ModuleProperty
-                    : LuauInteropTypeUsage.UserdataPropertySet;
-            if (
-                !TryMapPropertyType(
-                    property,
-                    setterUsage,
-                    exportedTypeKind,
-                    location,
-                    context,
-                    diagnostics,
-                    out InteropType setterType
-                )
-            )
-            {
-                propertyContract = default!;
-                return false;
-            }
-
-            setter = new NormalizedPropertyAccessor(setterType);
-        }
-
-        propertyContract = new NormalizedPropertyContract(getter, setter);
-        return true;
-    }
-
-    private static bool TryMapPropertyType(
-        IPropertySymbol property,
-        LuauInteropTypeUsage usage,
-        LuauExportedTypeKind exportedTypeKind,
-        Location location,
-        LuauApiSymbols context,
-        List<Diagnostic> diagnostics,
-        out InteropType mapping
-    )
-    {
-        if (!TryMapExportType(property.Type, usage, context, out mapping))
+        if (
+            !InteropTypeMapper.TryMapType(property.Type, context, out InteropType type)
+            || !InteropTypeMapper.CanBeProperty(type.Type)
+        )
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -393,317 +317,43 @@ internal static class ExportAnalyzer
                     property.Name
                 )
             );
-            mapping = default;
+            propertyContract = default!;
             return false;
         }
 
+        NormalizedPropertyAccessor? getter = exposeGetter ? new NormalizedPropertyAccessor(type) : null;
+        NormalizedPropertyAccessor? setter = exposeSetter ? new NormalizedPropertyAccessor(type) : null;
+        propertyContract = new NormalizedPropertyContract(getter, setter);
         return true;
     }
 
-    internal static bool TryMapMethodSignature(
+    /// <summary> Reads the signature of a method that generated code calls by its name. </summary>
+    internal static bool TryReadSignature(
         IMethodSymbol method,
-        LuauExportedTypeKind exportedTypeKind,
         LuauApiSymbols context,
         Location location,
         List<Diagnostic> diagnostics,
-        out ImmutableEquatableArray<InteropParameter> parameters,
-        out ImmutableEquatableArray<InteropType> returns,
-        out AwaitableReturnKind awaitable
+        out InteropSignature signature
     )
     {
-        awaitable = InteropTypeMapper.GetAwaitableKind(method.ReturnType, out ITypeSymbol? awaitedType);
+        signature = default;
         if (method.IsGenericMethod)
         {
-            ReportUnsupportedMethodShape(
-                exportedTypeKind,
-                method,
-                location,
-                diagnostics,
-                "generic methods are not supported"
-            );
-            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-            returns = ImmutableEquatableArray<InteropType>.Empty;
-            return false;
-        }
-
-        if (
-            awaitable is not AwaitableReturnKind.None
-            && method.ReturnNullableAnnotation is NullableAnnotation.Annotated
-        )
-        {
-            ReportUnsupportedMethodShape(
-                exportedTypeKind,
-                method,
-                location,
-                diagnostics,
-                "a nullable task cannot be awaited; return a task that is never null"
-            );
-            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-            returns = ImmutableEquatableArray<InteropType>.Empty;
-            return false;
-        }
-
-        if (method is { IsAsync: true, ReturnsVoid: true })
-        {
-            ReportUnsupportedMethodShape(
-                exportedTypeKind,
-                method,
-                location,
-                diagnostics,
-                "async void methods are not supported; return Task or ValueTask so the script can wait for the work"
-            );
-            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-            returns = ImmutableEquatableArray<InteropType>.Empty;
-            return false;
-        }
-
-        if (method.ReturnsByRef || method.ReturnsByRefReadonly)
-        {
-            ReportUnsupportedMethodShape(
-                exportedTypeKind,
-                method,
-                location,
-                diagnostics,
-                "by-ref returns are not supported"
-            );
-            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-            returns = ImmutableEquatableArray<InteropType>.Empty;
-            return false;
-        }
-
-        var parameterBuilder = new List<InteropParameter>();
-        LuauInteropTypeUsage parameterUsage =
-            exportedTypeKind == LuauExportedTypeKind.Module
-                ? LuauInteropTypeUsage.ModuleFunctionParameter
-                : LuauInteropTypeUsage.UserdataMethodParameter;
-        foreach (IParameterSymbol parameter in method.Parameters)
-        {
-            if (parameter.RefKind != RefKind.None)
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                     location,
-                    diagnostics,
-                    $"parameter '{parameter.Name}' cannot use ref, in, or out"
-                );
-                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            if (parameter.IsParams)
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
-                    location,
-                    diagnostics,
-                    $"parameter '{parameter.Name}' uses params"
-                );
-                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            if (!TryMapExportType(parameter.Type, parameterUsage, context, out InteropType parameterMapping))
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
-                    location,
-                    diagnostics,
-                    $"parameter '{parameter.Name}' has unsupported type '{parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}'"
-                );
-                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            if (ParameterDefault.TryRead(parameter, parameterMapping, out InteropParameter read) is { } reason)
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
-                    location,
-                    diagnostics,
-                    $"parameter '{parameter.Name}' {reason}"
-                );
-                parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            parameterBuilder.Add(read);
-        }
-
-        ITypeSymbol? returnType = awaitable is AwaitableReturnKind.None ? method.ReturnType : awaitedType;
-        if (!TryMapMethodReturns(method, returnType, exportedTypeKind, context, location, diagnostics, out returns))
-        {
-            parameters = ImmutableEquatableArray<InteropParameter>.Empty;
-            return false;
-        }
-
-        parameters = parameterBuilder.ToImmutableEquatableArray();
-        return true;
-    }
-
-    /// <summary>
-    /// Maps <paramref name="returnType"/>, the type Luau receives. It is <c>null</c> when an awaitable produces nothing.
-    /// </summary>
-    private static bool TryMapMethodReturns(
-        IMethodSymbol method,
-        ITypeSymbol? returnType,
-        LuauExportedTypeKind exportedTypeKind,
-        LuauApiSymbols context,
-        Location location,
-        List<Diagnostic> diagnostics,
-        out ImmutableEquatableArray<InteropType> returns
-    )
-    {
-        if (returnType is null or { SpecialType: SpecialType.System_Void })
-        {
-            returns = ImmutableEquatableArray<InteropType>.Empty;
-            return true;
-        }
-
-        var returnValues = new List<InteropType>();
-        LuauInteropTypeUsage returnUsage =
-            exportedTypeKind == LuauExportedTypeKind.Module
-                ? LuauInteropTypeUsage.ModuleFunctionReturn
-                : LuauInteropTypeUsage.UserdataMethodReturn;
-        if (returnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
-        {
-            if (
-                !TryMapReturnType(
-                    method,
-                    returnType,
-                    "return value",
-                    returnUsage,
-                    context,
-                    location,
-                    diagnostics,
-                    out InteropType mapping
+                    $"method '{method.Name}' is generic, and a script has no type to call it with"
                 )
-            )
-            {
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            returnValues.Add(mapping);
-            returns = returnValues.ToImmutableEquatableArray();
-            return true;
-        }
-
-        if (tupleType.TupleElements.Length > 4)
-        {
-            ReportUnsupportedMethodShape(
-                exportedTypeKind,
-                method,
-                location,
-                diagnostics,
-                "only up to 4 tuple return values are supported"
             );
-            returns = ImmutableEquatableArray<InteropType>.Empty;
             return false;
         }
 
-        foreach (IFieldSymbol tupleElement in tupleType.TupleElements)
-        {
-            if (tupleElement.Type is INamedTypeSymbol { IsTupleType: true })
-            {
-                ReportUnsupportedMethodShape(
-                    exportedTypeKind,
-                    method,
-                    location,
-                    diagnostics,
-                    "nested tuple returns are not supported"
-                );
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            string usageDescription = tupleElement.Name is { Length: > 0 }
-                ? $"return tuple element '{tupleElement.Name}'"
-                : "return tuple element";
-            if (
-                !TryMapReturnType(
-                    method,
-                    tupleElement.Type,
-                    usageDescription,
-                    returnUsage,
-                    context,
-                    location,
-                    diagnostics,
-                    out InteropType mapping
-                )
-            )
-            {
-                returns = ImmutableEquatableArray<InteropType>.Empty;
-                return false;
-            }
-
-            returnValues.Add(mapping);
-        }
-
-        returns = returnValues.ToImmutableEquatableArray();
-        return true;
-    }
-
-    private static bool TryMapReturnType(
-        IMethodSymbol method,
-        ITypeSymbol type,
-        string usageDescription,
-        LuauInteropTypeUsage usage,
-        LuauApiSymbols context,
-        Location location,
-        List<Diagnostic> diagnostics,
-        out InteropType mapping
-    )
-    {
-        if (!TryMapExportType(type, usage, context, out mapping))
-        {
-            ReportUnsupportedMethodShape(
-                usage is LuauInteropTypeUsage.ModuleFunctionReturn
-                    ? LuauExportedTypeKind.Module
-                    : LuauExportedTypeKind.Userdata,
-                method,
-                location,
-                diagnostics,
-                $"{usageDescription} has unsupported type '{type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}'"
-            );
-            mapping = default;
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool TryMapExportType(
-        ITypeSymbol type,
-        LuauInteropTypeUsage usage,
-        LuauApiSymbols context,
-        out InteropType mapping
-    )
-    {
-        if (InteropTypeMapper.TryMapType(type, out mapping) && IsMappingSupportedForUsage(mapping, usage))
+        if (SignatureReader.TryRead(method, method.IsAsync, [], context, out signature) is not { } error)
             return true;
 
-        if (
-            InteropTypeMapper.TryMapGeneratedUserdataType(type, context, out mapping)
-            && IsMappingSupportedForUsage(mapping, usage)
-        )
-            return true;
-
-        mapping = default;
+        diagnostics.Add(error.ToDiagnostic(location));
         return false;
-    }
-
-    private static bool IsMappingSupportedForUsage(InteropType mapping, LuauInteropTypeUsage usage)
-    {
-        return InteropTypeMapper.SupportsUsage(mapping, usage)
-            && (!mapping.IsNullable || InteropTypeMapper.SupportsNullableValue(mapping.Type));
     }
 
     private static bool TryResolvePropertyAccess(
@@ -852,24 +502,5 @@ internal static class ExportAnalyzer
                 );
         pathSegments = success ? rawSegments.ToImmutableEquatableArray() : ImmutableEquatableArray<string>.Empty;
         return success;
-    }
-
-    private static void ReportUnsupportedMethodShape(
-        LuauExportedTypeKind exportedTypeKind,
-        IMethodSymbol method,
-        Location location,
-        List<Diagnostic> diagnostics,
-        string reason
-    )
-    {
-        diagnostics.Add(
-            Diagnostic.Create(
-                DiagnosticDescriptors.UnsupportedGeneratedFunctionShapeDescriptor,
-                location,
-                exportedTypeKind == LuauExportedTypeKind.Module ? "module function" : "userdata method",
-                method.Name,
-                reason
-            )
-        );
     }
 }
