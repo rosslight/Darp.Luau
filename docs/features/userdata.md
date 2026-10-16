@@ -418,7 +418,7 @@ using (lua.BeginUserdataScope())
 
 Every userdata created while the scope is open loses its managed object when the scope is disposed. A script that keeps one and uses it later gets an error. Userdata that existed before the scope are not affected, and pushing a released object again creates a new userdata for it.
 
-- This also releases a `LuauUserdata` the host got from `GetOrCreateUserdata` inside the scope, and the userdata arguments of an async call that is still suspended when the scope ends. Such a `LuauUserdata` must still be disposed: `IsDisposed` stays `false`, but resolving its managed object fails.
+- This also releases a `LuauUserdata` the host got from `GetOrCreateUserdata` inside the scope, and the userdata arguments of an async call that started in the scope and is still suspended when it ends. An async call that has to wait for its turn creates the userdata of its arguments only when it starts, so they are not released if the scope ended before. Such a `LuauUserdata` must still be disposed: `IsDisposed` stays `false`, but resolving its managed object fails.
 - Scopes nest. Dispose the inner scope before the outer one; disposing a scope twice or out of order throws `InvalidOperationException`.
 
 ## Design guidance

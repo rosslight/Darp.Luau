@@ -629,8 +629,9 @@ public sealed unsafe class LuauState : IDisposable
     /// which makes collecting them expensive. Releasing them when the call ends lets them die young.
     /// <para>
     /// This includes a userdata the host got from <see cref="GetOrCreateUserdata{T}"/> in the scope, and the
-    /// arguments of an async call that is still suspended when the scope ends. Scopes nest: dispose the inner one
-    /// first.
+    /// arguments of an async call that started in the scope and is still suspended when it ends. An async call that
+    /// has to wait for its turn creates the userdata of its arguments only when it starts, so a scope that ended
+    /// before does not release them. Scopes nest: dispose the inner one first.
     /// </para>
     /// </remarks>
     /// <returns> The scope, which must be disposed once, after the scopes that began inside it. </returns>
