@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Darp.Luau.Utils;
 
 /// <summary> The managed objects of the userdata of one state, in slots that the userdata refer to. </summary>
@@ -40,8 +42,8 @@ internal sealed class UserdataObjects
     /// <summary> Lets go of the object of a userdata, because Luau collected it. </summary>
     public void Free(int slot, int generation)
     {
-        if (Get(slot, generation) is not { } value)
-            return;
+        object? value = Get(slot, generation);
+        Debug.Assert(value is not null, "Luau collects a userdata once, so its slot still holds its object.");
         // The object can have a newer userdata already, which then keeps it
         if (_slotByObject.TryGetValue(value, out int current) && current == slot)
             _slotByObject.Remove(value);
