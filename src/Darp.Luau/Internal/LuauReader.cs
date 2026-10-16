@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal;
@@ -484,15 +485,14 @@ internal static unsafe class LuauReader
     )
         where T : allows ref struct
     {
-        if (source.Type is lua_Type.LUA_TUSERDATA)
+        if (
+            source.Type is lua_Type.LUA_TUSERDATA
+            && ManagedUserdataResolver.GetTarget(State(source), source.L, source.Index) is T userdata
+        )
         {
-            var native = (LuauUserdataNative*)lua_touserdatatagged(source.L, source.Index, LuauUserdataNative.Tag);
-            if (native is not null && native->GetTarget(State(source)) is T userdata)
-            {
-                value = userdata;
-                Unsafe.SkipInit(out failure);
-                return true;
-            }
+            value = userdata;
+            Unsafe.SkipInit(out failure);
+            return true;
         }
 
         value = default;
