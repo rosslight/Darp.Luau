@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/rosslight/Darp.Luau/compare/v0.5.0...v0.6.0) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* rename LuauArgs.GetAwaiter to CreateAwaiter ([#82](https://github.com/rosslight/Darp.Luau/issues/82))
+* push userdata straight onto the stack ([#86](https://github.com/rosslight/Darp.Luau/issues/86))
+
+### Features
+
+* rename LuauArgs.GetAwaiter to CreateAwaiter ([#82](https://github.com/rosslight/Darp.Luau/issues/82)) ([f4a4f2f](https://github.com/rosslight/Darp.Luau/commit/f4a4f2f148f9fb7c69d8747ea3e788c054125601))
+
+
+### Performance Improvements
+
+* keep the objects of userdata in slots of their state ([#87](https://github.com/rosslight/Darp.Luau/issues/87)) ([bb446fe](https://github.com/rosslight/Darp.Luau/commit/bb446fe8779ba5e09ba88bccf7a9c1b25d70b83b))
+* push userdata straight onto the stack ([#86](https://github.com/rosslight/Darp.Luau/issues/86)) ([2817532](https://github.com/rosslight/Darp.Luau/commit/281753223c3f806eff91db59bd3416e624c38e1a))
+
 ## [0.5.0](https://github.com/rosslight/Darp.Luau/compare/v0.4.0...v0.5.0) (2026-10-14)
 
 
