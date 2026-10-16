@@ -291,7 +291,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         if (
             native is null
             || native->Slot != slot
-            || !ReferenceEquals(native->Target, userdata)
+            || !ReferenceEquals(native->GetTarget(_state), userdata)
         )
         {
             lua_pop(L, 2);
