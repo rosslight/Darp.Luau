@@ -40,6 +40,12 @@ public sealed unsafe class LuauState : IDisposable
     // Lets Luau's question at a safepoint find its state.
     private GCHandle _selfHandle;
 
+    /// <summary> The managed objects of the userdata of this state. </summary>
+    internal UserdataObjects UserdataObjects { get; } = new();
+
+    /// <summary> The weak handle of this state, which userdata use to find it. </summary>
+    internal nint SelfHandle => GCHandle.ToIntPtr(_selfHandle);
+
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
     /// <summary> Runs async host calls and the continuations of their managed callbacks one turn at a time. </summary>
