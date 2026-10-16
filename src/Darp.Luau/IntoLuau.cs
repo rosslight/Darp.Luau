@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Internal;
@@ -38,15 +39,20 @@ public readonly ref struct IntoLuau
     private readonly double _number;
     private readonly int _integer;
 
-    // Every argument is copied, so kinds that never occur together share their fields: chars keep their bytes in
-    // the span of a buffer, and a userdata keeps its object where a factory keeps itself
-    private readonly ReadOnlySpan<byte> _bytes;
+    // Every argument is copied, so kinds that never occur together share their fields: chars and the bytes of a
+    // buffer share where their elements start and how many there are, and a userdata keeps its object where a
+    // factory keeps itself
+    private readonly ref readonly byte _elements;
+    private readonly int _length;
     private readonly LuauValue _luauValue;
     private readonly object? _reference;
     private readonly Action<LuauState, object>? _pushUserdata;
     private readonly LuauSlot _slot;
 
-    private ReadOnlySpan<char> Chars => MemoryMarshal.Cast<byte, char>(_bytes);
+    private ReadOnlySpan<char> Chars =>
+        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref Unsafe.AsRef(in _elements)), _length);
+
+    private ReadOnlySpan<byte> Bytes => MemoryMarshal.CreateReadOnlySpan(in _elements, _length);
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -59,13 +65,15 @@ public readonly ref struct IntoLuau
     private IntoLuau(ReadOnlySpan<char> valueChars)
     {
         Type = Kind.Chars;
-        _bytes = MemoryMarshal.AsBytes(valueChars);
+        _elements = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(valueChars));
+        _length = valueChars.Length;
     }
 
     private IntoLuau(ReadOnlySpan<byte> valueChars)
     {
         Type = Kind.Buffer;
-        _bytes = valueChars;
+        _elements = ref MemoryMarshal.GetReference(valueChars);
+        _length = valueChars.Length;
     }
 
     private IntoLuau(LuauValue value)
@@ -128,9 +136,9 @@ public readonly ref struct IntoLuau
                 }
                 break;
             case Kind.Buffer:
-                void* pDest = lua_newbuffer(L, (nuint)_bytes.Length);
-                var destination = new Span<byte>(pDest, _bytes.Length);
-                _bytes.CopyTo(destination);
+                void* pDest = lua_newbuffer(L, (nuint)_length);
+                var destination = new Span<byte>(pDest, _length);
+                Bytes.CopyTo(destination);
                 break;
             case Kind.Bool:
                 lua_pushboolean(L, _bool ? 1 : 0);
@@ -226,7 +234,7 @@ public readonly ref struct IntoLuau
             case Kind.Chars:
                 return IntoLuauCopied.FromString(Chars.ToString());
             case Kind.Buffer:
-                return IntoLuauCopied.FromBuffer(_bytes.ToArray());
+                return IntoLuauCopied.FromBuffer(Bytes.ToArray());
             case Kind.Bool:
                 return IntoLuauCopied.FromBool(_bool);
             case Kind.Number:

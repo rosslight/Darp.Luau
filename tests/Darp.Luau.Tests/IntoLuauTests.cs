@@ -139,6 +139,16 @@ public sealed class IntoLuauTests
     }
 
     [Fact]
+    public unsafe void Into_Chars_OfMoreThanAGibibyte()
+    {
+        // The span is only converted, never read, so it does not need the memory it claims
+        char c = 'x';
+        IntoLuau intoValue = new ReadOnlySpan<char>(&c, 1 << 30);
+
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Chars);
+    }
+
+    [Fact]
     public void FromUserdata_Null_Throws() =>
         Should.Throw<ArgumentNullException>(() => IntoLuau.FromUserdata<SimpleUserdataType>(null!));
 }
