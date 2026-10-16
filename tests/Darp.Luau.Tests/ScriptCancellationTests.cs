@@ -336,23 +336,39 @@ public sealed class ScriptCancellationTests : IDisposable
         await Should.ThrowAsync<OperationCanceledException>(() => pending.AsTask());
     }
 
-    /// <summary> An argument can run host code while it is passed. For an async call that is part of the call. </summary>
+    /// <summary>
+    /// An argument can run host code while it is passed: the first push of a userdata type registers it. For an async
+    /// call that is part of the call.
+    /// </summary>
     [Fact]
-    public void SyncInvokeFromAnArgumentOfAnAsyncCall_ShouldBeStopped()
+    public void SyncInvokeWhileAnArgumentOfAnAsyncCallIsPassed_ShouldBeStopped()
     {
-        using LuauFunction endless = _state.Load("while true do end").ToFunction();
+        // Finite, so that a script that is not stopped fails the test instead of running forever
+        using LuauFunction count = _state.Load("local n = 0 for i = 1, 100 do n += 1 end return n").ToFunction();
+        bool invokeStopped = false;
+        StoppedRegistration.OnRegister = () =>
+        {
+            try
+            {
+                count.Invoke<int>();
+            }
+            catch (OperationCanceledException)
+            {
+                invokeStopped = true;
+                throw;
+            }
+        };
         _cts.Cancel();
 
         Should.Throw<OperationCanceledException>(() =>
-        {
-            IntoLuau argument = IntoLuau.FromUserdata(state =>
-            {
-                endless.Invoke();
-                return state.GetOrCreateUserdata(new ValueUserdata());
-            });
             // Completed when it returns: nothing in the script awaits.
-            _state.Load("return ...").ExecuteAsync([argument], _cts.Token).GetAwaiter().GetResult();
-        });
+            _state
+                .Load("return ...")
+                .ExecuteAsync([IntoLuau.FromUserdata(new StoppedRegistration())], _cts.Token)
+                .GetAwaiter()
+                .GetResult()
+        );
+        invokeStopped.ShouldBeTrue();
     }
 
     [Fact]
@@ -361,16 +377,15 @@ public sealed class ScriptCancellationTests : IDisposable
         using LuauFunction count = _state.Load("local n = 0 for i = 1, 100 do n += 1 end return n").ToFunction();
         using LuauFunction identity = _state.Load("return ...").ToFunction();
         int counted = 0;
+        CountingRegistration.OnRegister = () => counted = count.Invoke<int>();
         using LuauFunction runNested = _state.CreateFunctionManual(_ =>
         {
             _cts.Cancel();
-            IntoLuau argument = IntoLuau.FromUserdata(state =>
-            {
-                counted = count.Invoke<int>();
-                return state.GetOrCreateUserdata(new ValueUserdata());
-            });
             // Completed when it returns: nothing in the script awaits.
-            identity.InvokeAsync([argument], CancellationToken.None).GetAwaiter().GetResult();
+            identity
+                .InvokeAsync([IntoLuau.FromUserdata(new CountingRegistration())], CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
             return LuauReturn.Ok();
         });
         _state.Globals.Set("run_nested", runNested);
@@ -466,4 +481,20 @@ public sealed class ScriptCancellationTests : IDisposable
         _state.Dispose();
         _cts.Dispose();
     }
+}
+
+/// <summary> Runs host code when it is registered, which is when it is first passed to Luau. </summary>
+file sealed class StoppedRegistration : ILuauUserdata<StoppedRegistration>
+{
+    public static Action? OnRegister { get; set; }
+
+    public static void Register(LuauUserdataRegistry<StoppedRegistration> registry) => OnRegister?.Invoke();
+}
+
+/// <inheritdoc cref="StoppedRegistration"/>
+file sealed class CountingRegistration : ILuauUserdata<CountingRegistration>
+{
+    public static Action? OnRegister { get; set; }
+
+    public static void Register(LuauUserdataRegistry<CountingRegistration> registry) => OnRegister?.Invoke();
 }

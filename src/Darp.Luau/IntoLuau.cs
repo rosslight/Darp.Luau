@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
@@ -26,7 +28,7 @@ public readonly ref struct IntoLuau
         Chars,
         Value,
         Buffer,
-        UserdataFactory,
+        Userdata,
         Reference,
     }
 
@@ -35,11 +37,20 @@ public readonly ref struct IntoLuau
     private readonly bool _bool;
     private readonly double _number;
     private readonly int _integer;
-    private readonly ReadOnlySpan<char> _readOnlySpanChar;
-    private readonly ReadOnlySpan<byte> _readOnlyBuffer;
+
+    // Every argument is copied, so chars and the bytes of a buffer, which never occur together, share where their
+    // elements start and how many there are
+    private readonly ref readonly byte _elements;
+    private readonly int _length;
     private readonly LuauValue _luauValue;
-    private readonly Func<LuauState, LuauUserdata>? _factory;
+    private readonly object? _userdata;
+    private readonly Action<LuauState, object>? _pushUserdata;
     private readonly LuauSlot _slot;
+
+    private ReadOnlySpan<char> Chars =>
+        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref Unsafe.AsRef(in _elements)), _length);
+
+    private ReadOnlySpan<byte> Bytes => MemoryMarshal.CreateReadOnlySpan(in _elements, _length);
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -52,13 +63,15 @@ public readonly ref struct IntoLuau
     private IntoLuau(ReadOnlySpan<char> valueChars)
     {
         Type = Kind.Chars;
-        _readOnlySpanChar = valueChars;
+        _elements = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(valueChars));
+        _length = valueChars.Length;
     }
 
     private IntoLuau(ReadOnlySpan<byte> valueChars)
     {
         Type = Kind.Buffer;
-        _readOnlyBuffer = valueChars;
+        _elements = ref MemoryMarshal.GetReference(valueChars);
+        _length = valueChars.Length;
     }
 
     private IntoLuau(LuauValue value)
@@ -67,10 +80,11 @@ public readonly ref struct IntoLuau
         _luauValue = value;
     }
 
-    private IntoLuau(Func<LuauState, LuauUserdata> factory)
+    private IntoLuau(object userdata, Action<LuauState, object> pushUserdata)
     {
-        Type = Kind.UserdataFactory;
-        _factory = factory;
+        Type = Kind.Userdata;
+        _userdata = userdata;
+        _pushUserdata = pushUserdata;
     }
 
     private IntoLuau(LuauSlot slot)
@@ -100,23 +114,23 @@ public readonly ref struct IntoLuau
         switch (Type)
         {
             case Kind.Chars:
-                if (_readOnlySpanChar.Length > 256)
+                if (Chars.Length > 256)
                 {
-                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(Chars)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
                     LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 else
                 {
-                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(Chars)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
                     LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 break;
             case Kind.Buffer:
-                void* pDest = lua_newbuffer(L, (nuint)_readOnlyBuffer.Length);
-                var destination = new Span<byte>(pDest, _readOnlyBuffer.Length);
-                _readOnlyBuffer.CopyTo(destination);
+                void* pDest = lua_newbuffer(L, (nuint)_length);
+                var destination = new Span<byte>(pDest, _length);
+                Bytes.CopyTo(destination);
                 break;
             case Kind.Bool:
                 lua_pushboolean(L, _bool ? 1 : 0);
@@ -133,25 +147,12 @@ public readonly ref struct IntoLuau
             case Kind.Value:
                 _luauValue.Push(L);
                 break;
-            case Kind.UserdataFactory:
-                Debug.Assert(_factory is not null);
-                LuauUserdata userdata = _factory.Invoke(state);
-
-                if (userdata.Equals(default))
-                {
-                    lua_pushnil(L);
-                    break;
-                }
-
-                try
-                {
-                    IntoLuau l = userdata;
-                    l.Push(state, L);
-                }
-                finally
-                {
-                    userdata.Dispose();
-                }
+            case Kind.Userdata:
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                // Straight onto the stack: a reference in the registry would only be released again
+                _pushUserdata(state, _userdata);
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.Reference:
                 if (!ReferenceEquals(state, _slot.State))
@@ -203,9 +204,9 @@ public readonly ref struct IntoLuau
         switch (Type)
         {
             case Kind.Chars:
-                return IntoLuauCopied.FromString(_readOnlySpanChar.ToString());
+                return IntoLuauCopied.FromString(Chars.ToString());
             case Kind.Buffer:
-                return IntoLuauCopied.FromBuffer(_readOnlyBuffer.ToArray());
+                return IntoLuauCopied.FromBuffer(Bytes.ToArray());
             case Kind.Bool:
                 return IntoLuauCopied.FromBool(_bool);
             case Kind.Number:
@@ -216,9 +217,9 @@ public readonly ref struct IntoLuau
                 return IntoLuauCopied.FromNumber((uint)_integer);
             case Kind.Value:
                 return IntoLuauCopied.FromValue(_luauValue.Get<LuauValue>());
-            case Kind.UserdataFactory:
-                Debug.Assert(_factory is not null);
-                return IntoLuauCopied.FromUserdataFactory(_factory);
+            case Kind.Userdata:
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                return IntoLuauCopied.FromUserdata(_userdata, _pushUserdata);
             case Kind.Reference:
             {
                 LuauState state = _slot.State;
@@ -334,15 +335,19 @@ public readonly ref struct IntoLuau
     /// <param name="userdata"> The userdata </param>
     /// <typeparam name="T"> The type of the userdata </typeparam>
     /// <returns> A temporary representation of the value </returns>
+    /// <exception cref="ArgumentNullException"> Thrown when <paramref name="userdata"/> is null. </exception>
     public static IntoLuau FromUserdata<T>(T userdata)
-        where T : class, ILuauUserdata<T> => new(state => state.GetOrCreateUserdata(userdata));
+        where T : class, ILuauUserdata<T>
+    {
+        ArgumentNullException.ThrowIfNull(userdata);
+        return new IntoLuau(userdata, UserdataPusher<T>.Push);
+    }
 
-    /// <summary> Converts to the userdata that <paramref name="factory"/> creates when the value is pushed. </summary>
-    /// <param name="factory">
-    /// Creates a reference for this push, for example with <see cref="LuauState.GetOrCreateUserdata{T}"/>. The
-    /// reference is disposed after the userdata was pushed, so do not return one that you keep using: pass a
-    /// <see cref="LuauUserdata"/> you own directly instead.
-    /// </param>
-    /// <returns> A temporary representation of the value </returns>
-    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
+    // One delegate per type, so that converting a userdata allocates nothing
+    private static class UserdataPusher<T>
+        where T : class, ILuauUserdata<T>
+    {
+        public static readonly Action<LuauState, object> Push = static (state, userdata) =>
+            state.PushUserdata((T)userdata);
+    }
 }

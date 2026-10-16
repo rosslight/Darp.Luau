@@ -20,6 +20,9 @@ public class UserdataBenchmarks : IDisposable
     private readonly Counter _counter = new() { Value = 1 };
     private readonly LuauFunction _callMethod;
     private readonly LuauFunction _readProperty;
+    private readonly LuauFunction _identity;
+    private readonly LuauFunction _newCounter;
+    private readonly LuauFunction _createInLuau;
 
     public UserdataBenchmarks()
     {
@@ -47,7 +50,28 @@ public class UserdataBenchmarks : IDisposable
                 """
             )
             .ToFunction();
+        _identity = _state.Load("return ...").ToFunction();
+        _newCounter = _state.CreateFunction(() => new Counter());
+        _state.Globals.Set("newCounter", _newCounter);
+        _createInLuau = _state
+            .Load(
+                """
+                local n = ...
+                for i = 1, n do
+                    local counter = newCounter()
+                end
+                """
+            )
+            .ToFunction();
     }
+
+    /// <summary> One callback that returns a new managed userdata, as a slice or a node of a dissector does. </summary>
+    [Benchmark(OperationsPerInvoke = CallsPerInvoke)]
+    public void ReturnUserdata() => _createInLuau.Invoke(CallsPerInvoke);
+
+    /// <summary> One managed userdata passed to a Luau function, which already has a userdata for it. </summary>
+    [Benchmark]
+    public void PassUserdata() => _identity.Invoke(IntoLuau.FromUserdata(_counter));
 
     /// <summary> One method call from Luau on managed userdata. </summary>
     [Benchmark(OperationsPerInvoke = CallsPerInvoke)]
@@ -70,6 +94,9 @@ public class UserdataBenchmarks : IDisposable
     [GlobalCleanup]
     public void Dispose()
     {
+        _createInLuau.Dispose();
+        _newCounter.Dispose();
+        _identity.Dispose();
         _readProperty.Dispose();
         _callMethod.Dispose();
         _state.Dispose();
