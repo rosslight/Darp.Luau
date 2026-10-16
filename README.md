@@ -19,6 +19,8 @@
 
 ## Quick start
 
+To try a PR before release, see [Preview packages](docs/preview-packages.md).
+
 ```csharp
 using Darp.Luau;
 
