@@ -20,6 +20,7 @@ public class UserdataBenchmarks : IDisposable
     private readonly Counter _counter = new() { Value = 1 };
     private readonly LuauFunction _callMethod;
     private readonly LuauFunction _readProperty;
+    private readonly LuauFunction _identity;
 
     public UserdataBenchmarks()
     {
@@ -47,7 +48,12 @@ public class UserdataBenchmarks : IDisposable
                 """
             )
             .ToFunction();
+        _identity = _state.Load("return ...").ToFunction();
     }
+
+    /// <summary> One managed userdata passed to a Luau function, which already has a userdata for it. </summary>
+    [Benchmark]
+    public void PassUserdata() => _identity.Invoke(IntoLuau.FromUserdata(_counter));
 
     /// <summary> One method call from Luau on managed userdata. </summary>
     [Benchmark(OperationsPerInvoke = CallsPerInvoke)]
@@ -70,6 +76,7 @@ public class UserdataBenchmarks : IDisposable
     [GlobalCleanup]
     public void Dispose()
     {
+        _identity.Dispose();
         _readProperty.Dispose();
         _callMethod.Dispose();
         _state.Dispose();
