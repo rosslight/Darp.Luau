@@ -405,6 +405,22 @@ Lifetime rules follow the normal owned-vs-borrowed model:
 
 See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownership model.
 
+### Release short-lived userdata with a scope
+
+Luau frees a userdata only when its own collector runs, and the managed object stays alive until then. When a call creates many userdata that scripts only use during that call, such as one per value a script reads, those objects outlive the young collections of the .NET runtime and make its collections slower.
+
+A userdata scope releases them when the call ends:
+
+```csharp
+using (lua.BeginUserdataScope())
+    dissect.Invoke(IntoLuau.FromUserdata(packet));
+```
+
+Every userdata created while the scope is open loses its managed object when the scope is disposed. A script that keeps one and uses it later gets an error. Userdata that existed before the scope are not affected, and pushing a released object again creates a new userdata for it.
+
+- This also releases a `LuauUserdata` the host got from `GetOrCreateUserdata` inside the scope, and the userdata arguments of an async call that is still suspended when the scope ends. Such a `LuauUserdata` must still be disposed: `IsDisposed` stays `false`, but resolving its managed object fails.
+- Scopes nest. Dispose the inner scope before the outer one; disposing a scope twice or out of order throws `InvalidOperationException`.
+
 ## Design guidance
 
 - Expose a small, stable script-facing surface instead of mirroring your full managed type.

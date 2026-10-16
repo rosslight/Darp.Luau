@@ -619,6 +619,27 @@ public sealed unsafe class LuauState : IDisposable
         return _cache.GetOrCreate(userdata);
     }
 
+    /// <summary>
+    /// Starts a scope that releases the managed objects of the userdata created while it is open, when it is disposed.
+    /// A script that keeps such a userdata gets an error when it uses it later.
+    /// </summary>
+    /// <remarks>
+    /// Luau frees a userdata only when its collector runs, and the managed object lives as long. Objects that a call
+    /// creates and drops, e.g. one per value a script reads, therefore survive the young collections of the runtime,
+    /// which makes collecting them expensive. Releasing them when the call ends lets them die young.
+    /// <para>
+    /// This includes a userdata the host got from <see cref="GetOrCreateUserdata{T}"/> in the scope, and the
+    /// arguments of an async call that is still suspended when the scope ends. Scopes nest: dispose the inner one
+    /// first.
+    /// </para>
+    /// </remarks>
+    /// <returns> The scope, which must be disposed once, after the scopes that began inside it. </returns>
+    public UserdataScope BeginUserdataScope()
+    {
+        this.ThrowIfDisposed();
+        return new UserdataScope(UserdataObjects, UserdataObjects.BeginScope());
+    }
+
     /// <summary> Pushes the userdata of a managed instance onto the stack of the state, creating it if needed. </summary>
     internal void PushUserdata<T>(T userdata)
         where T : class, ILuauUserdata<T>
