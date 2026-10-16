@@ -9,8 +9,11 @@ namespace Darp.Luau.Utils;
 /// </remarks>
 internal sealed class UserdataObjects
 {
-    private object?[] _objects = new object?[16];
-    private int[] _generations = new int[16];
+    // A guess at how many userdata a state that creates any keeps alive at first. The slots double when they run out.
+    private const int InitialSlots = 16;
+
+    private object?[] _objects = new object?[InitialSlots];
+    private int[] _generations = new int[InitialSlots];
     private readonly Stack<int> _freeSlots = [];
     private readonly Dictionary<object, int> _slotByObject = new(ReferenceEqualityComparer.Instance);
     private int _used;
