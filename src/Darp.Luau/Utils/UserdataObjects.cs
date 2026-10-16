@@ -7,8 +7,9 @@ namespace Darp.Luau.Utils;
 /// </remarks>
 internal sealed class UserdataObjects
 {
-    private object?[] _objects = new object?[64];
-    private int[] _generations = new int[64];
+    // Empty until the first userdata, so that a state that creates none allocates nothing for them
+    private object?[] _objects = [];
+    private int[] _generations = [];
     private readonly Stack<int> _freeSlots = [];
     private readonly Dictionary<object, int> _slotByObject = new(ReferenceEqualityComparer.Instance);
     private int _used;
@@ -27,8 +28,9 @@ internal sealed class UserdataObjects
         {
             if (_used == _objects.Length)
             {
-                Array.Resize(ref _objects, _objects.Length * 2);
-                Array.Resize(ref _generations, _generations.Length * 2);
+                int length = Math.Max(16, _objects.Length * 2);
+                Array.Resize(ref _objects, length);
+                Array.Resize(ref _generations, length);
             }
             slot = _used++;
         }

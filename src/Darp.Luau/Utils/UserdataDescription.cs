@@ -21,7 +21,7 @@ internal sealed class UserdataGetter<T>(LuauGetter<T> getter) : UserdataMember
     // stack: [self, key]
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out string? error, valueLabel: "self"))
+        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
             return LuauStateMarshal.ReturnError(L, error);
 
         _getter(self, state).Push(state, L);
@@ -37,7 +37,7 @@ internal sealed class UserdataSetter<T>(LuauSetter<T> setter) : UserdataMember
     // stack: [self, key, value]
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out string? error, valueLabel: "self"))
+        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
             return LuauStateMarshal.ReturnError(L, error);
 
         _setter(self, new LuauValueView(state, L, stackIndex: 3, position: 0));
@@ -55,7 +55,7 @@ internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : Use
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
         // A method is a value, so a script can call it with anything: value.name(1) instead of value:name(1).
-        if (!ManagedUserdataResolver.TryResolve(L, 1, out T? self, out _, valueLabel: "self"))
+        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out _, valueLabel: "self"))
         {
             return LuauStateMarshal.ReturnError(
                 L,

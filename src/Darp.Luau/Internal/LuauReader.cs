@@ -487,7 +487,7 @@ internal static unsafe class LuauReader
         if (source.Type is lua_Type.LUA_TUSERDATA)
         {
             var native = (LuauUserdataNative*)lua_touserdatatagged(source.L, source.Index, LuauUserdataNative.Tag);
-            if (native is not null && native->Target is T userdata)
+            if (native is not null && native->GetTarget(State(source)) is T userdata)
             {
                 value = userdata;
                 Unsafe.SkipInit(out failure);

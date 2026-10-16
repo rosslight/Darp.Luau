@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Darp.Luau.Utils;
@@ -23,8 +24,12 @@ internal struct LuauUserdataNative
     public int Generation;
 
     /// <summary> The managed object, or null if it was released. </summary>
-    public readonly object? Target =>
-        GCHandle.FromIntPtr(State).Target is LuauState state ? state.UserdataObjects.Get(Slot, Generation) : null;
+    /// <param name="state"> The state of the userdata, which a reader of it knows already. </param>
+    public readonly object? GetTarget(LuauState state)
+    {
+        Debug.Assert(State == state.SelfHandle);
+        return state.UserdataObjects.Get(Slot, Generation);
+    }
 }
 
 /// <summary>
