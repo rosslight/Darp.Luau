@@ -132,22 +132,6 @@ public sealed class LuauTableMetamethodTests : IDisposable
     }
 
     [Fact]
-    public void Get_WithAUserdataFactoryKey_ShouldCreateTheKeyOnce()
-    {
-        using LuauTable table = Create("return setmetatable({}, { __index = function() return 'from __index' end })");
-        int created = 0;
-        IntoLuau key = IntoLuau.FromUserdata(state =>
-        {
-            created++;
-            return state.GetOrCreateUserdata(new ValueUserdata());
-        });
-
-        table.Get<string>(key).ShouldBe("from __index");
-
-        created.ShouldBe(1);
-    }
-
-    [Fact]
     public void Set_WithAKeyLuauRejects_ShouldThrow()
     {
         using LuauTable table = _state.CreateTable();

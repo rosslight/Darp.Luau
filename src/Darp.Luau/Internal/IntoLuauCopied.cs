@@ -14,7 +14,7 @@ internal readonly struct IntoLuauCopied
         String,
         Buffer,
         Value,
-        UserdataFactory,
+        Userdata,
         BorrowedValue,
         BorrowedReference,
     }
@@ -26,7 +26,7 @@ internal readonly struct IntoLuauCopied
     /// <summary> The value of <see cref="Kind.Value"/> and <see cref="Kind.BorrowedValue"/>. </summary>
     private readonly LuauValue _value;
 
-    /// <summary> The string, buffer, userdata factory or borrowed reference of the other kinds. </summary>
+    /// <summary> The string, buffer, userdata or borrowed reference of the other kinds. </summary>
     private readonly object? _object;
 
     private IntoLuauCopied(Kind type, LuauValue value) => (_type, _value) = (type, value);
@@ -51,8 +51,17 @@ internal readonly struct IntoLuauCopied
     internal static IntoLuauCopied FromBorrowedReference(RegistryReferenceTracker.TrackedReference reference) =>
         new(Kind.BorrowedReference, reference);
 
-    internal static IntoLuauCopied FromUserdataFactory(Func<LuauState, LuauUserdata> factory) =>
-        new(Kind.UserdataFactory, factory);
+    internal static IntoLuauCopied FromUserdata(object userdata, Action<LuauState, object> push) =>
+        new(Kind.Userdata, new CopiedUserdata(userdata, push));
+
+    /// <summary> A userdata to push later, with the function that pushes an object of its type. </summary>
+    private sealed class CopiedUserdata(object userdata, Action<LuauState, object> push)
+    {
+        private readonly object _userdata = userdata;
+        private readonly Action<LuauState, object> _push = push;
+
+        public void Push(LuauState state) => _push(state, _userdata);
+    }
 
     internal unsafe void Push(LuauState state, lua_State* L)
     {
@@ -104,26 +113,11 @@ internal readonly struct IntoLuauCopied
                 if ((nint)state.L != (nint)L)
                     lua_xmove(state.L, L, 1);
                 break;
-            case Kind.UserdataFactory:
-                Debug.Assert(_object is not null);
-                var factory = (Func<LuauState, LuauUserdata>)_object;
-                LuauUserdata userdata = factory.Invoke(state);
-
-                if (userdata.Equals(default))
-                {
-                    lua_pushnil(L);
-                    break;
-                }
-
-                try
-                {
-                    IntoLuau value = userdata;
-                    value.Push(state, L);
-                }
-                finally
-                {
-                    userdata.Dispose();
-                }
+            case Kind.Userdata:
+                Debug.Assert(_object is CopiedUserdata);
+                ((CopiedUserdata)_object).Push(state);
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.Nil:
             default:

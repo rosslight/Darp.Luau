@@ -28,7 +28,6 @@ public readonly ref struct IntoLuau
         Chars,
         Value,
         Buffer,
-        UserdataFactory,
         Userdata,
         Reference,
     }
@@ -39,13 +38,12 @@ public readonly ref struct IntoLuau
     private readonly double _number;
     private readonly int _integer;
 
-    // Every argument is copied, so kinds that never occur together share their fields: chars and the bytes of a
-    // buffer share where their elements start and how many there are, and a userdata keeps its object where a
-    // factory keeps itself
+    // Every argument is copied, so chars and the bytes of a buffer, which never occur together, share where their
+    // elements start and how many there are
     private readonly ref readonly byte _elements;
     private readonly int _length;
     private readonly LuauValue _luauValue;
-    private readonly object? _reference;
+    private readonly object? _userdata;
     private readonly Action<LuauState, object>? _pushUserdata;
     private readonly LuauSlot _slot;
 
@@ -82,16 +80,10 @@ public readonly ref struct IntoLuau
         _luauValue = value;
     }
 
-    private IntoLuau(Func<LuauState, LuauUserdata> factory)
-    {
-        Type = Kind.UserdataFactory;
-        _reference = factory;
-    }
-
     private IntoLuau(object userdata, Action<LuauState, object> pushUserdata)
     {
         Type = Kind.Userdata;
-        _reference = userdata;
+        _userdata = userdata;
         _pushUserdata = pushUserdata;
     }
 
@@ -155,30 +147,10 @@ public readonly ref struct IntoLuau
             case Kind.Value:
                 _luauValue.Push(L);
                 break;
-            case Kind.UserdataFactory:
-                Debug.Assert(_reference is Func<LuauState, LuauUserdata>);
-                LuauUserdata userdata = ((Func<LuauState, LuauUserdata>)_reference).Invoke(state);
-
-                if (userdata.Equals(default))
-                {
-                    lua_pushnil(L);
-                    break;
-                }
-
-                try
-                {
-                    IntoLuau l = userdata;
-                    l.Push(state, L);
-                }
-                finally
-                {
-                    userdata.Dispose();
-                }
-                break;
             case Kind.Userdata:
-                Debug.Assert(_reference is not null && _pushUserdata is not null);
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
                 // Straight onto the stack: a reference in the registry would only be released again
-                _pushUserdata(state, _reference);
+                _pushUserdata(state, _userdata);
                 if ((nint)state.L != (nint)L)
                     lua_xmove(state.L, L, 1);
                 break;
@@ -245,20 +217,9 @@ public readonly ref struct IntoLuau
                 return IntoLuauCopied.FromNumber((uint)_integer);
             case Kind.Value:
                 return IntoLuauCopied.FromValue(_luauValue.Get<LuauValue>());
-            case Kind.UserdataFactory:
-                Debug.Assert(_reference is Func<LuauState, LuauUserdata>);
-                return IntoLuauCopied.FromUserdataFactory((Func<LuauState, LuauUserdata>)_reference);
             case Kind.Userdata:
-            {
-                Debug.Assert(_reference is not null && _pushUserdata is not null);
-                object userdata = _reference;
-                Action<LuauState, object> pushUserdata = _pushUserdata;
-                return IntoLuauCopied.FromUserdataFactory(state =>
-                {
-                    pushUserdata(state, userdata);
-                    return new LuauUserdata(state, state.ReferenceTracker.TrackAndPopRef(state.L, -1));
-                });
-            }
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                return IntoLuauCopied.FromUserdata(_userdata, _pushUserdata);
             case Kind.Reference:
             {
                 LuauState state = _slot.State;
@@ -389,13 +350,4 @@ public readonly ref struct IntoLuau
         public static readonly Action<LuauState, object> Push = static (state, userdata) =>
             state.PushUserdata((T)userdata);
     }
-
-    /// <summary> Converts to the userdata that <paramref name="factory"/> creates when the value is pushed. </summary>
-    /// <param name="factory">
-    /// Creates a reference for this push, for example with <see cref="LuauState.GetOrCreateUserdata{T}"/>. The
-    /// reference is disposed after the userdata was pushed, so do not return one that you keep using: pass a
-    /// <see cref="LuauUserdata"/> you own directly instead.
-    /// </param>
-    /// <returns> A temporary representation of the value </returns>
-    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }
