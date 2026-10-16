@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
@@ -36,13 +37,16 @@ public readonly ref struct IntoLuau
     private readonly bool _bool;
     private readonly double _number;
     private readonly int _integer;
-    private readonly ReadOnlySpan<char> _readOnlySpanChar;
-    private readonly ReadOnlySpan<byte> _readOnlyBuffer;
+
+    // Every argument is copied, so kinds that never occur together share their fields: chars keep their bytes in
+    // the span of a buffer, and a userdata keeps its object where a factory keeps itself
+    private readonly ReadOnlySpan<byte> _bytes;
     private readonly LuauValue _luauValue;
-    private readonly Func<LuauState, LuauUserdata>? _factory;
-    private readonly object? _userdata;
+    private readonly object? _reference;
     private readonly Action<LuauState, object>? _pushUserdata;
     private readonly LuauSlot _slot;
+
+    private ReadOnlySpan<char> Chars => MemoryMarshal.Cast<byte, char>(_bytes);
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -55,13 +59,13 @@ public readonly ref struct IntoLuau
     private IntoLuau(ReadOnlySpan<char> valueChars)
     {
         Type = Kind.Chars;
-        _readOnlySpanChar = valueChars;
+        _bytes = MemoryMarshal.AsBytes(valueChars);
     }
 
     private IntoLuau(ReadOnlySpan<byte> valueChars)
     {
         Type = Kind.Buffer;
-        _readOnlyBuffer = valueChars;
+        _bytes = valueChars;
     }
 
     private IntoLuau(LuauValue value)
@@ -73,13 +77,13 @@ public readonly ref struct IntoLuau
     private IntoLuau(Func<LuauState, LuauUserdata> factory)
     {
         Type = Kind.UserdataFactory;
-        _factory = factory;
+        _reference = factory;
     }
 
     private IntoLuau(object userdata, Action<LuauState, object> pushUserdata)
     {
         Type = Kind.Userdata;
-        _userdata = userdata;
+        _reference = userdata;
         _pushUserdata = pushUserdata;
     }
 
@@ -110,23 +114,23 @@ public readonly ref struct IntoLuau
         switch (Type)
         {
             case Kind.Chars:
-                if (_readOnlySpanChar.Length > 256)
+                if (Chars.Length > 256)
                 {
-                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(Chars)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
                     LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 else
                 {
-                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(Chars)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
                     LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
                 }
                 break;
             case Kind.Buffer:
-                void* pDest = lua_newbuffer(L, (nuint)_readOnlyBuffer.Length);
-                var destination = new Span<byte>(pDest, _readOnlyBuffer.Length);
-                _readOnlyBuffer.CopyTo(destination);
+                void* pDest = lua_newbuffer(L, (nuint)_bytes.Length);
+                var destination = new Span<byte>(pDest, _bytes.Length);
+                _bytes.CopyTo(destination);
                 break;
             case Kind.Bool:
                 lua_pushboolean(L, _bool ? 1 : 0);
@@ -144,8 +148,8 @@ public readonly ref struct IntoLuau
                 _luauValue.Push(L);
                 break;
             case Kind.UserdataFactory:
-                Debug.Assert(_factory is not null);
-                LuauUserdata userdata = _factory.Invoke(state);
+                Debug.Assert(_reference is Func<LuauState, LuauUserdata>);
+                LuauUserdata userdata = ((Func<LuauState, LuauUserdata>)_reference).Invoke(state);
 
                 if (userdata.Equals(default))
                 {
@@ -164,9 +168,9 @@ public readonly ref struct IntoLuau
                 }
                 break;
             case Kind.Userdata:
-                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                Debug.Assert(_reference is not null && _pushUserdata is not null);
                 // Straight onto the stack: a reference in the registry would only be released again
-                _pushUserdata(state, _userdata);
+                _pushUserdata(state, _reference);
                 if ((nint)state.L != (nint)L)
                     lua_xmove(state.L, L, 1);
                 break;
@@ -220,9 +224,9 @@ public readonly ref struct IntoLuau
         switch (Type)
         {
             case Kind.Chars:
-                return IntoLuauCopied.FromString(_readOnlySpanChar.ToString());
+                return IntoLuauCopied.FromString(Chars.ToString());
             case Kind.Buffer:
-                return IntoLuauCopied.FromBuffer(_readOnlyBuffer.ToArray());
+                return IntoLuauCopied.FromBuffer(_bytes.ToArray());
             case Kind.Bool:
                 return IntoLuauCopied.FromBool(_bool);
             case Kind.Number:
@@ -234,12 +238,12 @@ public readonly ref struct IntoLuau
             case Kind.Value:
                 return IntoLuauCopied.FromValue(_luauValue.Get<LuauValue>());
             case Kind.UserdataFactory:
-                Debug.Assert(_factory is not null);
-                return IntoLuauCopied.FromUserdataFactory(_factory);
+                Debug.Assert(_reference is Func<LuauState, LuauUserdata>);
+                return IntoLuauCopied.FromUserdataFactory((Func<LuauState, LuauUserdata>)_reference);
             case Kind.Userdata:
             {
-                Debug.Assert(_userdata is not null && _pushUserdata is not null);
-                object userdata = _userdata;
+                Debug.Assert(_reference is not null && _pushUserdata is not null);
+                object userdata = _reference;
                 Action<LuauState, object> pushUserdata = _pushUserdata;
                 return IntoLuauCopied.FromUserdataFactory(state =>
                 {
