@@ -20,9 +20,9 @@ internal static unsafe class ManagedUserdataResolver
             error = $"{valueLabel} is not a managed userdata created by this library.";
             return false;
         }
-        if (!native->UserdataHandle.IsAllocated)
+        if (native->Target is null)
         {
-            error = $"{valueLabel} userdata handle is not allocated.";
+            error = $"{valueLabel} userdata was released.";
             return false;
         }
 
@@ -43,7 +43,7 @@ internal static unsafe class ManagedUserdataResolver
         if (!TryGetNative(L, stackIndex, out LuauUserdataNative* native, out error, valueLabel))
             return false;
 
-        object? target = native->UserdataHandle.Target;
+        object? target = native->Target;
         if (target is not T typedUserdata)
         {
             error =
