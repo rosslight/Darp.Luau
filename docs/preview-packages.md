@@ -3,7 +3,8 @@
 The **Preview packages** workflow publishes `Darp.Luau` prerelease packages to
 `https://nuget.pkg.github.com/rosslight/index.json`. It runs for PRs from branches
 in this repository targeting `main`, and can also be run manually. PRs from
-other repositories do not publish packages. Stable releases remain on nuget.org.
+other repositories and PRs authored or triggered by Dependabot do not publish
+packages. Stable releases remain on nuget.org.
 
 The package includes the source generator, just like a release package.
 PR versions use `<base>-pr.<PR number>.<run number>.<attempt>`; manual runs use
@@ -37,6 +38,8 @@ The PR build has read-only repository access. A separate job downloads its
 package and publishes it with the workflow's `GITHUB_TOKEN`; it does not
 check out or execute PR source. No additional publishing secret is required.
 The comment job has permission to update the PR comment.
+Dependabot PR runs are skipped to avoid write operations with a restricted token.
+Use a manual run on the dependency update branch when a preview is needed.
 
 Because `pull_request_target` runs the workflow from the base branch, automatic
 PR previews start after the workflow is merged into `main`.

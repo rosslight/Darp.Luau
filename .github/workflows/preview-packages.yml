@@ -15,7 +15,12 @@ concurrency:
 
 jobs:
   build:
-    if: github.repository == 'rosslight/Darp.Luau' && (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: >-
+      github.repository == 'rosslight/Darp.Luau' &&
+      (github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'))
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
