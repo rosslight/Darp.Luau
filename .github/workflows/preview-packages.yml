@@ -1,0 +1,173 @@
+name: Preview packages
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-packages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.repository == 'rosslight/Darp.Luau' &&
+      (github.event_name != 'pull_request_target' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'))
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Choose prerelease version
+        id: version
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          [xml] $props = Get-Content src/Directory.Build.props
+          $baseVersion = [string]($props.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1)
+          if ($baseVersion -notmatch '^(\d+\.\d+\.\d+)') { throw "Cannot read Darp.Luau base version" }
+          $baseVersion = $Matches[1]
+          $suffix = if ($env:PR_NUMBER) { "pr.$env:PR_NUMBER" } else { 'preview' }
+          $version = "$baseVersion-$suffix.$env:GITHUB_RUN_NUMBER.$env:GITHUB_RUN_ATTEMPT"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Pack Darp.Luau
+        shell: pwsh
+        env:
+          PREVIEW_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dotnet pack src/Darp.Luau/Darp.Luau.csproj -c Release -o artifacts/preview "/p:Version=$env:PREVIEW_VERSION" "/p:RepositoryUrl=https://github.com/$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { throw "Packing Darp.Luau failed" }
+
+      - name: Verify preview package
+        shell: pwsh
+        env:
+          PREVIEW_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $ids = @('Darp.Luau')
+          $packages = @(Get-ChildItem artifacts/preview/*.nupkg)
+          if ($packages.Count -ne $ids.Count) { throw "Expected exactly one package" }
+          foreach ($id in $ids) {
+            $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path "artifacts/preview/$id.$env:PREVIEW_VERSION.nupkg"))
+            try {
+              $entry = $archive.Entries | Where-Object { $_.FullName -like '*.nuspec' }
+              $reader = [IO.StreamReader]::new($entry.Open())
+              try { [xml] $spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
+              if ($spec.package.metadata.version -ne $env:PREVIEW_VERSION) { throw "Wrong version in $id" }
+              if ($spec.package.metadata.id -ne $id) { throw "Wrong package ID in $id" }
+              if (-not $archive.GetEntry('lib/net10.0/Darp.Luau.dll')) { throw "Missing runtime assembly" }
+              if (-not $archive.GetEntry('analyzers/dotnet/cs/Darp.Luau.Generator.dll')) { throw "Missing bundled generator" }
+              if ($spec.SelectNodes("//*[local-name()='dependency' and @id='Darp.Luau.Generator']").Count -ne 0) {
+                throw "The generator must be bundled, not a package dependency"
+              }
+            } finally { $archive.Dispose() }
+          }
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: preview-packages
+          path: artifacts/preview/*.*nupkg
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: preview-packages
+          path: packages
+
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+
+      - name: Publish to GitHub Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FEED_URL: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+        run: dotnet nuget push 'packages/*.nupkg' --source "$FEED_URL" --api-key "$GH_TOKEN" --skip-duplicate --no-symbols
+
+      - name: Record package details
+        env:
+          PREVIEW_VERSION: ${{ needs.build.outputs.version }}
+          FEED_URL: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+        run: |
+          {
+            echo '## Preview NuGet packages'
+            echo
+            echo "Version: \`$PREVIEW_VERSION\`"
+            echo
+            echo "Feed: $FEED_URL"
+            echo
+            echo '- Darp.Luau (includes the source generator)'
+            echo
+            echo 'The build artifact also contains the packages and debug symbols for offline use.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  comment:
+    if: github.event_name == 'pull_request_target'
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Update preview package comment
+        uses: actions/github-script@v9.0.0
+        env:
+          PREVIEW_VERSION: ${{ needs.build.outputs.version }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- darp-luau-preview-packages -->';
+            const version = process.env.PREVIEW_VERSION;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '## Preview NuGet packages',
+              '',
+              `Published **${version}** for commit ${process.env.HEAD_SHA}.`,
+              '',
+              `Feed: https://nuget.pkg.github.com/${context.repo.owner}/index.json`,
+              '',
+              '- Darp.Luau (includes the source generator)',
+              '',
+              '```powershell',
+              `dotnet add package Darp.Luau --version ${version}`,
+              '```',
+              '',
+              'The feed requires a GitHub token with read:packages access.',
+              '',
+              `[Build and downloadable packages](${runUrl}) · [Feed setup](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs/preview-packages.md)`
+            ].join('\n');
+            const params = { ...context.repo, issue_number: context.issue.number };
+            const comments = await github.paginate(github.rest.issues.listComments, params);
+            const existing = comments.find(c => c.user?.login === 'github-actions[bot]' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...params, body });
+            }
