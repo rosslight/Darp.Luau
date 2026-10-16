@@ -319,7 +319,7 @@ A method can finish later through the awaiter of its `LuauArgs`, like a callback
 ```csharp
 registry.AddMethod("save", static (self, args) =>
 {
-    LuauAwaiter awaiter = args.GetAwaiter();
+    LuauAwaiter awaiter = args.CreateAwaiter();
     return awaiter.Await(
         new ValueTask(File.WriteAllTextAsync($"{self.Name}.txt", self.Score.ToString(), args.CancellationToken))
     );

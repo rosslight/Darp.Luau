@@ -3,7 +3,7 @@ using Darp.Luau.Internal;
 namespace Darp.Luau;
 
 /// <summary>
-/// Lets a managed callback finish later. Get it from <see cref="LuauArgs.GetAwaiter"/> before you start the work,
+/// Lets a managed callback finish later. Get it from <see cref="LuauArgs.CreateAwaiter"/> before you start the work,
 /// and return what <c>Await</c> gives you.
 /// </summary>
 /// <remarks>
@@ -72,7 +72,7 @@ public readonly ref struct LuauAwaiter
     {
         if (!_isGranted)
             throw new InvalidOperationException(
-                $"Get the awaiter from {nameof(LuauArgs)}.{nameof(LuauArgs.GetAwaiter)}."
+                $"Get the awaiter from {nameof(LuauArgs)}.{nameof(LuauArgs.CreateAwaiter)}."
             );
     }
 }

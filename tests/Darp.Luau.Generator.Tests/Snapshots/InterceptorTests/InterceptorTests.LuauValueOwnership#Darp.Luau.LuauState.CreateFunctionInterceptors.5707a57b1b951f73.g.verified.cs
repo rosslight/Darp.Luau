@@ -23,7 +23,7 @@ file static class CreateFunctionInterceptors
             {
                 a1 = args[1].Get<global::Darp.Luau.LuauValue>();
                 int a2 = args[2].Get<int>();
-                global::Darp.Luau.LuauAwaiter awaiter = args.GetAwaiter();
+                global::Darp.Luau.LuauAwaiter awaiter = args.CreateAwaiter();
                 var pending = new global::System.Threading.Tasks.ValueTask<global::Darp.Luau.LuauValue>(onLuaCall(a1, a2));
                 isHandedOver = true;
                 return awaiter.Await(ReleaseAfter(pending, a1));

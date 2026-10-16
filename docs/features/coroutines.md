@@ -66,13 +66,13 @@ string result = coroutine.Resume<string>();
 
 ## Async managed callbacks
 
-A managed callback built with `CreateFunctionManual(...)` finishes later by getting an awaiter and handing it the work:
+A managed callback built with `CreateFunctionManual(...)` finishes later by creating an awaiter and handing it the work:
 
 ```csharp
 using LuauFunction fetch = lua.CreateFunctionManual(args =>
 {
     string url = args[1].Get<string>();
-    LuauAwaiter awaiter = args.GetAwaiter();
+    LuauAwaiter awaiter = args.CreateAwaiter();
 
     return awaiter.Await(
         new ValueTask<string>(httpClient.GetStringAsync(url, args.CancellationToken)),
@@ -84,7 +84,7 @@ lua.Globals.Set("fetch", fetch);
 
 For the script, `fetch(url)` is a normal call that returns the body. While the work is running, the script is suspended and no thread is blocked.
 
-- Get the awaiter before you start the work. `GetAwaiter()` throws where the callback cannot suspend the script, so work that nobody could await is never started. See [Where a callback can await](#where-a-callback-can-await).
+- Create the awaiter before you start the work. `CreateAwaiter()` throws where the callback cannot suspend the script, so work that nobody could await is never started. See [Where a callback can await](#where-a-callback-can-await).
 - `awaiter.Await(pending, complete)` converts the value of the work when it completes. `awaiter.Await(pending)` takes a `ValueTask` and returns no values, or a `ValueTask<LuauReturn>` when the work builds the result itself.
 - If the work has already completed successfully, its result is returned directly and the script does not suspend.
 - A userdata method and the `Call` metamethod await in the same way, with their `LuauArgs`. Getters, setters and the other metamethods cannot await.
@@ -116,7 +116,7 @@ A callback can suspend the script only when both of these hold:
 - an async host call drives the coroutine: `ExecuteAsync(...)`, `InvokeAsync(...)`, or `ResumeAsync(...)`,
 - Luau can yield at that point.
 
-Otherwise `GetAwaiter()` throws `InvalidOperationException`, which reaches the script as a Luau error that `pcall(...)` can catch. Generated callbacks get the awaiter before they call your method, so the method does not run. That is the case
+Otherwise `CreateAwaiter()` throws `InvalidOperationException`, which reaches the script as a Luau error that `pcall(...)` can catch. Generated callbacks get the awaiter before they call your method, so the method does not run. That is the case
 
 - during `Execute(...)`, `Invoke(...)`, or the sync `Resume(...)`, including an `Invoke(...)` that another callback makes,
 - inside a coroutine that a script created and resumes itself, for example through `coroutine.wrap(...)`,
@@ -145,7 +145,7 @@ In both cases the async host call fails with `LuaException`, and the result of t
 using LuauFunction later = lua.CreateFunctionManual(args =>
 {
     LuauFunctionView callback = args[1].Get<LuauFunctionView>();
-    LuauAwaiter awaiter = args.GetAwaiter();
+    LuauAwaiter awaiter = args.CreateAwaiter();
 
     return awaiter.Await(CallLaterAsync(callback.ToOwned()));
 

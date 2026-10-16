@@ -175,7 +175,7 @@ public sealed class OwnedAndViewTests : IDisposable
         using LuauFunction call = _state.CreateFunctionManual(static args =>
         {
             LuauFunctionView callback = args[1].Get<LuauFunctionView>();
-            LuauAwaiter awaiter = args.GetAwaiter();
+            LuauAwaiter awaiter = args.CreateAwaiter();
             // The view is used inside the callback. Only the pending result crosses the await.
             return awaiter.Await(Result(callback.InvokeAsync<int>([41], args.CancellationToken)));
 
