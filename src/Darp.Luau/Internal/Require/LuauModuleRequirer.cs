@@ -47,6 +47,7 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
 
     private void InstallRequireFunction()
     {
+        using HostCall.SyncScope hostCall = HostCall.EnterSync(_state);
 #if DEBUG
         using var guard = new StackGuard(_state.L, expectedDelta: 0);
 #endif

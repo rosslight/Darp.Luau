@@ -12,14 +12,21 @@ using static Darp.Luau.Native.LuauNative;
 namespace Darp.Luau;
 
 /// <summary> The LuauState </summary>
-/// <remarks> Not threadsafe </remarks>
+/// <remarks>
+/// One thread at a time uses a state. The calls that run a script enforce that: an async host call waits its
+/// turn, and a synchronous one throws <see cref="InvalidOperationException"/> while another thread runs the
+/// state. The rest of the API is not checked.
+/// </remarks>
 public sealed unsafe class LuauState : IDisposable
 {
     private readonly ILuauFileSystem _virtualFileSystem;
 
     // ReSharper disable once ReplaceWithFieldKeyword
     internal readonly lua_State* L;
-    private int _disposing; // 0 = false, 1 = true
+
+    // Written inside the turn of Dispose.
+    private bool _isDisposed;
+    private readonly CancellationTokenSource _disposal = new();
     private readonly ulong _globalsHandle;
     private readonly UserdataRegistrationCache _cache;
 
@@ -50,8 +57,11 @@ public sealed unsafe class LuauState : IDisposable
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
-    /// <summary> Runs async host calls and the continuations of their managed callbacks one turn at a time. </summary>
+    /// <summary> Gives the state to one thread at a time, and runs what async host calls queue for later turns. </summary>
     internal LuauSynchronizationContext AsyncContext { get; }
+
+    /// <summary> Cancelled when the state is disposed, which ends the waits of the async host calls in flight. </summary>
+    internal CancellationToken DisposedToken { get; }
 
     /// <summary> The async host calls in progress, for the managed callbacks they run. </summary>
     internal AsyncDriveTable AsyncDrives { get; } = new();
@@ -63,7 +73,7 @@ public sealed unsafe class LuauState : IDisposable
     public LuauTable Globals => new(this, _globalsHandle);
 
     /// <summary> If true, the LuauState is disposed and any method will throw </summary>
-    public bool IsDisposed => _disposing > 0;
+    public bool IsDisposed => _isDisposed;
 
     /// <summary>The effective set of built-in libraries loaded into this state.</summary>
     public LuauLibraries EnabledLibraries { get; private set; }
@@ -229,6 +239,7 @@ public sealed unsafe class LuauState : IDisposable
     {
         _virtualFileSystem = virtualFileSystem ?? new FileSystem();
         AsyncContext = new LuauSynchronizationContext(hostSynchronizationContext);
+        DisposedToken = _disposal.Token;
 
         L = luaL_newstate();
         if (L is null)
@@ -253,7 +264,7 @@ public sealed unsafe class LuauState : IDisposable
         catch
         {
             // Nobody gets the state to dispose it.
-            _disposing = 1;
+            _isDisposed = true;
             LuauVm.Close(this);
             ScriptInterrupt.Free(Interrupt);
             if (_selfHandle.IsAllocated)
@@ -272,6 +283,7 @@ public sealed unsafe class LuauState : IDisposable
             return;
 
         ThrowIfSandboxed("Load standard libraries");
+        using HostCall.SyncScope _ = HostCall.EnterSync(this);
         OpenBuiltinLibraries(missingLibraries);
         EnabledLibraries |= missingLibraries;
     }
@@ -676,7 +688,6 @@ public sealed unsafe class LuauState : IDisposable
     public LuauBuffer CreateBuffer(scoped ReadOnlySpan<byte> span)
     {
         this.ThrowIfDisposed();
-        ObjectDisposedException.ThrowIf(_disposing > 0, this);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -730,10 +741,15 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauChunk(this, LuauCompiler.Default, source).WithName(chunkName);
     }
 
-    /// <inheritdoc />
+    /// <summary> Closes the state. The async host calls that are in flight fail with <see cref="ObjectDisposedException"/>. </summary>
+    /// <remarks>
+    /// The work their callbacks await is not stopped: it goes on without the state and its result is dropped.
+    /// Cancel the token of a call to stop its work.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when the state is running a script, which is the case inside every callback of it. Luau would
-    /// continue in a closed state. Dispose the state after the host call that runs the script has returned.
+    /// Thrown when the state is running a script, which is the case inside every callback of it: Luau would
+    /// continue in a closed state. Thrown too when another thread uses the state at this moment. Dispose the
+    /// state after the host call that runs the script has returned.
     /// </exception>
     [SuppressMessage(
         "Design",
@@ -742,23 +758,37 @@ public sealed unsafe class LuauState : IDisposable
     )]
     public void Dispose()
     {
-        if (VmDepth > 0 && _disposing == 0)
+        // Like a sync host call, disposing takes the turn: no other thread is inside the VM when it closes.
+        bool beganTurn = AsyncContext.EnterOrThrow();
+        try
         {
-            throw new InvalidOperationException(
-                "A LuauState cannot be disposed while it runs a script or creates the static side of a userdata type, "
-                    + "for example from one of its callbacks. Dispose it after the host call that does so has returned."
-            );
+            if (_isDisposed)
+                return;
+            if (VmDepth > 0)
+            {
+                throw new InvalidOperationException(
+                    "A LuauState cannot be disposed while it runs a script or creates the static side of a userdata type, "
+                        + "for example from one of its callbacks. Dispose it after the host call that does so has returned."
+                );
+            }
+            _isDisposed = true;
+            _cache.Dispose();
+            _moduleRequirer?.Dispose();
+            _moduleRequirer = null;
+            ReferenceTracker.ReleaseAll();
+            // Closing frees every function, which releases the handles of the managed callbacks.
+            LuauVm.Close(this);
+            Sandbox?.Dispose();
+            ScriptInterrupt.Free(Interrupt);
+            _selfHandle.Free();
+            // The async host calls in flight stop waiting for their callbacks and fail as disposed.
+            _disposal.Cancel();
+            _disposal.Dispose();
         }
-        if (Interlocked.Exchange(ref _disposing, 1) != 0)
-            return;
-        _cache.Dispose();
-        _moduleRequirer?.Dispose();
-        _moduleRequirer = null;
-        ReferenceTracker.ReleaseAll();
-        // Closing frees every function, which releases the handles of the managed callbacks.
-        LuauVm.Close(this);
-        Sandbox?.Dispose();
-        ScriptInterrupt.Free(Interrupt);
-        _selfHandle.Free();
+        finally
+        {
+            if (beganTurn)
+                AsyncContext.EndTurn();
+        }
     }
 }

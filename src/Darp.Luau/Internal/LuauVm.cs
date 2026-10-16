@@ -11,8 +11,12 @@ namespace Darp.Luau.Internal;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two rules hold because every such call goes through here. The native functions behind these methods are banned
-/// everywhere else in this assembly (<c>BannedSymbols.txt</c>), so a new entry cannot bypass them.
+/// Three rules hold because every such call goes through here. The native functions behind these methods are
+/// banned everywhere else in this assembly (<c>BannedSymbols.txt</c>), so a new entry cannot bypass them.
+/// </para>
+/// <para>
+/// Only the thread whose turn it is enters. The turn is taken earlier, by the <see cref="HostCall"/> that pushes
+/// what the native function works on, so the methods here only assert it.
 /// </para>
 /// <para>
 /// No Luau error unwinds through managed frames: each method calls a native function that returns the error as a
@@ -33,6 +37,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int PCall(LuauState state, lua_State* L, int nargs, int nresults)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = lua_pcall(L, nargs, nresults, 0);
         state.VmDepth--;
@@ -48,6 +53,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Load(LuauState state, lua_State* L, byte* chunkName, byte* byteCode, nuint size, int env)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = luau_load(L, chunkName, byteCode, size, env);
         state.VmDepth--;
@@ -58,6 +64,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Resume(LuauState state, lua_State* coroutine, lua_State* from, int narg)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = lua_resume(coroutine, from, narg);
         state.VmDepth--;
@@ -68,6 +75,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeCallback(LuauState state, lua_State* coroutine, int narg)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = darp_luau_resumecallback(coroutine, null, narg);
         state.VmDepth--;
@@ -78,6 +86,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeError(LuauState state, lua_State* coroutine)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = lua_resumeerror(coroutine, null);
         state.VmDepth--;
@@ -89,6 +98,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetTable(LuauState state, lua_State* L, int idx)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int result = darp_luau_pgettable(L, idx);
         state.VmDepth--;
@@ -100,6 +110,7 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int SetTable(LuauState state, lua_State* L, int idx)
     {
+        AssertTurn(state);
         state.VmDepth++;
         int status = darp_luau_psettable(L, idx);
         state.VmDepth--;
@@ -112,4 +123,8 @@ internal static unsafe class LuauVm
         Debug.Assert(state.VmDepth == 0);
         lua_close(state.L);
     }
+
+    [Conditional("DEBUG")]
+    private static void AssertTurn(LuauState state) =>
+        Debug.Assert(state.AsyncContext.IsEntered, "The VM is entered outside the turn of the calling thread.");
 }

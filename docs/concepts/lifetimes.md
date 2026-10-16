@@ -120,8 +120,8 @@ If you later do `value.TryGet(out LuauTable tableCopy)`, you now have another ow
 
 - `LuauState.Globals` is backed by a pinned global-table reference. Disposing one `Globals` wrapper does not destroy the global environment; `lua.Globals` can produce another wrapper later.
 - The library rejects cross-state reference usage with `InvalidOperationException`.
-- `LuauState.Dispose()` throws `InvalidOperationException` while the state runs a script, which includes every callback of it. Dispose it after the host call that runs the script has returned.
-- `LuauState` itself is not thread-safe. Async host calls run their callbacks' continuations one turn at a time; use the synchronous API only when no async call is outstanding, inside a turn, or on the host dispatcher's thread. See [Coroutines](../features/coroutines.md#threading).
+- `LuauState.Dispose()` throws `InvalidOperationException` while the state runs a script, which includes every callback of it. Dispose it after the host call that runs the script has returned. Async host calls that are in flight fail with `ObjectDisposedException` when the state is disposed.
+- One thread at a time uses a `LuauState`. The calls that run a script take turns: an async host call waits for its turn, and a synchronous one throws while another thread runs the state. See [Coroutines](../features/coroutines.md#threading).
 
 ## Practical rules
 

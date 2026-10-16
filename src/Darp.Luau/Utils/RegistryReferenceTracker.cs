@@ -150,6 +150,13 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         /// <exception cref="ObjectDisposedException">Thrown when every handle of the reference was released.</exception>
         public unsafe void Push(lua_State* L)
         {
+            ThrowIfReleased();
+            _ = lua_getref(L, _luaReference);
+        }
+
+        /// <exception cref="ObjectDisposedException">Thrown when every handle of the reference was released.</exception>
+        public void ThrowIfReleased()
+        {
             if (!IsTracked)
             {
                 throw new ObjectDisposedException(
@@ -157,7 +164,6 @@ internal sealed class RegistryReferenceTracker(LuauState state)
                     "Tried to access a reference that is no longer tracked."
                 );
             }
-            _ = lua_getref(L, _luaReference);
         }
 
         public unsafe PopDisposable PushToTop()

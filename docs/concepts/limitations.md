@@ -6,7 +6,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 
 - The main package currently targets `net10.0`.
 - `LuauState` executes source through `Load(...).Execute(...)` or `LoadFile(path).Execute(...)`. There is no separate `DoFile(...)` helper.
-- `LuauState` is not thread-safe. Async host calls serialize their own continuations, but the synchronous API does not check which thread calls it: without a host dispatcher, use it only when no async call is outstanding or inside a turn.
+- One thread at a time uses a `LuauState`. The calls that run a script enforce that: an async host call waits its turn, and a synchronous one throws while another thread runs the state. Creating values, enumerating tables and disposing references are not checked. See [Threading](../features/coroutines.md#threading).
 - Owned references and borrowed views are bound to a single `LuauState`; cross-state usage is invalid.
 - `CreateFunction(...)` depends on generator interception, must be called directly, and has no runtime fallback.
 - `LuauFunction.Invoke(...)` currently accepts up to 4 arguments per call through `RefEnumerable<IntoLuau>`.
@@ -46,7 +46,8 @@ These are deliberate. The library does not guard against them, so your code has 
 
 - A cancelled token stops a script at Luau's safepoints only. Work without one, such as `string.rep` with a large count, and a running managed callback are not stopped. See [What is not stopped](../features/coroutines.md#what-is-not-stopped).
 - A call that fails with a script error after its token was cancelled is reported as cancelled, not as that error: stopping a script can itself surface as an error, which cannot be told from one the script made.
-- Disposing the state does not complete an async host call whose awaited work never finishes. The call fails with `ObjectDisposedException` when the work completes, so cancel the work.
+- A synchronous call never waits for a turn. Made while another thread runs the state, it throws `InvalidOperationException`, and so does `Dispose()`.
+- Disposing the state fails its async host calls, but does not stop the work their callbacks await. Cancel the token of a call to stop its work.
 - The result of one task belongs to one callback. A second callback that awaits the same `Task<LuauReturn>` fails.
 - Awaiting methods of one userdata instance can interleave: while one waits, a script can call another. Guard state that must not be seen half-changed.
 - A turn must not block on a lock that code holds across an `await` of the same state: the turn that would release it cannot start.

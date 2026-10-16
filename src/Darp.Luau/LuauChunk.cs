@@ -324,6 +324,7 @@ public readonly ref struct LuauChunk
     {
         LuauState state = GetState();
         lua_State* L = state.L;
+        using HostCall.SyncScope _ = HostCall.EnterSync(state);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -340,6 +341,7 @@ public readonly ref struct LuauChunk
     {
         LuauState state = GetState();
         lua_State* L = state.L;
+        using HostCall.SyncScope _ = HostCall.EnterSync(state);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -366,6 +368,7 @@ public readonly ref struct LuauChunk
     {
         LuauState state = GetState();
         lua_State* L = state.L;
+        using HostCall.SyncScope _ = HostCall.EnterSync(state);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -399,23 +402,23 @@ public readonly ref struct LuauChunk
     {
         LuauState state = GetState();
         LuauSynchronizationContext context = state.AsyncContext;
-        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        using LuauSynchronizationContext.Turn turn = context.TryEnter();
+        if (turn.IsEntered)
         {
-            using (turn)
-            {
+            // Checked inside the turn: until it began, another thread could dispose the state.
+            state.ThrowIfDisposed();
 #if DEBUG
-                using var guard = new StackGuard(state.L, expectedDelta: 0);
+            using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
-                // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
-                // exactly like for Execute. Loading can run script code, which the token stops too.
-                using (ScriptInterrupt.Enter(state, cancellationToken))
-                    LoadCompiledChunk(state.L);
-                return LuauSynchronizationContext.Detach(
-                    CoroutineDriver
-                        .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
-                        .RunAsync(resultSelector, yieldIsError: true)
-                );
-            }
+            // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
+            // exactly like for Execute. Loading can run script code, which the token stops too.
+            using (HostCall.EnterAsync(state, cancellationToken))
+                LoadCompiledChunk(state.L);
+            return context.Detach(
+                CoroutineDriver
+                    .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
+                    .RunAsync(resultSelector, yieldIsError: true)
+            );
         }
 
         // Another thread executes the state: execute in a later turn, with copies of the source and arguments.
@@ -460,7 +463,7 @@ public readonly ref struct LuauChunk
                 environmentHandle
             );
             state.ThrowIfDisposed();
-            using (ScriptInterrupt.Enter(state, cancellationToken))
+            using (HostCall.EnterAsync(state, cancellationToken))
                 chunk.LoadCompiledChunk(state.L);
             return CoroutineDriver
                 .StartInvocation(state, copiedArgs, minResultCount: nResults, cancellationToken)

@@ -1,73 +1,115 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Darp.Luau.Internal;
 
 /// <summary>
-/// Runs the async work of one <see cref="LuauState"/> in turns: synchronous stretches of execution of which exactly
-/// one runs at a time.
+/// Gives one <see cref="LuauState"/> to one thread at a time. The stretch for which a thread has it is a turn.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A turn is owned by a scope. Either an async host call admits its calling thread inline because the state is idle
-/// (<see cref="TryEnter"/>), or a drain executes queued work. Every continuation that captured this context is
-/// posted to the queue and runs in a later turn, so code after an <c>await</c> in a managed callback never runs
-/// while another turn executes Luau.
+/// Every host call runs in a turn. A sync call takes the state for as long as it runs, or fails when another
+/// thread executes a turn (<see cref="EnterOrThrow"/>). An async call takes the state when it is free
+/// (<see cref="TryEnter"/>) and is queued otherwise. Every continuation that captured this context is posted to
+/// the queue and runs in a later turn, so code after an <c>await</c> in a managed callback never runs while
+/// another turn executes Luau.
 /// </para>
 /// <para>
-/// Drains run on a thread-pool worker, or on the host dispatcher when one was given. A drain executes queued items
-/// until the queue is empty and then gives up ownership. This class is the only place in the library that
-/// synchronizes threads; its lock guards ownership and the queue, never user code.
+/// Queued work runs in a drain: on a thread-pool worker, or on the host dispatcher when one was given. A drain
+/// that is scheduled reserves the state, and a turn that ends with work queued passes the state to its drain, so
+/// that an async call does not start ahead of what is queued.
+/// </para>
+/// <para>
+/// This class is the only place in the library that synchronizes threads. They meet in the owner word and in the
+/// queue, and nowhere else: the code of a turn runs without a lock.
 /// </para>
 /// </remarks>
 internal sealed class LuauSynchronizationContext : SynchronizationContext
 {
-    private readonly Lock _gate = new();
-    private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
+    private const int Idle = 0;
+
+    // A drain is scheduled and has not started. No managed thread has this id.
+    private const int Reserved = -1;
+
     private readonly SynchronizationContext? _hostContext;
 
-    // True while a scope owns the state or a drain is scheduled or running. Guarded by _gate.
-    private bool _isActive;
+    // Who has the state: Idle, Reserved, or the id of the managed thread that executes the turn. A thread takes
+    // the state with a compare-exchange and gives it back with an exchange.
+    private int _owner;
 
-    // The managed thread executing the current turn, 0 if none. Written under _gate, read lock-free only by the
-    // thread that may have written it, to detect reentry.
-    private int _ownerThreadId;
+    // The work for later turns. Created by the first post, so that a state whose callbacks never await does not
+    // pay for it.
+    private ConcurrentQueue<(SendOrPostCallback Callback, object? State)>? _queue;
+
+    // The async host calls that finished in the current turn. Only the owner of the turn uses the list.
+    private IDetachedCall? _finishedCalls;
 
     public LuauSynchronizationContext(SynchronizationContext? hostContext) => _hostContext = hostContext;
 
+    /// <summary> Whether the calling thread executes a turn, for assertions. </summary>
+    public bool IsEntered => _owner == Environment.CurrentManagedThreadId;
+
     /// <summary>
-    /// Enters a turn on the calling thread, unless another thread owns the state or, with a host dispatcher, the
-    /// calling thread is not the dispatcher's.
+    /// Enters a turn for an async host call, unless the state is taken or, with a host dispatcher, the calling
+    /// thread is not the dispatcher's.
     /// </summary>
-    /// <param name="turn">The turn to dispose when the synchronous part of the work is done.</param>
-    /// <returns><c>false</c> when the work must be queued with <see cref="Queue{T}"/>.</returns>
-    public bool TryEnter(out Turn turn)
+    /// <returns>
+    /// The turn to dispose when the synchronous part of the work is done. When it was not entered, the work must
+    /// be queued with <see cref="Queue{T}"/>.
+    /// </returns>
+    // Not inlined, and neither is the end of the turn: an async call site is large, and with these two inlined
+    // into it the JIT inlines less of what the call spends its time in. Measured on InvokeAsync, 60 ns of 540.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public Turn TryEnter()
     {
         int currentThreadId = Environment.CurrentManagedThreadId;
-        if (_ownerThreadId == currentThreadId)
-        {
-            turn = new Turn(this, isRoot: false);
-            return true;
-        }
+        if (_owner == currentThreadId)
+            return new Turn(this, isRoot: false);
 
-        // With a host dispatcher, every turn runs on it. Dispatchers install themselves on their thread.
+        // With a host dispatcher, every turn of an async call runs on it. Dispatchers install themselves on their
+        // thread.
         if (_hostContext is not null && !ReferenceEquals(Current, _hostContext))
-        {
-            turn = default;
-            return false;
-        }
+            return default;
 
-        using (_gate.EnterScope())
-        {
-            if (_isActive)
-            {
-                turn = default;
-                return false;
-            }
-            _isActive = true;
-            _ownerThreadId = currentThreadId;
-        }
-        turn = new Turn(this, isRoot: true);
+        return Interlocked.CompareExchange(ref _owner, currentThreadId, Idle) == Idle
+            ? new Turn(this, isRoot: true)
+            : default;
+    }
+
+    /// <summary> Enters a turn for a sync host call, unless the calling thread executes one already. </summary>
+    /// <returns>Whether the call began a turn, which it ends with <see cref="EndTurn"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when another thread executes a turn.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool EnterOrThrow()
+    {
+        int currentThreadId = Environment.CurrentManagedThreadId;
+        if (_owner == currentThreadId)
+            return false;
+        if (Interlocked.CompareExchange(ref _owner, currentThreadId, Idle) != Idle)
+            TakeReservationOrThrow(currentThreadId);
         return true;
+    }
+
+    /// <summary> Ends the turn of the calling thread. </summary>
+    /// <remarks>
+    /// The async host calls that finished in the turn complete now and not earlier: their callers may use the
+    /// state as soon as they hear of it. Work that was queued during the turn is handed to a drain.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void EndTurn()
+    {
+        Debug.Assert(IsEntered);
+        if (_finishedCalls is not null || Volatile.Read(ref _queue) is not null)
+        {
+            EndTurnAndHandOn();
+            return;
+        }
+        // A full fence. A post that does not find the state idle has queued its work before this exchange, so it
+        // is seen below.
+        Interlocked.Exchange(ref _owner, Idle);
+        if (Volatile.Read(ref _queue) is not null)
+            ScheduleQueuedWork();
     }
 
     /// <summary> Queues the start of async work that could not enter a turn. </summary>
@@ -76,7 +118,7 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     /// <returns>A task that completes with the work.</returns>
     public ValueTask<T> Queue<T>(Func<ValueTask<T>> start)
     {
-        var queuedStart = new QueuedStart<T>(start);
+        var queuedStart = new QueuedStart<T>(this, start);
         try
         {
             Post(static queued => (queued as QueuedStart<T>)?.Run(), queuedStart);
@@ -88,32 +130,31 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
             if (queuedStart.TryAbandon())
                 return ValueTask.FromException<T>(exception);
         }
-        return new ValueTask<T>(queuedStart.Completion.Task);
+        return new ValueTask<T>(queuedStart.Task);
     }
 
-    /// <summary> Returns <paramref name="operation"/> so that its completion does not run the caller's code inside a turn. </summary>
-    /// <remarks> Only allocates when the operation is still running. </remarks>
-    public static ValueTask<T> Detach<T>(ValueTask<T> operation)
+    /// <summary>
+    /// Returns <paramref name="operation"/> so that it completes when the turn it finished in has ended, and
+    /// does not run the caller's code inside a turn.
+    /// </summary>
+    /// <remarks> Called inside the turn that started the operation. Only allocates when it is still running. </remarks>
+    public ValueTask<T> Detach<T>(ValueTask<T> operation)
     {
         if (operation.IsCompleted)
             return operation;
-        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Forward(operation, completion);
-        return new ValueTask<T>(completion.Task);
+        var call = new DetachedCall<T>(this);
+        call.Await(operation);
+        return new ValueTask<T>(call.Task);
     }
 
     /// <summary> Queues <paramref name="d"/> to run in a later turn. Never runs it on the calling stack. </summary>
     public override void Post(SendOrPostCallback d, object? state)
     {
-        using (_gate.EnterScope())
-        {
-            _queue.Enqueue((d, state));
-            if (_isActive)
-                return;
-            // Reserve ownership before the drain is published, so that no thread enters inline in between.
-            _isActive = true;
-        }
-        ScheduleDrain();
+        LazyInitializer
+            .EnsureInitialized(ref _queue, static () => new ConcurrentQueue<(SendOrPostCallback, object?)>())
+            .Enqueue((d, state));
+        // Whoever has the state hands the queue to a drain when its turn ends.
+        ScheduleQueuedWork();
     }
 
     /// <summary> Not supported: a turn must not block on another turn. </summary>
@@ -123,57 +164,79 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
     /// <summary> Returns this context: copies must share the queue to serialize. </summary>
     public override SynchronizationContext CreateCopy() => this;
 
-    private static void Forward<T>(ValueTask<T> operation, TaskCompletionSource<T> completion)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void TakeReservationOrThrow(int currentThreadId)
     {
-        ConfiguredValueTaskAwaitable<T>.ConfiguredValueTaskAwaiter awaiter = operation
-            .ConfigureAwait(false)
-            .GetAwaiter();
-        if (awaiter.IsCompleted)
+        // A drain that is scheduled has not started. The sync call goes first and schedules it again when it ends,
+        // so a call on the thread of a host dispatcher never fails because of what is queued.
+        if (!TryTakeFreeState(currentThreadId))
         {
-            SetResult(awaiter, completion);
-            return;
-        }
-        awaiter.UnsafeOnCompleted(() => SetResult(awaiter, completion));
-    }
-
-    private static void SetResult<T>(
-        ConfiguredValueTaskAwaitable<T>.ConfiguredValueTaskAwaiter awaiter,
-        TaskCompletionSource<T> completion
-    )
-    {
-        try
-        {
-            completion.SetResult(awaiter.GetResult());
-        }
-        catch (Exception exception)
-        {
-            SetException(completion, exception);
+            throw new InvalidOperationException(
+                "The LuauState is in use by another thread, which runs a script or the continuation of an "
+                    + "async callback. A synchronous call does not wait for it: make the call from a "
+                    + "callback, or when the async calls of the state have completed."
+            );
         }
     }
 
-    private static void SetException<T>(TaskCompletionSource<T> completion, Exception exception)
+    /// <summary> Takes the state when it is idle or reserved for a drain that has not started. </summary>
+    private bool TryTakeFreeState(int currentThreadId)
     {
-        if (exception is OperationCanceledException canceled)
-            completion.SetCanceled(canceled.CancellationToken);
+        while (true)
+        {
+            int owner = Volatile.Read(ref _owner);
+            if (owner is not (Idle or Reserved))
+                return false;
+            if (Interlocked.CompareExchange(ref _owner, currentThreadId, owner) == owner)
+                return true;
+        }
+    }
+
+    private void AddFinishedCall(IDetachedCall call)
+    {
+        Debug.Assert(IsEntered, "An async host call finishes in a turn.");
+        call.Next = _finishedCalls;
+        _finishedCalls = call;
+    }
+
+    /// <summary> <see cref="EndTurn"/> for the turn of an async call, see <see cref="TryEnter"/>. </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void EndRootTurn() => EndTurn();
+
+    /// <summary> <see cref="EndTurn"/> for a turn that has calls to complete or may have queued work. </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void EndTurnAndHandOn()
+    {
+        IDetachedCall? finishedCalls = _finishedCalls;
+        _finishedCalls = null;
+        // Work queued before the turn ended goes first: the state passes to its drain without being idle in
+        // between, so that no async call starts ahead of it. Work queued after this read is seen below.
+        bool isQueued = Volatile.Read(ref _queue) is { IsEmpty: false };
+        Interlocked.Exchange(ref _owner, isQueued ? Reserved : Idle);
+        for (; finishedCalls is not null; finishedCalls = finishedCalls.Next)
+            finishedCalls.Complete();
+        if (isQueued)
+            PostDrain();
         else
-            completion.SetException(exception);
+            ScheduleQueuedWork();
     }
 
-    private void EndRootTurn()
+    /// <summary> Schedules a drain when work is queued and nobody has the state. </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ScheduleQueuedWork()
     {
-        bool scheduleDrain;
-        using (_gate.EnterScope())
+        // Reserved before the drain is published, so that no async call starts ahead of what is queued.
+        if (
+            Volatile.Read(ref _queue) is { IsEmpty: false }
+            && Interlocked.CompareExchange(ref _owner, Reserved, Idle) == Idle
+        )
         {
-            _ownerThreadId = 0;
-            scheduleDrain = _queue.Count > 0;
-            // With queued work, ownership passes on to the drain.
-            _isActive = scheduleDrain;
+            PostDrain();
         }
-        if (scheduleDrain)
-            ScheduleDrain();
     }
 
-    private void ScheduleDrain()
+    /// <summary> Publishes a drain for the reservation that the caller made. </summary>
+    private void PostDrain()
     {
         if (_hostContext is null)
         {
@@ -187,46 +250,43 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         }
         catch
         {
-            // No drain will run, for example because the dispatcher has shut down. Give up ownership, so that the
-            // state stays usable: the next turn runs what is queued.
-            using (_gate.EnterScope())
-                _isActive = false;
+            // No drain will run, for example because the dispatcher has shut down. Give the reservation back,
+            // unless a sync call took it, so that the state stays usable: the next turn hands on what is queued.
+            // The reservation may be that of another drain by now; that drain finds the state idle and runs.
+            Interlocked.CompareExchange(ref _owner, Idle, Reserved);
             throw;
         }
     }
 
     private void Drain()
     {
+        int currentThreadId = Environment.CurrentManagedThreadId;
+        // A sync call may have taken the reservation. It schedules a drain again when it ends. A drain that finds
+        // the state idle runs all the same: a post that failed may have given its reservation back. Drains are
+        // interchangeable, and one that finds nothing queued ends at once.
+        if (!TryTakeFreeState(currentThreadId))
+            return;
+
         SynchronizationContext? previousContext = Current;
         SetSynchronizationContext(this);
-        bool completed = false;
         try
         {
-            while (TryTakeNext(out (SendOrPostCallback Callback, object? State) work))
+            // A host call that finished completes when its turn has ended, so the turn ends with it. The rest of
+            // the queue runs in a new drain.
+            while (
+                _finishedCalls is null
+                && Volatile.Read(ref _queue) is { } queue
+                && queue.TryDequeue(out (SendOrPostCallback Callback, object? State) work)
+            )
+            {
                 work.Callback(work.State);
-            completed = true;
+            }
         }
         finally
         {
             SetSynchronizationContext(previousContext);
-            // An item that threw ends this drain early; hand the rest of the queue to a new one.
-            if (!completed)
-                EndRootTurn();
-        }
-    }
-
-    private bool TryTakeNext(out (SendOrPostCallback Callback, object? State) work)
-    {
-        using (_gate.EnterScope())
-        {
-            if (_queue.TryDequeue(out work))
-            {
-                _ownerThreadId = Environment.CurrentManagedThreadId;
-                return true;
-            }
-            _ownerThreadId = 0;
-            _isActive = false;
-            return false;
+            // An item that threw ends the drain early. The rest of the queue runs in a new one then, too.
+            EndTurn();
         }
     }
 
@@ -236,6 +296,9 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         private readonly LuauSynchronizationContext? _context;
         private readonly SynchronizationContext? _previousContext;
         private readonly bool _isRoot;
+
+        /// <summary> Whether the calling thread is in the turn. A turn that was not entered ends nothing. </summary>
+        public bool IsEntered => _context is not null;
 
         public Turn(LuauSynchronizationContext context, bool isRoot)
         {
@@ -255,9 +318,61 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         }
     }
 
-    private sealed class QueuedStart<T>(Func<ValueTask<T>> start)
+    /// <summary> An async host call that finished in a turn and completes when that turn has ended. </summary>
+    private interface IDetachedCall
+    {
+        /// <summary> Links the calls that finished in the same turn. </summary>
+        IDetachedCall? Next { get; set; }
+
+        void Complete();
+    }
+
+    /// <summary> What the caller of an async host call awaits when the call did not finish in its first turn. </summary>
+    private sealed class DetachedCall<T>(LuauSynchronizationContext context)
+        : TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously),
+            IDetachedCall
+    {
+        private readonly LuauSynchronizationContext _context = context;
+        private ValueTaskAwaiter<T> _operation;
+
+        public IDetachedCall? Next { get; set; }
+
+        /// <summary> Completes this call with <paramref name="operation"/>, once the turn it finishes in has ended. </summary>
+        public void Await(ValueTask<T> operation)
+        {
+            // The awaiter captures the context of the state, which every turn of an async call installs. So the
+            // operation is observed in a turn, which can then end before the caller is told.
+            Debug.Assert(ReferenceEquals(Current, _context));
+            _operation = operation.GetAwaiter();
+            if (_operation.IsCompleted)
+                Finish();
+            else
+                _operation.UnsafeOnCompleted(Finish);
+        }
+
+        public void Complete()
+        {
+            try
+            {
+                SetResult(_operation.GetResult());
+            }
+            catch (OperationCanceledException canceled)
+            {
+                SetCanceled(canceled.CancellationToken);
+            }
+            catch (Exception exception)
+            {
+                SetException(exception);
+            }
+        }
+
+        private void Finish() => _context.AddFinishedCall(this);
+    }
+
+    private sealed class QueuedStart<T>(LuauSynchronizationContext context, Func<ValueTask<T>> start)
     {
         private readonly Func<ValueTask<T>> _start = start;
+        private readonly DetachedCall<T> _call = new(context);
 
         // The caller's ambient data (AsyncLocal) flows into the queued start, like into any continuation.
         private readonly ExecutionContext? _executionContext = ExecutionContext.Capture();
@@ -265,7 +380,7 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
         // 0 while queued. Running and abandoning both claim it, on different threads, so exactly one of them wins.
         private int _isClaimed;
 
-        public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<T> Task => _call.Task;
 
         /// <summary> Keeps the start from running, so that its caller can be told that it failed. </summary>
         /// <returns><c>false</c> when it runs or ran already.</returns>
@@ -290,10 +405,9 @@ internal sealed class LuauSynchronizationContext : SynchronizationContext
             }
             catch (Exception exception)
             {
-                SetException(Completion, exception);
-                return;
+                operation = ValueTask.FromException<T>(exception);
             }
-            Forward(operation, Completion);
+            _call.Await(operation);
         }
     }
 }
