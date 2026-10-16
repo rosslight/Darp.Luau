@@ -1,14 +1,35 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
+/// <summary> What Luau stores in a managed userdata: where its state keeps the object. </summary>
+/// <remarks>
+/// The object is not held by a handle of its own: handles are scanned by every collection of the runtime, which
+/// made each of them pause longer with every userdata that was alive.
+/// </remarks>
 internal struct LuauUserdataNative
 {
     public const int Tag = 1;
 
-    public GCHandle UserdataHandle { get; internal set; }
+    /// <summary> The weak handle of the state, which outlives every userdata of the state. </summary>
+    public nint State;
+
+    /// <summary> Where the state keeps the object. </summary>
+    public int Slot;
+
+    /// <summary> Which object of the slot is this userdata's: slots are reused once their object is released. </summary>
+    public int Generation;
+
+    /// <summary> The managed object, or null if it was released. </summary>
+    /// <param name="state"> The state of the userdata, which a reader of it knows already. </param>
+    public readonly object? GetTarget(LuauState state)
+    {
+        Debug.Assert(State == state.SelfHandle);
+        return state.UserdataObjects.Get(Slot, Generation);
+    }
 }
 
 /// <summary>

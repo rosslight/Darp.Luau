@@ -19,27 +19,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     )]
     private readonly LuauState _state = state;
     private readonly Dictionary<Type, UserdataType> _types = [];
-    private readonly ConditionalWeakTable<object, CachedUserdata> _cachedByUserdata = new();
     private readonly int _identityMapReference = CreateIdentityMapReference(state);
     private bool _userdataDestructorRegistered;
     private int _createdSinceGarbageCollectorStep;
 
-    // A userdata is 24 bytes to Luau. It also holds a managed object, a handle and an entry of this cache, which
-    // Luau does not count. Its collector is paced by what it counts, so it is told the rest.
+    // A userdata is 24 bytes to Luau. It also holds a managed object and its slot in the state, which Luau does
+    // not count. Its collector is paced by what it counts, so it is told the rest.
     private const int UncountedBytesPerUserdata = 256;
     private const int CreationsPerGarbageCollectorStep = 64;
-
-    /// <summary> Where the cache finds the userdata an object was last pushed as. </summary>
-    /// <remarks>
-    /// The key is the address of the handle that userdata holds on the object. The runtime gives the address to
-    /// another handle once the userdata is collected, so the keys of the cache stay as few as the userdata that
-    /// are alive at one time. A number that counts up would be a new key for every object ever pushed, and the
-    /// table in Luau would keep a slot for each of them.
-    /// </remarks>
-    private sealed class CachedUserdata(nint key)
-    {
-        public nint Key { get; set; } = key;
-    }
 
     /// <summary> A userdata type in this state: its description, and what the state built from it. </summary>
     private sealed class UserdataType(LuauState state, UserdataDescription description)
@@ -72,13 +59,9 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     {
         lua_State* L = _state.L;
 
-        if (
-            _cachedByUserdata.TryGetValue(userdata, out CachedUserdata? cached)
-            && TryPushCachedUserdata(L, cached.Key, userdata)
-        )
-        {
+        UserdataObjects objects = _state.UserdataObjects;
+        if (objects.TryGetSlot(userdata, out int cachedSlot) && TryPushCachedUserdata(L, cachedSlot, userdata))
             return;
-        }
 
         UserdataType type = GetOrAddType<T>();
         var ptr = (LuauUserdataNative*)darp_luau_newuserdatawithmetatable(
@@ -87,12 +70,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             LuauUserdataNative.Tag,
             type.MetatableReference
         );
-        ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
-        nint key = GCHandle.ToIntPtr(ptr->UserdataHandle);
-        if (cached is null)
-            _cachedByUserdata.Add(userdata, new CachedUserdata(key));
-        else
-            cached.Key = key;
+        // The identity map is keyed by the slot: slots are reused, so its keys stay as few as the live userdata
+        (int slot, int generation) = objects.Add(userdata);
+        ptr->State = _state.SelfHandle;
+        ptr->Slot = slot;
+        ptr->Generation = generation;
+        nint key = slot;
 
         // stack: [userdata]
         lua_getref(L, _identityMapReference); // [userdata, identityMap]
@@ -291,10 +274,10 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     // Leaves the userdata on the stack if it is still the one of the object
-    private unsafe bool TryPushCachedUserdata(lua_State* L, nint key, object userdata)
+    private unsafe bool TryPushCachedUserdata(lua_State* L, int slot, object userdata)
     {
         lua_getref(L, _identityMapReference); // [cache]
-        lua_pushlightuserdatatagged(L, (void*)key, 0); // [cache, key]
+        lua_pushlightuserdatatagged(L, (void*)(nint)slot, 0); // [cache, key]
         _ = lua_rawget(L, -2); // [cache, value]
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
@@ -307,8 +290,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         var native = (LuauUserdataNative*)lua_touserdatatagged(L, -1, LuauUserdataNative.Tag);
         if (
             native is null
-            || !native->UserdataHandle.IsAllocated
-            || !ReferenceEquals(native->UserdataHandle.Target, userdata)
+            || native->Slot != slot
+            || !ReferenceEquals(native->GetTarget(_state), userdata)
         )
         {
             lua_pop(L, 2);
@@ -325,8 +308,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         if (pUserdata is null)
             return;
         var native = (LuauUserdataNative*)pUserdata;
-        if (native->UserdataHandle.IsAllocated)
-            native->UserdataHandle.Free();
+        if (native->State != 0 && GCHandle.FromIntPtr(native->State).Target is LuauState state)
+            state.UserdataObjects.Free(native->Slot, native->Generation);
     }
 
     /// <summary> Runs when Luau frees the last metatable and function of a userdata type. </summary>
