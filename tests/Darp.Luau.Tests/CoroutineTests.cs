@@ -1,3 +1,4 @@
+using Darp.Luau.Tests.Fixtures;
 using Shouldly;
 
 namespace Darp.Luau.Tests;
@@ -25,6 +26,22 @@ public sealed class CoroutineTests : IDisposable
 
         coroutine.Resume<int>(1).ShouldBe(2);
         coroutine.Resume<int>(10).ShouldBe(20);
+    }
+
+    [Fact]
+    public void Resume_WithUserdata_ShouldPassItToTheCoroutineThread()
+    {
+        var value = new ValueUserdata();
+        using LuauCoroutine coroutine = CreateCoroutine(
+            """
+            local first = ...
+            local second = coroutine.yield(first)
+            return rawequal(first, second)
+            """
+        );
+
+        coroutine.Resume<ValueUserdata>(IntoLuau.FromUserdata(value)).ShouldBeSameAs(value);
+        coroutine.Resume<bool>(IntoLuau.FromUserdata(value)).ShouldBeTrue();
     }
 
     [Fact]
