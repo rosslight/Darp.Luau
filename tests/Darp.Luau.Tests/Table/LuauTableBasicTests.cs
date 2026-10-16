@@ -48,6 +48,17 @@ public sealed class LuauTableBasicTests : IDisposable
     }
 
     [Fact]
+    public void Set_Then_GetLongString_RoundTrips()
+    {
+        // Longer than what is converted to UTF-8 on the stack
+        string text = string.Concat(Enumerable.Repeat("ä€ab", 100));
+        using LuauTable table = _lua.CreateTable();
+        table.Set("myKey", text);
+
+        table.Get<string>("myKey").ShouldBe(text);
+    }
+
+    [Fact]
     public void Set_Overwrites_ExistingKey()
     {
         using LuauTable table = _lua.CreateTable();
