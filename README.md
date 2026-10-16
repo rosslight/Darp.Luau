@@ -19,7 +19,7 @@
 
 ## Quick start
 
-To try a PR before release, see [Preview packages](docs/preview-packages.md).
+To try a PR before release, see [Preview packages](https://github.com/rosslight/Darp.Luau/blob/main/docs/preview-packages.md).
 
 ```csharp
 using Darp.Luau;
