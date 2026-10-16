@@ -613,6 +613,14 @@ public sealed unsafe class LuauState : IDisposable
         return _cache.GetOrCreate(userdata);
     }
 
+    /// <summary> Pushes the userdata of a managed instance onto the stack of the state, creating it if needed. </summary>
+    internal void PushUserdata<T>(T userdata)
+        where T : class, ILuauUserdata<T>
+    {
+        this.ThrowIfDisposed();
+        _cache.Push(userdata);
+    }
+
     /// <summary>
     /// Gets the static side of a userdata type: a table with the functions and values scripts reach through the
     /// type, such as <c>Vec2.new(1, 2)</c>.

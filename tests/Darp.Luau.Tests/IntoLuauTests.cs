@@ -131,12 +131,16 @@ public sealed class IntoLuauTests
     }
 
     [Fact]
-    internal void Into_UserdataFactory()
+    internal void Into_Userdata()
     {
         var intoValue = IntoLuau.FromUserdata(new SimpleUserdataType());
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.UserdataFactory);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Userdata);
     }
+
+    [Fact]
+    public void FromUserdata_Null_Throws() =>
+        Should.Throw<ArgumentNullException>(() => IntoLuau.FromUserdata<SimpleUserdataType>(null!));
 }
 
 internal sealed class SimpleUserdataType : ILuauUserdata<SimpleUserdataType>

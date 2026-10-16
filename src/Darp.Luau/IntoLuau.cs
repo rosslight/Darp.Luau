@@ -27,6 +27,7 @@ public readonly ref struct IntoLuau
         Value,
         Buffer,
         UserdataFactory,
+        Userdata,
         Reference,
     }
 
@@ -39,6 +40,8 @@ public readonly ref struct IntoLuau
     private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
+    private readonly object? _userdata;
+    private readonly Action<LuauState, object>? _pushUserdata;
     private readonly LuauSlot _slot;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
@@ -71,6 +74,13 @@ public readonly ref struct IntoLuau
     {
         Type = Kind.UserdataFactory;
         _factory = factory;
+    }
+
+    private IntoLuau(object userdata, Action<LuauState, object> pushUserdata)
+    {
+        Type = Kind.Userdata;
+        _userdata = userdata;
+        _pushUserdata = pushUserdata;
     }
 
     private IntoLuau(LuauSlot slot)
@@ -153,6 +163,13 @@ public readonly ref struct IntoLuau
                     userdata.Dispose();
                 }
                 break;
+            case Kind.Userdata:
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                // Straight onto the stack: a reference in the registry would only be released again
+                _pushUserdata(state, _userdata);
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
+                break;
             case Kind.Reference:
                 if (!ReferenceEquals(state, _slot.State))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
@@ -219,6 +236,17 @@ public readonly ref struct IntoLuau
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 return IntoLuauCopied.FromUserdataFactory(_factory);
+            case Kind.Userdata:
+            {
+                Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                object userdata = _userdata;
+                Action<LuauState, object> pushUserdata = _pushUserdata;
+                return IntoLuauCopied.FromUserdataFactory(state =>
+                {
+                    pushUserdata(state, userdata);
+                    return new LuauUserdata(state, state.ReferenceTracker.TrackAndPopRef(state.L, -1));
+                });
+            }
             case Kind.Reference:
             {
                 LuauState state = _slot.State;
@@ -334,8 +362,21 @@ public readonly ref struct IntoLuau
     /// <param name="userdata"> The userdata </param>
     /// <typeparam name="T"> The type of the userdata </typeparam>
     /// <returns> A temporary representation of the value </returns>
+    /// <exception cref="ArgumentNullException"> Thrown when <paramref name="userdata"/> is null. </exception>
     public static IntoLuau FromUserdata<T>(T userdata)
-        where T : class, ILuauUserdata<T> => new(state => state.GetOrCreateUserdata(userdata));
+        where T : class, ILuauUserdata<T>
+    {
+        ArgumentNullException.ThrowIfNull(userdata);
+        return new IntoLuau(userdata, UserdataPusher<T>.Push);
+    }
+
+    // One delegate per type, so that converting a userdata allocates nothing
+    private static class UserdataPusher<T>
+        where T : class, ILuauUserdata<T>
+    {
+        public static readonly Action<LuauState, object> Push = static (state, userdata) =>
+            state.PushUserdata((T)userdata);
+    }
 
     /// <summary> Converts to the userdata that <paramref name="factory"/> creates when the value is pushed. </summary>
     /// <param name="factory">

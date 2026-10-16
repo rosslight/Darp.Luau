@@ -58,17 +58,26 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     public unsafe LuauUserdata GetOrCreate<T>(T userdata)
         where T : class, ILuauUserdata<T>
     {
-        lua_State* L = _state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+        using var guard = new StackGuard(_state.L, expectedDelta: 0);
 #endif
+        Push(userdata);
+        ulong reference = _state.ReferenceTracker.TrackAndPopRef(_state.L, -1);
+        return new LuauUserdata(_state, reference);
+    }
+
+    /// <summary> Pushes the userdata <paramref name="userdata"/> was last pushed as, or a new one. </summary>
+    public unsafe void Push<T>(T userdata)
+        where T : class, ILuauUserdata<T>
+    {
+        lua_State* L = _state.L;
 
         if (
             _cachedByUserdata.TryGetValue(userdata, out CachedUserdata? cached)
-            && TryGetCachedUserdataHandle(L, cached.Key, userdata, out ulong cachedHandle)
+            && TryPushCachedUserdata(L, cached.Key, userdata)
         )
         {
-            return new LuauUserdata(_state, cachedHandle);
+            return;
         }
 
         UserdataType type = GetOrAddType<T>();
@@ -92,7 +101,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         lua_rawset(L, -3); // [userdata, identityMap]
         lua_pop(L, 1); // [userdata]
 
-        ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
         if (++_createdSinceGarbageCollectorStep == CreationsPerGarbageCollectorStep)
         {
             _createdSinceGarbageCollectorStep = 0;
@@ -102,7 +110,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 CreationsPerGarbageCollectorStep * UncountedBytesPerUserdata / 1024
             );
         }
-        return new LuauUserdata(_state, reference);
     }
 
     /// <summary> Gets the static side of <typeparamref name="T"/>: a read-only table of its functions and values. </summary>
@@ -283,18 +290,15 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         return LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
-    private unsafe bool TryGetCachedUserdataHandle(lua_State* L, nint key, object userdata, out ulong handle)
+    // Leaves the userdata on the stack if it is still the one of the object
+    private unsafe bool TryPushCachedUserdata(lua_State* L, nint key, object userdata)
     {
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
         lua_getref(L, _identityMapReference); // [cache]
         lua_pushlightuserdatatagged(L, (void*)key, 0); // [cache, key]
         _ = lua_rawget(L, -2); // [cache, value]
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
-            handle = 0;
             lua_pop(L, 2);
             return false;
         }
@@ -307,13 +311,11 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             || !ReferenceEquals(native->UserdataHandle.Target, userdata)
         )
         {
-            handle = 0;
             lua_pop(L, 2);
             return false;
         }
 
-        handle = _state.ReferenceTracker.TrackRef(L, -1);
-        lua_pop(L, 2);
+        lua_remove(L, -2); // [value]
         return true;
     }
 
