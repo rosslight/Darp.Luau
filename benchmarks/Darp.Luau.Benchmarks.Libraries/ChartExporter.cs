@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Exporters;
-using BenchmarkDotNet.Loggers;
+using BenchmarkDotNet.Helpers;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
 
@@ -18,7 +18,11 @@ internal sealed class ChartExporter : ExporterBase
     protected override string FileExtension => "svg";
     protected override string FileNameSuffix => "-chart";
 
-    public override void ExportToLog(Summary summary, ILogger logger)
+    public override async ValueTask ExportAsync(
+        Summary summary,
+        CancelableStreamWriter writer,
+        CancellationToken cancellationToken
+    )
     {
         Panel[] panels =
         [
@@ -53,7 +57,7 @@ internal sealed class ChartExporter : ExporterBase
             ],
             highlightedLibrary: Library.DarpLuau
         );
-        logger.Write(chart.Render(Measures, panels, legend));
+        await writer.WriteAsync(chart.Render(Measures, panels, legend), cancellationToken);
     }
 
     private static BenchmarkReport? FindReport(Summary summary, string scenario, string library)
