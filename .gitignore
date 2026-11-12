@@ -23,3 +23,4 @@ src/Darp.Lua.Net/lib
 
 # BenchmarkDotNet
 BenchmarkDotNet.Artifacts/
+.bdn/

@@ -383,10 +383,7 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     private static bool IsReservedModuleName(string name) =>
-        name.StartsWith('.')
-        || name.StartsWith('/')
-        || name.StartsWith('\\')
-        || name.StartsWith('@')
+        name is ['.' or '/' or '\\' or '@', ..]
         || name.Contains('/', StringComparison.Ordinal)
         || name.Contains('\\', StringComparison.Ordinal);
 

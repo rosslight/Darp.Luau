@@ -306,9 +306,8 @@ internal static class MetamethodAnalyzer
 
     private static (InteropType Type, ITypeSymbol Symbol)[] GetLuauOperands(Candidate candidate) =>
         candidate
-            .Overload.Signature.Parameters.Zip(
-                candidate.OperandTypes,
-                static (parameter, symbol) => (parameter.Type, symbol)
+            .Overload.Signature.Parameters.Zip(candidate.OperandTypes, static (parameter, symbol) =>
+                (parameter.Type, symbol)
             )
             .Where(static x => x.Type.Type is not LuauInteropKind.CancellationToken)
             .ToArray();

@@ -116,8 +116,10 @@ public sealed class NumberConversionTests : IDisposable
     {
         TryGet("12.75", out decimal value).ShouldBeTrue();
         value.ShouldBe(12.75m);
-        TryGet("0.1 + 0.2", out decimal rounded).ShouldBeTrue();
-        rounded.ShouldBe(0.3m);
+        // Like a cast from double, which the runtime does: exact since .NET 11, rounded to 15 significant digits before.
+        // A net10.0 build running on .NET 11 therefore gets the exact value too.
+        TryGet("0.1 + 0.2", out decimal sum).ShouldBeTrue();
+        sum.ShouldBe(Environment.Version.Major >= 11 ? 0.3000000000000000444089209850m : 0.3m);
         TryGet("1e30", out decimal _).ShouldBeFalse();
         TryGet("0/0", out decimal _).ShouldBeFalse();
         TryGet("math.huge", out decimal _).ShouldBeFalse();

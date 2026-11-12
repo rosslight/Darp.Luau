@@ -3,7 +3,7 @@
 [![Darp.Results](https://img.shields.io/nuget/v/Darp.Luau.svg)](https://www.nuget.org/packages/Darp.Luau)
 [![Downloads](https://img.shields.io/nuget/dt/Darp.Luau)](https://www.nuget.org/packages/Darp.Luau)
 ![License](https://img.shields.io/github/license/rosslight/darp-luau)
-![.NET](https://img.shields.io/badge/version-.NET10-blue)
+![.NET](https://img.shields.io/badge/version-.NET10%20%7C%20.NET11-blue)
 
 `Darp.Luau` is a .NET wrapper around [Luau](https://luau.org/) focused on native AOT compatibility, typed value access, and explicit ownership for Luau-backed references.
 

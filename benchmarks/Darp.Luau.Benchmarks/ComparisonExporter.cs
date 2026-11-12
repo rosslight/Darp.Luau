@@ -1,7 +1,7 @@
 using System.Globalization;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Exporters;
-using BenchmarkDotNet.Loggers;
+using BenchmarkDotNet.Helpers;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
 
@@ -18,7 +18,11 @@ internal sealed class ComparisonExporter(StatisticalTestColumn timeVerdict) : Ex
     protected override string FileExtension => "md";
     protected override string FileNameSuffix => "-comparison";
 
-    public override void ExportToLog(Summary summary, ILogger logger)
+    public override async ValueTask ExportAsync(
+        Summary summary,
+        CancelableStreamWriter writer,
+        CancellationToken cancellationToken
+    )
     {
         Comparison[] comparisons =
         [
@@ -28,12 +32,15 @@ internal sealed class ComparisonExporter(StatisticalTestColumn timeVerdict) : Ex
                 .OrderBy(comparison => comparison.Benchmark, StringComparer.Ordinal),
         ];
 
-        logger.WriteLine(Summarize(comparisons));
-        logger.WriteLine();
-        logger.WriteLine("| Benchmark | Baseline | Current | Change | Time | Allocated |");
-        logger.WriteLine("| --- | ---: | ---: | ---: | --- | ---: |");
+        await writer.WriteLineAsync(Summarize(comparisons), cancellationToken);
+        await writer.WriteLineAsync(cancellationToken);
+        await writer.WriteLineAsync(
+            "| Benchmark | Baseline | Current | Change | Time | Allocated |",
+            cancellationToken
+        );
+        await writer.WriteLineAsync("| --- | ---: | ---: | ---: | --- | ---: |", cancellationToken);
         foreach (Comparison comparison in comparisons)
-            logger.WriteLine(comparison.ToMarkdownRow());
+            await writer.WriteLineAsync(comparison.ToMarkdownRow(), cancellationToken);
     }
 
     private Comparison Compare(Summary summary, BenchmarkCase current)

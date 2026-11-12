@@ -62,7 +62,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     private static bool IsScriptModulePath(string path) =>
         path.StartsWith("./", StringComparison.Ordinal)
         || path.StartsWith("../", StringComparison.Ordinal)
-        || path.StartsWith('@');
+        || path is ['@', ..];
 
     private static bool IsInvalidScriptModulePath(string path) =>
         path.Contains('/', StringComparison.Ordinal) || path.Contains('\\', StringComparison.Ordinal);

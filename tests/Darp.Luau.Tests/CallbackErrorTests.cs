@@ -152,31 +152,24 @@ public sealed class CallbackErrorTests : IDisposable
         public static void Register(LuauUserdataRegistry<Account> registry)
         {
             registry.AddGetter("balance", static (self, _) => LuauReturnSingle.Ok(self._balance));
-            registry.AddSetter(
-                "balance",
-                static (self, value) =>
-                {
-                    int balance = value.Get<int>();
-                    self._balance =
-                        balance >= 0 ? balance : throw new ArgumentException("the balance must not be negative");
-                }
-            );
+            registry.AddSetter("balance", static (self, value) =>
+            {
+                int balance = value.Get<int>();
+                self._balance =
+                    balance >= 0 ? balance : throw new ArgumentException("the balance must not be negative");
+            });
             registry.AddGetter("locked", static (_, _) => throw new InvalidOperationException("the account is locked"));
             registry.AddGetter("note", static (_, _) => default);
-            registry.AddMethod(
-                "withdraw",
-                static (self, args) =>
-                {
-                    int amount = args[1].Get<int>();
-                    if (amount > self._balance)
-                        throw new InvalidOperationException("not enough money");
-                    self._balance -= amount;
-                    return LuauReturn.Ok(self._balance);
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Add,
-                static _ => throw new NotSupportedException("an account cannot be added to")
+            registry.AddMethod("withdraw", static (self, args) =>
+            {
+                int amount = args[1].Get<int>();
+                if (amount > self._balance)
+                    throw new InvalidOperationException("not enough money");
+                self._balance -= amount;
+                return LuauReturn.Ok(self._balance);
+            });
+            registry.AddMetamethod(LuauMetamethod.Add, static _ =>
+                throw new NotSupportedException("an account cannot be added to")
             );
         }
 

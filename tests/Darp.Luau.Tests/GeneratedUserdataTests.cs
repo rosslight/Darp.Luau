@@ -195,14 +195,11 @@ public sealed class GeneratedUserdataTests
     public void TypeTable_ShouldBeMountableInAModule()
     {
         using var state = new LuauState();
-        state.RegisterModule(
-            "geometry",
-            static (LuauState lua, in LuauTable module) =>
-            {
-                using LuauTable point = lua.GetTypeTable<Point>();
-                module.Set("Point", point);
-            }
-        );
+        state.RegisterModule("geometry", static (LuauState lua, in LuauTable module) =>
+        {
+            using LuauTable point = lua.GetTypeTable<Point>();
+            module.Set("Point", point);
+        });
 
         double y = state.Load("return require('geometry').Point.new(1, 2).y").Execute<double>();
 

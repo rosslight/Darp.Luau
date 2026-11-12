@@ -255,29 +255,20 @@ public sealed class StateTests : IDisposable
 
         public static void Register(LuauUserdataRegistry<DisposingUserdata> registry)
         {
-            registry.AddGetter(
-                "value",
-                static (self, _) =>
-                {
-                    self._state.Dispose();
-                    return LuauReturnSingle.Ok(1);
-                }
-            );
-            registry.AddSetter(
-                "value",
-                static (self, _) =>
-                {
-                    self._state.Dispose();
-                }
-            );
-            registry.AddMethod(
-                "run",
-                static (self, _) =>
-                {
-                    self._state.Dispose();
-                    return LuauReturn.Ok();
-                }
-            );
+            registry.AddGetter("value", static (self, _) =>
+            {
+                self._state.Dispose();
+                return LuauReturnSingle.Ok(1);
+            });
+            registry.AddSetter("value", static (self, _) =>
+            {
+                self._state.Dispose();
+            });
+            registry.AddMethod("run", static (self, _) =>
+            {
+                self._state.Dispose();
+                return LuauReturn.Ok();
+            });
         }
     }
 

@@ -23,7 +23,7 @@ internal static class LuauNumber
     /// <list type="bullet">
     /// <item> An integer type holds whole numbers in its range. <c>1.5</c>, <c>-1</c> for an unsigned type, NaN and infinity fail. </item>
     /// <item> A floating-point type takes the nearest value it has, which may be infinity. </item>
-    /// <item> <see cref="decimal"/> takes every finite number in its range, rounded to its precision. </item>
+    /// <item> <see cref="decimal"/> takes every finite number in its range, converted like a cast: exactly since .NET 11, rounded to 15 significant digits before. </item>
     /// </list>
     /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

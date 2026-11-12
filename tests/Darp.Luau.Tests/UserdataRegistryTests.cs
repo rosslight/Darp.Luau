@@ -406,101 +406,70 @@ public sealed class UserdataRegistryTests
             registry.TypeName = "Vec";
             registry.AddGetter("x", static (self, _) => LuauReturnSingle.Ok(self.X));
             registry.AddGetter("y", static (self, _) => LuauReturnSingle.Ok(self.Y));
-            registry.AddMethod(
-                "dot",
-                static (self, args) =>
-                {
-                    Vec other = args[1].Get<Vec>();
-                    return LuauReturn.Ok(self.X * other.X + self.Y * other.Y);
-                }
-            );
+            registry.AddMethod("dot", static (self, args) =>
+            {
+                Vec other = args[1].Get<Vec>();
+                return LuauReturn.Ok(self.X * other.X + self.Y * other.Y);
+            });
 
-            registry.AddMetamethod(
-                LuauMetamethod.Add,
-                static args =>
-                {
-                    (Vec a, Vec b) = ReadBoth(args);
-                    return LuauReturn.Ok(new Vec(a.X + b.X, a.Y + b.Y));
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Mul,
-                static args =>
-                {
-                    // The vector can be either operand.
-                    if (args[1].TryGet(out Vec? left) && args[2].TryGet(out double factor))
-                        return LuauReturn.Ok(new Vec(left.X * factor, left.Y * factor));
-                    if (args[1].TryGet(out factor) && args[2].TryGet(out Vec? right))
-                        return LuauReturn.Ok(new Vec(right.X * factor, right.Y * factor));
-                    throw new InvalidOperationException("a vector can only be multiplied with a number");
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Unm,
-                static args =>
-                {
-                    Vec self = args[1].Get<Vec>();
-                    return LuauReturn.Ok(new Vec(-self.X, -self.Y));
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Eq,
-                static args =>
-                {
-                    EqualityChecks++;
-                    (Vec a, Vec b) = ReadBoth(args);
-                    return LuauReturn.Ok(a.X == b.X && a.Y == b.Y);
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Lt,
-                static args =>
-                {
-                    (Vec a, Vec b) = ReadBoth(args);
-                    return LuauReturn.Ok(a.X + a.Y < b.X + b.Y);
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Le,
-                static args =>
-                {
-                    (Vec a, Vec b) = ReadBoth(args);
-                    return LuauReturn.Ok(a.X + a.Y <= b.X + b.Y);
-                }
-            );
+            registry.AddMetamethod(LuauMetamethod.Add, static args =>
+            {
+                (Vec a, Vec b) = ReadBoth(args);
+                return LuauReturn.Ok(new Vec(a.X + b.X, a.Y + b.Y));
+            });
+            registry.AddMetamethod(LuauMetamethod.Mul, static args =>
+            {
+                // The vector can be either operand.
+                if (args[1].TryGet(out Vec? left) && args[2].TryGet(out double factor))
+                    return LuauReturn.Ok(new Vec(left.X * factor, left.Y * factor));
+                if (args[1].TryGet(out factor) && args[2].TryGet(out Vec? right))
+                    return LuauReturn.Ok(new Vec(right.X * factor, right.Y * factor));
+                throw new InvalidOperationException("a vector can only be multiplied with a number");
+            });
+            registry.AddMetamethod(LuauMetamethod.Unm, static args =>
+            {
+                Vec self = args[1].Get<Vec>();
+                return LuauReturn.Ok(new Vec(-self.X, -self.Y));
+            });
+            registry.AddMetamethod(LuauMetamethod.Eq, static args =>
+            {
+                EqualityChecks++;
+                (Vec a, Vec b) = ReadBoth(args);
+                return LuauReturn.Ok(a.X == b.X && a.Y == b.Y);
+            });
+            registry.AddMetamethod(LuauMetamethod.Lt, static args =>
+            {
+                (Vec a, Vec b) = ReadBoth(args);
+                return LuauReturn.Ok(a.X + a.Y < b.X + b.Y);
+            });
+            registry.AddMetamethod(LuauMetamethod.Le, static args =>
+            {
+                (Vec a, Vec b) = ReadBoth(args);
+                return LuauReturn.Ok(a.X + a.Y <= b.X + b.Y);
+            });
             registry.AddMetamethod(LuauMetamethod.Len, static _ => LuauReturn.Ok(2));
-            registry.AddMetamethod(
-                LuauMetamethod.Concat,
-                static args =>
-                {
-                    Vec self = args[1].Get<Vec>();
-                    string suffix = args[2].Get<string>();
-                    return LuauReturn.Ok(self.ToString() + suffix);
-                }
+            registry.AddMetamethod(LuauMetamethod.Concat, static args =>
+            {
+                Vec self = args[1].Get<Vec>();
+                string suffix = args[2].Get<string>();
+                return LuauReturn.Ok(self.ToString() + suffix);
+            });
+            registry.AddMetamethod(LuauMetamethod.ToString, static args =>
+                LuauReturn.Ok(args[1].Get<Vec>().ToString())
             );
-            registry.AddMetamethod(
-                LuauMetamethod.ToString,
-                static args => LuauReturn.Ok(args[1].Get<Vec>().ToString())
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.Call,
-                static args =>
-                {
-                    Vec self = args[1].Get<Vec>();
-                    double factor = args[2].Get<double>();
-                    return LuauReturn.Ok((self.X + self.Y) * factor);
-                }
-            );
+            registry.AddMetamethod(LuauMetamethod.Call, static args =>
+            {
+                Vec self = args[1].Get<Vec>();
+                double factor = args[2].Get<double>();
+                return LuauReturn.Ok((self.X + self.Y) * factor);
+            });
 
-            registry.AddFunction(
-                "new",
-                static args =>
-                {
-                    double x = args[1].Get<double>();
-                    double y = args[2].Get<double>();
-                    return LuauReturn.Ok(new Vec(x, y));
-                }
-            );
+            registry.AddFunction("new", static args =>
+            {
+                double x = args[1].Get<double>();
+                double y = args[2].Get<double>();
+                return LuauReturn.Ok(new Vec(x, y));
+            });
             // A value of the static side can be a value of the type itself.
             registry.AddValue("zero", static _ => LuauReturnSingle.Ok(s_zero));
         }
@@ -536,25 +505,19 @@ public sealed class UserdataRegistryTests
             registry.AddGetter("readOnly", static (_, _) => LuauReturnSingle.Ok(1));
             registry.AddSetter("writeOnly", static (_, _) => { });
             registry.AddMethod("method", static (_, _) => LuauReturn.Ok());
-            registry.AddMetamethod(
-                LuauMetamethod.Index,
-                static args =>
-                {
-                    Fallbacks self = args[1].Get<Fallbacks>();
-                    string key = ReadKey(args, 2);
-                    self.Reads.Add(key);
-                    return LuauReturn.Ok($"read {key}");
-                }
-            );
-            registry.AddMetamethod(
-                LuauMetamethod.NewIndex,
-                static args =>
-                {
-                    Fallbacks self = args[1].Get<Fallbacks>();
-                    self.Writes.Add($"{ReadKey(args, 2)}={ReadKey(args, 3)}");
-                    return LuauReturn.Ok();
-                }
-            );
+            registry.AddMetamethod(LuauMetamethod.Index, static args =>
+            {
+                Fallbacks self = args[1].Get<Fallbacks>();
+                string key = ReadKey(args, 2);
+                self.Reads.Add(key);
+                return LuauReturn.Ok($"read {key}");
+            });
+            registry.AddMetamethod(LuauMetamethod.NewIndex, static args =>
+            {
+                Fallbacks self = args[1].Get<Fallbacks>();
+                self.Writes.Add($"{ReadKey(args, 2)}={ReadKey(args, 3)}");
+                return LuauReturn.Ok();
+            });
         }
 
         private static string ReadKey(LuauArgs args, int index) =>
@@ -606,22 +569,16 @@ public sealed class UserdataRegistryTests
         public static void Register(LuauUserdataRegistry<Node> registry)
         {
             registry.AddGetter("next", static (self, _) => LuauReturnSingle.Ok(self._next?.Name));
-            registry.AddSetter(
-                "next",
-                static (self, value) =>
-                {
-                    self._next = value.GetOrNull<Node>();
-                }
-            );
+            registry.AddSetter("next", static (self, value) =>
+            {
+                self._next = value.GetOrNull<Node>();
+            });
             registry.AddGetter("owner", static (self, _) => LuauReturnSingle.Ok(self._owner?.Name));
-            registry.AddSetter(
-                "owner",
-                static (self, value) =>
-                {
-                    Node owner = value.Get<Node>();
-                    self._owner = owner;
-                }
-            );
+            registry.AddSetter("owner", static (self, value) =>
+            {
+                Node owner = value.Get<Node>();
+                self._owner = owner;
+            });
         }
 
         public static implicit operator IntoLuau(Node value) => IntoLuau.FromUserdata(value);
@@ -630,19 +587,16 @@ public sealed class UserdataRegistryTests
     private sealed class DynamicMethods : ILuauUserdata<DynamicMethods>
     {
         public static void Register(LuauUserdataRegistry<DynamicMethods> registry) =>
-            registry.AddMetamethod(
-                LuauMetamethod.Index,
-                static args =>
-                {
-                    string name = args[2].Get<string>();
+            registry.AddMetamethod(LuauMetamethod.Index, static args =>
+            {
+                string name = args[2].Get<string>();
 
-                    // The function is a method like any other: it gets the instance as its first argument.
-                    LuauFunction method = args.State.CreateFunctionManual(call =>
-                        LuauReturn.Ok($"{name} {call[2].Get<string>()}")
-                    );
-                    return LuauReturn.Ok(method.DisposeAndToLuauValue());
-                }
-            );
+                // The function is a method like any other: it gets the instance as its first argument.
+                LuauFunction method = args.State.CreateFunctionManual(call =>
+                    LuauReturn.Ok($"{name} {call[2].Get<string>()}")
+                );
+                return LuauReturn.Ok(method.DisposeAndToLuauValue());
+            });
 
         public static implicit operator IntoLuau(DynamicMethods value) => IntoLuau.FromUserdata(value);
     }
@@ -650,14 +604,11 @@ public sealed class UserdataRegistryTests
     private sealed class DisposingStaticSide : ILuauUserdata<DisposingStaticSide>
     {
         public static void Register(LuauUserdataRegistry<DisposingStaticSide> registry) =>
-            registry.AddValue(
-                "value",
-                static state =>
-                {
-                    state.Dispose();
-                    return LuauReturnSingle.Ok(1);
-                }
-            );
+            registry.AddValue("value", static state =>
+            {
+                state.Dispose();
+                return LuauReturnSingle.Ok(1);
+            });
     }
 
     private sealed class FailingOnceStaticSide : ILuauUserdata<FailingOnceStaticSide>
@@ -665,29 +616,23 @@ public sealed class UserdataRegistryTests
         private static int s_attempts;
 
         public static void Register(LuauUserdataRegistry<FailingOnceStaticSide> registry) =>
-            registry.AddValue(
-                "value",
-                static _ =>
-                {
-                    int attempt = Interlocked.Increment(ref s_attempts);
-                    return attempt == 1
-                        ? throw new InvalidOperationException("not ready yet")
-                        : LuauReturnSingle.Ok(attempt);
-                }
-            );
+            registry.AddValue("value", static _ =>
+            {
+                int attempt = Interlocked.Increment(ref s_attempts);
+                return attempt == 1
+                    ? throw new InvalidOperationException("not ready yet")
+                    : LuauReturnSingle.Ok(attempt);
+            });
     }
 
     private sealed class SelfReferencingStaticSide : ILuauUserdata<SelfReferencingStaticSide>
     {
         public static void Register(LuauUserdataRegistry<SelfReferencingStaticSide> registry) =>
-            registry.AddValue(
-                "self",
-                static state =>
-                {
-                    using LuauTable table = state.GetTypeTable<SelfReferencingStaticSide>();
-                    return LuauReturnSingle.Ok(table);
-                }
-            );
+            registry.AddValue("self", static state =>
+            {
+                using LuauTable table = state.GetTypeTable<SelfReferencingStaticSide>();
+                return LuauReturnSingle.Ok(table);
+            });
     }
 
     private sealed class DuplicateStaticName : ILuauUserdata<DuplicateStaticName>

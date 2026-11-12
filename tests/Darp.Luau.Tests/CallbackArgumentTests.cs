@@ -63,22 +63,20 @@ public sealed class CallbackArgumentTests : IDisposable
     [Fact]
     public void OmittedArgument_ShouldReadAsNil()
     {
-        Call<string>(
-                "return f()",
-                static args =>
-                    LuauReturn.Ok(
-                        string.Join(
-                            ' ',
-                            args.Count,
-                            args[1].Type,
-                            args[1].TypeName,
-                            args[1].Get<int?>() is null,
-                            args[1].GetOrNull<string>() is null,
-                            args[1].TryGetOrNull(out string? text) && text is null,
-                            args[1].TryGet(out int _),
-                            args[1].Get<LuauValue>().Type
-                        )
+        Call<string>("return f()", static args =>
+                LuauReturn.Ok(
+                    string.Join(
+                        ' ',
+                        args.Count,
+                        args[1].Type,
+                        args[1].TypeName,
+                        args[1].Get<int?>() is null,
+                        args[1].GetOrNull<string>() is null,
+                        args[1].TryGetOrNull(out string? text) && text is null,
+                        args[1].TryGet(out int _),
+                        args[1].Get<LuauValue>().Type
                     )
+                )
             )
             .ShouldBe("0 Nil nil True True True False Nil");
     }
@@ -87,14 +85,11 @@ public sealed class CallbackArgumentTests : IDisposable
     public void OmittedArgument_ShouldStayNilWhenAValueIsPushedWhereItWouldBe()
     {
         // The table is the only argument. Setting a key pushes it into the slot a second argument would have.
-        Call<string>(
-                "local t = {} f(t) return tostring(t.k)",
-                static args =>
-                {
-                    args[1].Get<LuauTableView>().Set("k", args[2]);
-                    return LuauReturn.Ok();
-                }
-            )
+        Call<string>("local t = {} f(t) return tostring(t.k)", static args =>
+            {
+                args[1].Get<LuauTableView>().Set("k", args[2]);
+                return LuauReturn.Ok();
+            })
             .ShouldBe("nil");
     }
 
@@ -166,15 +161,12 @@ public sealed class CallbackArgumentTests : IDisposable
         var userdata = new ValueUserdata { Value = 7 };
         _state.Globals.Set("input", userdata);
 
-        Call<bool>(
-                "return f(input)",
-                args =>
-                {
-                    LuauUserdataView view = args[1].Get<LuauUserdataView>();
-                    view.TryGet(out OtherValueUserdata? _).ShouldBeFalse();
-                    return LuauReturn.Ok(ReferenceEquals(view.Get<ValueUserdata>(), userdata));
-                }
-            )
+        Call<bool>("return f(input)", args =>
+            {
+                LuauUserdataView view = args[1].Get<LuauUserdataView>();
+                view.TryGet(out OtherValueUserdata? _).ShouldBeFalse();
+                return LuauReturn.Ok(ReferenceEquals(view.Get<ValueUserdata>(), userdata));
+            })
             .ShouldBeTrue();
     }
 
@@ -210,14 +202,11 @@ public sealed class CallbackArgumentTests : IDisposable
     public void Get_ShouldReadAnOwnedReferenceThatOutlivesTheCallback()
     {
         LuauTable stored = default;
-        Call<int>(
-            "f({ answer = 42 }) return 0",
-            args =>
-            {
-                stored = args[1].Get<LuauTable>();
-                return LuauReturn.Ok();
-            }
-        );
+        Call<int>("f({ answer = 42 }) return 0", args =>
+        {
+            stored = args[1].Get<LuauTable>();
+            return LuauReturn.Ok();
+        });
 
         using (stored)
             stored.Get<double>("answer").ShouldBe(42);
@@ -226,9 +215,8 @@ public sealed class CallbackArgumentTests : IDisposable
     [Fact]
     public void Argument_ShouldBePassedOnWithoutReadingIt()
     {
-        Call<string>(
-                "local t = {} return tostring(f(t) == t) .. ' ' .. tostring(f())",
-                static args => LuauReturn.Ok(args[1])
+        Call<string>("local t = {} return tostring(f(t) == t) .. ' ' .. tostring(f())", static args =>
+                LuauReturn.Ok(args[1])
             )
             .ShouldBe("true nil");
     }
@@ -249,10 +237,8 @@ public sealed class CallbackArgumentTests : IDisposable
     [Fact]
     public void TryGet_ShouldReadABorrowedView()
     {
-        Call<string>(
-                "return f({ 1, 2 }) .. ' ' .. f(1)",
-                static args =>
-                    LuauReturn.Ok(args[1].TryGet(out LuauTableView table) ? $"table of {table.ListCount}" : "no table")
+        Call<string>("return f({ 1, 2 }) .. ' ' .. f(1)", static args =>
+                LuauReturn.Ok(args[1].TryGet(out LuauTableView table) ? $"table of {table.ListCount}" : "no table")
             )
             .ShouldBe("table of 2 no table");
     }
@@ -260,14 +246,11 @@ public sealed class CallbackArgumentTests : IDisposable
     [Fact]
     public void Argument_ShouldReadTheSameAfterTheCallbackCalledBackIntoLuau()
     {
-        Call<string>(
-                "return f('first', function(...) return select('#', ...) end, 'third')",
-                static args =>
-                {
-                    int passed = args[2].Get<LuauFunctionView>().Invoke<int>(1, 2, 3, 4);
-                    return LuauReturn.Ok($"{args[1].Get<string>()} {passed} {args[3].Get<string>()} {args[4].Type}");
-                }
-            )
+        Call<string>("return f('first', function(...) return select('#', ...) end, 'third')", static args =>
+            {
+                int passed = args[2].Get<LuauFunctionView>().Invoke<int>(1, 2, 3, 4);
+                return LuauReturn.Ok($"{args[1].Get<string>()} {passed} {args[3].Get<string>()} {args[4].Type}");
+            })
             .ShouldBe("first 4 third Nil");
     }
 
@@ -302,14 +285,11 @@ public sealed class CallbackArgumentTests : IDisposable
     public void FailedRead_InsideACallback_ShouldBeTheErrorOfTheScript()
     {
         // Not only arguments: every read that fails is reported as it is, without the name of the exception.
-        ErrorOf(
-                "f('text')",
-                static args =>
-                {
-                    using LuauValue value = args[1].Get<LuauValue>();
-                    return LuauReturn.Ok(value.Get<int>());
-                }
-            )
+        ErrorOf("f('text')", static args =>
+            {
+                using LuauValue value = args[1].Get<LuauValue>();
+                return LuauReturn.Ok(value.Get<int>());
+            })
             .ShouldBe("value: number expected, got string");
     }
 
@@ -461,13 +441,10 @@ public sealed class CallbackArgumentTests : IDisposable
         private int _value;
 
         public static void Register(LuauUserdataRegistry<SetterUserdata> registry) =>
-            registry.AddSetter(
-                "value",
-                static (self, value) =>
-                {
-                    self._value = value.Get<int>();
-                }
-            );
+            registry.AddSetter("value", static (self, value) =>
+            {
+                self._value = value.Get<int>();
+            });
 
         public static implicit operator IntoLuau(SetterUserdata value) => IntoLuau.FromUserdata(value);
     }
