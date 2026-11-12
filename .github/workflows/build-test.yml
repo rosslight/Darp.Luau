@@ -41,7 +41,7 @@ jobs:
       - name: Test with Native AOT
         run: |
           for framework in net10.0 net11.0; do
-            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r linux-x64 -o ./artifacts/native-aot-tests/$framework /warnaserror
+            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r linux-x64 -o ./artifacts/native-aot-tests/$framework -warnaserror
             ./artifacts/native-aot-tests/$framework/Darp.Luau.Tests
           done
 
@@ -105,6 +105,6 @@ jobs:
         shell: bash
         run: |
           for framework in net10.0 net11.0; do
-            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests/$framework /warnaserror
+            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests/$framework -warnaserror
             ./artifacts/native-aot-tests/$framework/Darp.Luau.Tests${{ runner.os == 'Windows' && '.exe' || '' }}
           done
