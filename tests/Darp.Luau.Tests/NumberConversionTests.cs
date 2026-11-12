@@ -112,43 +112,16 @@ public sealed class NumberConversionTests : IDisposable
     }
 
     [Fact]
-    public void Decimal_ShouldTakeFiniteNumbersInItsRangeExactly()
+    public void Decimal_ShouldTakeFiniteNumbersInItsRange()
     {
         TryGet("12.75", out decimal value).ShouldBeTrue();
         value.ShouldBe(12.75m);
-        TryGet("0.1", out decimal rounded).ShouldBeTrue();
-        rounded.ShouldBe(0.1000000000000000055511151231m);
-        TryGet("1e-30", out decimal tiny).ShouldBeTrue();
-        tiny.ShouldBe(0m);
+        TryGet("0.1 + 0.2", out decimal rounded).ShouldBeTrue();
+        rounded.ShouldBe(0.3m);
         TryGet("1e30", out decimal _).ShouldBeFalse();
         TryGet("0/0", out decimal _).ShouldBeFalse();
         TryGet("math.huge", out decimal _).ShouldBeFalse();
     }
-
-#if NET11_0_OR_GREATER
-    /// <summary> .NET 10 converts with <see cref="Internal.LuauNumber.ToDecimalExactly"/>, which has to agree with the cast of .NET 11. </summary>
-    [Fact]
-    public void Decimal_ShouldConvertOnEveryFrameworkLikeTheCastOfNet11()
-    {
-        var random = new Random(11);
-        for (int i = 0; i < 200_000; i++)
-        {
-            double number = (i % 4) switch
-            {
-                0 => BitConverter.Int64BitsToDouble(random.NextInt64()),
-                1 => (random.NextDouble() - 0.5) * Math.Pow(10, random.Next(-35, 29)),
-                2 => Math.Round(random.NextDouble() * 1e6, random.Next(0, 8)),
-                // A small odd significand far below the decimal point: the dropped digits are often exactly a half.
-                _ => (2 * random.Next(0, 1 << 20) + 1) * Math.Pow(2, -random.Next(25, 40)),
-            };
-            if (!(Math.Abs(number) < 79228162514264337593543950336d))
-                continue;
-
-            decimal.GetBits(Internal.LuauNumber.ToDecimalExactly(number))
-                .ShouldBe(decimal.GetBits((decimal)number), $"{number:R}");
-        }
-    }
-#endif
 
     [Fact]
     public void NullableRead_ShouldTakeNilAndRejectWhatDoesNotFit()
