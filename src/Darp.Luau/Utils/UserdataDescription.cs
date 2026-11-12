@@ -21,11 +21,14 @@ internal sealed class UserdataGetter<T>(LuauGetter<T> getter) : UserdataMember
     // stack: [self, key]
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
-            return LuauStateMarshal.ReturnError(L, error);
+        unsafe
+        {
+            if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
+                return LuauStateMarshal.ReturnError(L, error);
 
-        _getter(self, state).Push(state, L);
-        return LuauStateMarshal.ReturnSuccess(L, 1);
+            _getter(self, state).Push(state, L);
+            return LuauStateMarshal.ReturnSuccess(L, 1);
+        }
     }
 }
 
@@ -37,11 +40,14 @@ internal sealed class UserdataSetter<T>(LuauSetter<T> setter) : UserdataMember
     // stack: [self, key, value]
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
-            return LuauStateMarshal.ReturnError(L, error);
+        unsafe
+        {
+            if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out string? error, valueLabel: "self"))
+                return LuauStateMarshal.ReturnError(L, error);
 
-        _setter(self, new LuauValueView(state, L, stackIndex: 3, position: 0));
-        return LuauStateMarshal.ReturnSuccess(L, 0);
+            _setter(self, new LuauValueView(state, L, stackIndex: 3, position: 0));
+            return LuauStateMarshal.ReturnSuccess(L, 0);
+        }
     }
 }
 
@@ -54,20 +60,23 @@ internal sealed class UserdataMethod<T>(string name, LuauMethod<T> method) : Use
     // stack: [self, arguments...]
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        // A method is a value, so a script can call it with anything: value.name(1) instead of value:name(1).
-        if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out _, valueLabel: "self"))
+        unsafe
         {
-            return LuauStateMarshal.ReturnError(
-                L,
-                $"userdata method '{_name}' must be called on its instance, as in value:{_name}(...)"
-            );
-        }
+            // A method is a value, so a script can call it with anything: value.name(1) instead of value:name(1).
+            if (!ManagedUserdataResolver.TryResolve(state, L, 1, out T? self, out _, valueLabel: "self"))
+            {
+                return LuauStateMarshal.ReturnError(
+                    L,
+                    $"userdata method '{_name}' must be called on its instance, as in value:{_name}(...)"
+                );
+            }
 
-        int top = lua_gettop(L);
-        var args = new LuauArgs(state, L, argumentCount: top - 1, firstParameterStackIndex: 2);
-        LuauReturn result = _method(self, args);
-        lua_settop(L, top);
-        return LuauStateMarshal.ReturnCallbackResult(state, L, result);
+            int top = lua_gettop(L);
+            var args = new LuauArgs(state, L, argumentCount: top - 1, firstParameterStackIndex: 2);
+            LuauReturn result = _method(self, args);
+            lua_settop(L, top);
+            return LuauStateMarshal.ReturnCallbackResult(state, L, result);
+        }
     }
 }
 
@@ -78,11 +87,14 @@ internal sealed class UserdataCallback(LuauCallback callback) : UserdataMember
 
     public override unsafe int Invoke(LuauState state, lua_State* L)
     {
-        int top = lua_gettop(L);
-        var args = new LuauArgs(state, L, argumentCount: top, firstParameterStackIndex: 1);
-        LuauReturn result = _callback(args);
-        Debug.Assert(lua_gettop(L) == top);
-        return LuauStateMarshal.ReturnCallbackResult(state, L, result);
+        unsafe
+        {
+            int top = lua_gettop(L);
+            var args = new LuauArgs(state, L, argumentCount: top, firstParameterStackIndex: 1);
+            LuauReturn result = _callback(args);
+            Debug.Assert(lua_gettop(L) == top);
+            return LuauStateMarshal.ReturnCallbackResult(state, L, result);
+        }
     }
 }
 

@@ -32,13 +32,16 @@ public readonly ref struct LuauReturnSingle
     /// <param name="luaState">The stack the value is pushed onto.</param>
     internal unsafe void Push(LuauState state, lua_State* luaState)
     {
-        try
+        unsafe
         {
-            _value.Push(state, luaState);
-        }
-        finally
-        {
-            _value.Release();
+            try
+            {
+                _value.Push(state, luaState);
+            }
+            finally
+            {
+                _value.Release();
+            }
         }
     }
 }

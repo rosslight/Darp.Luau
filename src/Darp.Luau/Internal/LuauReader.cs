@@ -15,7 +15,7 @@ namespace Darp.Luau.Internal;
 /// On no stack are a number, a boolean and nil, and a tracked reference of which only the type and the handle are
 /// needed.
 /// </remarks>
-internal readonly unsafe ref struct ReadSource
+internal readonly ref struct ReadSource
 {
     private readonly double _number;
 
@@ -66,9 +66,9 @@ internal readonly unsafe ref struct ReadSource
     /// <summary> The same value, read to find out whether it has a type. See <see cref="IsProbe"/>. </summary>
     public ReadSource AsProbe() => this with { IsProbe = true };
 
-    public double Number => L is null ? _number : lua_tonumber(L, Index);
+    public double Number => unsafe(L is null ? _number : lua_tonumber(L, Index));
 
-    public bool Boolean => L is null ? _number != 0 : lua_toboolean(L, Index) != 0;
+    public bool Boolean => unsafe(L is null ? _number != 0 : lua_toboolean(L, Index) != 0);
 
     public static ReadSource Nil => new(null, null, 0, lua_Type.LUA_TNIL, 0, 0);
 
@@ -76,7 +76,7 @@ internal readonly unsafe ref struct ReadSource
     public static ReadSource Missing => new(null, null, 0, lua_Type.LUA_TNIL, 0, 0, isMissing: true);
 
     public static ReadSource FromStack(LuauState state, lua_State* L, int index) =>
-        new(state, L, index, (lua_Type)lua_type(L, index), 0, 0);
+        unsafe(new(state, L, index, (lua_Type)lua_type(L, index), 0, 0));
 
     /// <param name="state">The state the value belongs to.</param>
     /// <param name="L">The stack the value is on.</param>
@@ -200,7 +200,7 @@ internal readonly struct ReadFailure
 /// outcome.
 /// </para>
 /// </remarks>
-internal static unsafe class LuauReader
+internal static class LuauReader
 {
     /// <summary> Reads <paramref name="source"/> as <typeparamref name="T"/>. </summary>
     /// <remarks>
@@ -217,171 +217,174 @@ internal static unsafe class LuauReader
     )
         where T : allows ref struct
     {
-        // The comparisons of a value type T are decided when the method is compiled for it: one branch remains.
-        if (typeof(T).IsValueType)
+        unsafe
         {
-            if (typeof(T) == typeof(double) || typeof(T) == typeof(double?))
-                return Number<double, T>(source, out value, out failure);
-            if (typeof(T) == typeof(int) || typeof(T) == typeof(int?))
-                return Number<int, T>(source, out value, out failure);
-            if (typeof(T) == typeof(float) || typeof(T) == typeof(float?))
-                return Number<float, T>(source, out value, out failure);
-            if (typeof(T) == typeof(long) || typeof(T) == typeof(long?))
-                return Number<long, T>(source, out value, out failure);
-            if (typeof(T) == typeof(uint) || typeof(T) == typeof(uint?))
-                return Number<uint, T>(source, out value, out failure);
-            if (typeof(T) == typeof(ulong) || typeof(T) == typeof(ulong?))
-                return Number<ulong, T>(source, out value, out failure);
-            if (typeof(T) == typeof(short) || typeof(T) == typeof(short?))
-                return Number<short, T>(source, out value, out failure);
-            if (typeof(T) == typeof(ushort) || typeof(T) == typeof(ushort?))
-                return Number<ushort, T>(source, out value, out failure);
-            if (typeof(T) == typeof(byte) || typeof(T) == typeof(byte?))
-                return Number<byte, T>(source, out value, out failure);
-            if (typeof(T) == typeof(sbyte) || typeof(T) == typeof(sbyte?))
-                return Number<sbyte, T>(source, out value, out failure);
-            if (typeof(T) == typeof(nint) || typeof(T) == typeof(nint?))
-                return Number<nint, T>(source, out value, out failure);
-            if (typeof(T) == typeof(nuint) || typeof(T) == typeof(nuint?))
-                return Number<nuint, T>(source, out value, out failure);
-            if (typeof(T) == typeof(decimal) || typeof(T) == typeof(decimal?))
-                return Number<decimal, T>(source, out value, out failure);
-            if (typeof(T) == typeof(Half) || typeof(T) == typeof(Half?))
-                return Number<Half, T>(source, out value, out failure);
-            if (typeof(T) == typeof(Int128) || typeof(T) == typeof(Int128?))
-                return Number<Int128, T>(source, out value, out failure);
-            if (typeof(T) == typeof(UInt128) || typeof(T) == typeof(UInt128?))
-                return Number<UInt128, T>(source, out value, out failure);
-            if (typeof(T) == typeof(NFloat) || typeof(T) == typeof(NFloat?))
-                return Number<NFloat, T>(source, out value, out failure);
-            if (typeof(T) == typeof(BigInteger) || typeof(T) == typeof(BigInteger?))
-                return Number<BigInteger, T>(source, out value, out failure);
+            // The comparisons of a value type T are decided when the method is compiled for it: one branch remains.
+            if (typeof(T).IsValueType)
+            {
+                if (typeof(T) == typeof(double) || typeof(T) == typeof(double?))
+                    return Number<double, T>(source, out value, out failure);
+                if (typeof(T) == typeof(int) || typeof(T) == typeof(int?))
+                    return Number<int, T>(source, out value, out failure);
+                if (typeof(T) == typeof(float) || typeof(T) == typeof(float?))
+                    return Number<float, T>(source, out value, out failure);
+                if (typeof(T) == typeof(long) || typeof(T) == typeof(long?))
+                    return Number<long, T>(source, out value, out failure);
+                if (typeof(T) == typeof(uint) || typeof(T) == typeof(uint?))
+                    return Number<uint, T>(source, out value, out failure);
+                if (typeof(T) == typeof(ulong) || typeof(T) == typeof(ulong?))
+                    return Number<ulong, T>(source, out value, out failure);
+                if (typeof(T) == typeof(short) || typeof(T) == typeof(short?))
+                    return Number<short, T>(source, out value, out failure);
+                if (typeof(T) == typeof(ushort) || typeof(T) == typeof(ushort?))
+                    return Number<ushort, T>(source, out value, out failure);
+                if (typeof(T) == typeof(byte) || typeof(T) == typeof(byte?))
+                    return Number<byte, T>(source, out value, out failure);
+                if (typeof(T) == typeof(sbyte) || typeof(T) == typeof(sbyte?))
+                    return Number<sbyte, T>(source, out value, out failure);
+                if (typeof(T) == typeof(nint) || typeof(T) == typeof(nint?))
+                    return Number<nint, T>(source, out value, out failure);
+                if (typeof(T) == typeof(nuint) || typeof(T) == typeof(nuint?))
+                    return Number<nuint, T>(source, out value, out failure);
+                if (typeof(T) == typeof(decimal) || typeof(T) == typeof(decimal?))
+                    return Number<decimal, T>(source, out value, out failure);
+                if (typeof(T) == typeof(Half) || typeof(T) == typeof(Half?))
+                    return Number<Half, T>(source, out value, out failure);
+                if (typeof(T) == typeof(Int128) || typeof(T) == typeof(Int128?))
+                    return Number<Int128, T>(source, out value, out failure);
+                if (typeof(T) == typeof(UInt128) || typeof(T) == typeof(UInt128?))
+                    return Number<UInt128, T>(source, out value, out failure);
+                if (typeof(T) == typeof(NFloat) || typeof(T) == typeof(NFloat?))
+                    return Number<NFloat, T>(source, out value, out failure);
+                if (typeof(T) == typeof(BigInteger) || typeof(T) == typeof(BigInteger?))
+                    return Number<BigInteger, T>(source, out value, out failure);
 
-            if (typeof(T) == typeof(bool) || typeof(T) == typeof(bool?))
-            {
-                return source.Type is lua_Type.LUA_TBOOLEAN
-                    ? OkValue(source.Boolean, out value, out failure)
-                    : NilOrMismatch<bool, T>(source, "boolean", out value, out failure);
+                if (typeof(T) == typeof(bool) || typeof(T) == typeof(bool?))
+                {
+                    return source.Type is lua_Type.LUA_TBOOLEAN
+                        ? OkValue(source.Boolean, out value, out failure)
+                        : NilOrMismatch<bool, T>(source, "boolean", out value, out failure);
+                }
+
+                if (typeof(T) == typeof(LuauValue))
+                {
+                    return LuauValue.TryRead(source, out LuauValue read, out failure)
+                        ? Ok(read, out value, out failure)
+                        : Fail(out value);
+                }
+
+                if (typeof(T) == typeof(LuauTable) || typeof(T) == typeof(LuauTable?))
+                {
+                    return source.Type is lua_Type.LUA_TTABLE
+                        ? OkValue(new LuauTable(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauTable, T>(source, "table", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauFunction) || typeof(T) == typeof(LuauFunction?))
+                {
+                    return source.Type is lua_Type.LUA_TFUNCTION
+                        ? OkValue(new LuauFunction(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauFunction, T>(source, "function", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauString) || typeof(T) == typeof(LuauString?))
+                {
+                    return source.Type is lua_Type.LUA_TSTRING
+                        ? OkValue(new LuauString(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauString, T>(source, "string", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauBuffer) || typeof(T) == typeof(LuauBuffer?))
+                {
+                    return source.Type is lua_Type.LUA_TBUFFER
+                        ? OkValue(new LuauBuffer(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauBuffer, T>(source, "buffer", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauUserdata) || typeof(T) == typeof(LuauUserdata?))
+                {
+                    return source.Type is lua_Type.LUA_TUSERDATA
+                        ? OkValue(new LuauUserdata(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauUserdata, T>(source, "userdata", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauCoroutine) || typeof(T) == typeof(LuauCoroutine?))
+                {
+                    return source.Type is lua_Type.LUA_TTHREAD
+                        ? OkValue(new LuauCoroutine(source.State, Own(source)), out value, out failure)
+                        : NilOrMismatch<LuauCoroutine, T>(source, "thread", out value, out failure);
+                }
+
+                // A borrowed view or span is of the stack slot itself. Only a caller whose slot outlives the read asks for one.
+                if (typeof(T) == typeof(LuauTableView))
+                {
+                    return source.Type is lua_Type.LUA_TTABLE
+                        ? Ok(new LuauTableView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "table", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauFunctionView))
+                {
+                    return source.Type is lua_Type.LUA_TFUNCTION
+                        ? Ok(new LuauFunctionView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "function", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauStringView))
+                {
+                    return source.Type is lua_Type.LUA_TSTRING
+                        ? Ok(new LuauStringView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "string", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauBufferView))
+                {
+                    return source.Type is lua_Type.LUA_TBUFFER
+                        ? Ok(new LuauBufferView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "buffer", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauUserdataView))
+                {
+                    return source.Type is lua_Type.LUA_TUSERDATA
+                        ? Ok(new LuauUserdataView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "userdata", out value, out failure);
+                }
+                if (typeof(T) == typeof(LuauCoroutineView))
+                {
+                    return source.Type is lua_Type.LUA_TTHREAD
+                        ? Ok(new LuauCoroutineView(State(source), source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "thread", out value, out failure);
+                }
+                if (typeof(T) == typeof(ReadOnlySpan<byte>))
+                {
+                    return source.Type is lua_Type.LUA_TSTRING
+                        ? Ok(StringBytes(source.L, source.Index), out value, out failure)
+                        : Mismatch(source, "string", out value, out failure);
+                }
+
+                // An enum, or a nullable enum, reads the number its underlying type holds.
+                return EnumInfo<T>.UnderlyingTypeCode switch
+                {
+                    TypeCode.Int32 => Number<int, T>(source, out value, out failure),
+                    TypeCode.UInt32 => Number<uint, T>(source, out value, out failure),
+                    TypeCode.Int64 => Number<long, T>(source, out value, out failure),
+                    TypeCode.UInt64 => Number<ulong, T>(source, out value, out failure),
+                    TypeCode.Int16 => Number<short, T>(source, out value, out failure),
+                    TypeCode.UInt16 => Number<ushort, T>(source, out value, out failure),
+                    TypeCode.Byte => Number<byte, T>(source, out value, out failure),
+                    TypeCode.SByte => Number<sbyte, T>(source, out value, out failure),
+                    _ => NotSupported(out value, out failure),
+                };
             }
 
-            if (typeof(T) == typeof(LuauValue))
-            {
-                return LuauValue.TryRead(source, out LuauValue read, out failure)
-                    ? Ok(read, out value, out failure)
-                    : Fail(out value);
-            }
-
-            if (typeof(T) == typeof(LuauTable) || typeof(T) == typeof(LuauTable?))
-            {
-                return source.Type is lua_Type.LUA_TTABLE
-                    ? OkValue(new LuauTable(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauTable, T>(source, "table", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauFunction) || typeof(T) == typeof(LuauFunction?))
-            {
-                return source.Type is lua_Type.LUA_TFUNCTION
-                    ? OkValue(new LuauFunction(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauFunction, T>(source, "function", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauString) || typeof(T) == typeof(LuauString?))
+            if (typeof(T) == typeof(string))
             {
                 return source.Type is lua_Type.LUA_TSTRING
-                    ? OkValue(new LuauString(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauString, T>(source, "string", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauBuffer) || typeof(T) == typeof(LuauBuffer?))
-            {
-                return source.Type is lua_Type.LUA_TBUFFER
-                    ? OkValue(new LuauBuffer(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauBuffer, T>(source, "buffer", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauUserdata) || typeof(T) == typeof(LuauUserdata?))
-            {
-                return source.Type is lua_Type.LUA_TUSERDATA
-                    ? OkValue(new LuauUserdata(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauUserdata, T>(source, "userdata", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauCoroutine) || typeof(T) == typeof(LuauCoroutine?))
-            {
-                return source.Type is lua_Type.LUA_TTHREAD
-                    ? OkValue(new LuauCoroutine(source.State, Own(source)), out value, out failure)
-                    : NilOrMismatch<LuauCoroutine, T>(source, "thread", out value, out failure);
-            }
-
-            // A borrowed view or span is of the stack slot itself. Only a caller whose slot outlives the read asks for one.
-            if (typeof(T) == typeof(LuauTableView))
-            {
-                return source.Type is lua_Type.LUA_TTABLE
-                    ? Ok(new LuauTableView(State(source), source.L, source.Index), out value, out failure)
-                    : Mismatch(source, "table", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauFunctionView))
-            {
-                return source.Type is lua_Type.LUA_TFUNCTION
-                    ? Ok(new LuauFunctionView(State(source), source.L, source.Index), out value, out failure)
-                    : Mismatch(source, "function", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauStringView))
-            {
-                return source.Type is lua_Type.LUA_TSTRING
-                    ? Ok(new LuauStringView(State(source), source.L, source.Index), out value, out failure)
+                    ? Ok(Encoding.UTF8.GetString(StringBytes(source.L, source.Index)), out value, out failure)
                     : Mismatch(source, "string", out value, out failure);
             }
-            if (typeof(T) == typeof(LuauBufferView))
+
+            if (typeof(T) == typeof(byte[]))
             {
                 return source.Type is lua_Type.LUA_TBUFFER
-                    ? Ok(new LuauBufferView(State(source), source.L, source.Index), out value, out failure)
+                    ? Ok(BufferBytes(source.L, source.Index).ToArray(), out value, out failure)
                     : Mismatch(source, "buffer", out value, out failure);
             }
-            if (typeof(T) == typeof(LuauUserdataView))
-            {
-                return source.Type is lua_Type.LUA_TUSERDATA
-                    ? Ok(new LuauUserdataView(State(source), source.L, source.Index), out value, out failure)
-                    : Mismatch(source, "userdata", out value, out failure);
-            }
-            if (typeof(T) == typeof(LuauCoroutineView))
-            {
-                return source.Type is lua_Type.LUA_TTHREAD
-                    ? Ok(new LuauCoroutineView(State(source), source.L, source.Index), out value, out failure)
-                    : Mismatch(source, "thread", out value, out failure);
-            }
-            if (typeof(T) == typeof(ReadOnlySpan<byte>))
-            {
-                return source.Type is lua_Type.LUA_TSTRING
-                    ? Ok(StringBytes(source.L, source.Index), out value, out failure)
-                    : Mismatch(source, "string", out value, out failure);
-            }
 
-            // An enum, or a nullable enum, reads the number its underlying type holds.
-            return EnumInfo<T>.UnderlyingTypeCode switch
-            {
-                TypeCode.Int32 => Number<int, T>(source, out value, out failure),
-                TypeCode.UInt32 => Number<uint, T>(source, out value, out failure),
-                TypeCode.Int64 => Number<long, T>(source, out value, out failure),
-                TypeCode.UInt64 => Number<ulong, T>(source, out value, out failure),
-                TypeCode.Int16 => Number<short, T>(source, out value, out failure),
-                TypeCode.UInt16 => Number<ushort, T>(source, out value, out failure),
-                TypeCode.Byte => Number<byte, T>(source, out value, out failure),
-                TypeCode.SByte => Number<sbyte, T>(source, out value, out failure),
-                _ => NotSupported(out value, out failure),
-            };
+            return ManagedUserdata(source, out value, out failure);
         }
-
-        if (typeof(T) == typeof(string))
-        {
-            return source.Type is lua_Type.LUA_TSTRING
-                ? Ok(Encoding.UTF8.GetString(StringBytes(source.L, source.Index)), out value, out failure)
-                : Mismatch(source, "string", out value, out failure);
-        }
-
-        if (typeof(T) == typeof(byte[]))
-        {
-            return source.Type is lua_Type.LUA_TBUFFER
-                ? Ok(BufferBytes(source.L, source.Index).ToArray(), out value, out failure)
-                : Mismatch(source, "buffer", out value, out failure);
-        }
-
-        return ManagedUserdata(source, out value, out failure);
     }
 
     /// <summary> Disposes <paramref name="value"/> when it is a reference that a read created. </summary>
@@ -398,22 +401,28 @@ internal static unsafe class LuauReader
     /// <summary> The UTF-8 bytes of the string at <paramref name="index"/>, which Luau owns. </summary>
     public static ReadOnlySpan<byte> StringBytes(lua_State* L, int index)
     {
-        nuint length = 0;
-        byte* bytes = lua_tolstring(L, index, &length);
-        return new ReadOnlySpan<byte>(bytes, checked((int)length));
+        unsafe
+        {
+            nuint length = 0;
+            byte* bytes = lua_tolstring(L, index, &length);
+            return new ReadOnlySpan<byte>(bytes, checked((int)length));
+        }
     }
 
     /// <summary> The bytes of the buffer at <paramref name="index"/>, which Luau owns. </summary>
     public static ReadOnlySpan<byte> BufferBytes(lua_State* L, int index)
     {
-        nuint length = 0;
-        void* bytes = lua_tobuffer(L, index, &length);
-        return new ReadOnlySpan<byte>(bytes, checked((int)length));
+        unsafe
+        {
+            nuint length = 0;
+            void* bytes = lua_tobuffer(L, index, &length);
+            return new ReadOnlySpan<byte>(bytes, checked((int)length));
+        }
     }
 
     /// <summary> The name of the type of <paramref name="source"/> as scripts see it: what <c>typeof</c> returns in Luau. </summary>
     public static string TypeName(scoped in ReadSource source) =>
-        source.Type switch
+        unsafe(source.Type switch
         {
             lua_Type.LUA_TNIL => "nil",
             lua_Type.LUA_TBOOLEAN => "boolean",
@@ -430,7 +439,7 @@ internal static unsafe class LuauReader
             ),
             lua_Type.LUA_TUSERDATA => "userdata",
             _ => throw new InvalidOperationException($"Unsupported Luau type: {source.Type}."),
-        };
+        });
 
     /// <summary> The name of the type that was found instead of the one that was asked for. </summary>
     /// <returns>
@@ -468,10 +477,13 @@ internal static unsafe class LuauReader
     /// <remarks> A value that is tracked already shares its registry reference instead of taking a second one. </remarks>
     internal static ulong Own(scoped in ReadSource source)
     {
-        LuauState state = State(source);
-        return source.TrackedHandle != 0
-            ? state.ReferenceTracker.CountRefOrThrow(source.TrackedHandle)
-            : state.ReferenceTracker.TrackRef(source.L, source.Index);
+        unsafe
+        {
+            LuauState state = State(source);
+            return source.TrackedHandle != 0
+                ? state.ReferenceTracker.CountRefOrThrow(source.TrackedHandle)
+                : state.ReferenceTracker.TrackRef(source.L, source.Index);
+        }
     }
 
     /// <summary> The state of a value that is a reference. Only a number, a boolean or nil can be without one. </summary>
@@ -485,19 +497,22 @@ internal static unsafe class LuauReader
     )
         where T : allows ref struct
     {
-        if (
-            source.Type is lua_Type.LUA_TUSERDATA
-            && ManagedUserdataResolver.GetTarget(State(source), source.L, source.Index) is T userdata
-        )
+        unsafe
         {
-            value = userdata;
-            Unsafe.SkipInit(out failure);
-            return true;
-        }
+            if (
+                source.Type is lua_Type.LUA_TUSERDATA
+                && ManagedUserdataResolver.GetTarget(State(source), source.L, source.Index) is T userdata
+            )
+            {
+                value = userdata;
+                Unsafe.SkipInit(out failure);
+                return true;
+            }
 
-        value = default;
-        failure = ReadFailure.Mismatch(typeof(T), ActualTypeName(source));
-        return false;
+            value = default;
+            failure = ReadFailure.Mismatch(typeof(T), ActualTypeName(source));
+            return false;
+        }
     }
 
     /// <summary> Ends a read with <paramref name="read"/>, which is the <typeparamref name="T"/> that was asked for. </summary>
@@ -506,10 +521,13 @@ internal static unsafe class LuauReader
         where TValue : allows ref struct
         where T : allows ref struct
     {
-        Unsafe.SkipInit(out value);
-        Unsafe.As<T, TValue>(ref value) = read;
-        Unsafe.SkipInit(out failure);
-        return true;
+        unsafe
+        {
+            Unsafe.SkipInit(out value);
+            Unsafe.As<T, TValue>(ref value) = read;
+            Unsafe.SkipInit(out failure);
+            return true;
+        }
     }
 
     /// <summary> Ends a read with a value of a value type. </summary>
@@ -522,13 +540,16 @@ internal static unsafe class LuauReader
         where TValue : struct
         where T : allows ref struct
     {
-        Unsafe.SkipInit(out value);
-        if (IsNullable<TValue, T>())
-            Unsafe.As<T, TValue?>(ref value) = read;
-        else
-            Unsafe.As<T, TValue>(ref value) = read;
-        Unsafe.SkipInit(out failure);
-        return true;
+        unsafe
+        {
+            Unsafe.SkipInit(out value);
+            if (IsNullable<TValue, T>())
+                Unsafe.As<T, TValue?>(ref value) = read;
+            else
+                Unsafe.As<T, TValue>(ref value) = read;
+            Unsafe.SkipInit(out failure);
+            return true;
+        }
     }
 
     /// <summary> Whether <typeparamref name="T"/> is the nullable form of <typeparamref name="TValue"/> and not the type itself. </summary>
@@ -551,13 +572,16 @@ internal static unsafe class LuauReader
         where TValue : struct
         where T : allows ref struct
     {
-        if (!source.IsNil || !IsNullable<TValue, T>())
-            return Mismatch(source, expected, out value, out failure);
+        unsafe
+        {
+            if (!source.IsNil || !IsNullable<TValue, T>())
+                return Mismatch(source, expected, out value, out failure);
 
-        Unsafe.SkipInit(out value);
-        Unsafe.As<T, TValue?>(ref value) = null;
-        Unsafe.SkipInit(out failure);
-        return true;
+            Unsafe.SkipInit(out value);
+            Unsafe.As<T, TValue?>(ref value) = null;
+            Unsafe.SkipInit(out failure);
+            return true;
+        }
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

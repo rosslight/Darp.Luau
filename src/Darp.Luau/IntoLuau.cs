@@ -48,9 +48,9 @@ public readonly ref struct IntoLuau
     private readonly LuauSlot _slot;
 
     private ReadOnlySpan<char> Chars =>
-        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref Unsafe.AsRef(in _elements)), _length);
+        unsafe(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref Unsafe.AsRef(in _elements)), _length));
 
-    private ReadOnlySpan<byte> Bytes => MemoryMarshal.CreateReadOnlySpan(in _elements, _length);
+    private ReadOnlySpan<byte> Bytes => unsafe(MemoryMarshal.CreateReadOnlySpan(in _elements, _length));
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -62,16 +62,22 @@ public readonly ref struct IntoLuau
 
     private IntoLuau(ReadOnlySpan<char> valueChars)
     {
-        Type = Kind.Chars;
-        _elements = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(valueChars));
-        _length = valueChars.Length;
+        unsafe
+        {
+            Type = Kind.Chars;
+            _elements = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(valueChars));
+            _length = valueChars.Length;
+        }
     }
 
     private IntoLuau(ReadOnlySpan<byte> valueChars)
     {
-        Type = Kind.Buffer;
-        _elements = ref MemoryMarshal.GetReference(valueChars);
-        _length = valueChars.Length;
+        unsafe
+        {
+            Type = Kind.Buffer;
+            _elements = ref MemoryMarshal.GetReference(valueChars);
+            _length = valueChars.Length;
+        }
     }
 
     private IntoLuau(LuauValue value)
@@ -101,70 +107,76 @@ public readonly ref struct IntoLuau
     internal static IntoLuau Borrow(LuauState? state, ulong handle) =>
         state is null ? default : new IntoLuau(state.GetSlotOrThrow(handle));
 
-    internal unsafe void Push(LuauState state)
+    internal void Push(LuauState state)
     {
-        Push(state, state.L);
+        unsafe
+        {
+            Push(state, state.L);
+        }
     }
 
     internal unsafe void Push(LuauState state, lua_State* L)
     {
-        if (!state.OwnsThread(L))
-            throw new InvalidOperationException("Cross-state value push is not allowed.");
-
-        switch (Type)
+        unsafe
         {
-            case Kind.Chars:
-                if (Chars.Length > 256)
-                {
-                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(Chars)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
-                    LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
-                }
-                else
-                {
-                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(Chars)];
-                    int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
-                    LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
-                }
-                break;
-            case Kind.Buffer:
-                void* pDest = lua_newbuffer(L, (nuint)_length);
-                var destination = new Span<byte>(pDest, _length);
-                Bytes.CopyTo(destination);
-                break;
-            case Kind.Bool:
-                lua_pushboolean(L, _bool ? 1 : 0);
-                break;
-            case Kind.Number:
-                lua_pushnumber(L, _number);
-                break;
-            case Kind.Integer:
-                lua_pushinteger(L, _integer);
-                break;
-            case Kind.Unsigned:
-                lua_pushunsigned(L, (uint)_integer);
-                break;
-            case Kind.Value:
-                _luauValue.Push(L);
-                break;
-            case Kind.Userdata:
-                Debug.Assert(_userdata is not null && _pushUserdata is not null);
-                // Straight onto the stack: a reference in the registry would only be released again
-                _pushUserdata(state, _userdata);
-                if ((nint)state.L != (nint)L)
-                    lua_xmove(state.L, L, 1);
-                break;
-            case Kind.Reference:
-                if (!ReferenceEquals(state, _slot.State))
-                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-                _slot.Push(state);
-                if ((nint)state.L != (nint)L)
-                    lua_xmove(state.L, L, 1);
-                break;
-            case Kind.Nil:
-            default:
-                lua_pushnil(L);
-                break;
+            if (!state.OwnsThread(L))
+                throw new InvalidOperationException("Cross-state value push is not allowed.");
+
+            switch (Type)
+            {
+                case Kind.Chars:
+                    if (Chars.Length > 256)
+                    {
+                        Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(Chars)];
+                        int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
+                        LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
+                    }
+                    else
+                    {
+                        Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(Chars)];
+                        int numberOfBytes = Encoding.UTF8.GetBytes(Chars, buffer);
+                        LuauStateMarshal.PushString(L, buffer[..numberOfBytes]);
+                    }
+                    break;
+                case Kind.Buffer:
+                    void* pDest = lua_newbuffer(L, (nuint)_length);
+                    var destination = new Span<byte>(pDest, _length);
+                    Bytes.CopyTo(destination);
+                    break;
+                case Kind.Bool:
+                    lua_pushboolean(L, _bool ? 1 : 0);
+                    break;
+                case Kind.Number:
+                    lua_pushnumber(L, _number);
+                    break;
+                case Kind.Integer:
+                    lua_pushinteger(L, _integer);
+                    break;
+                case Kind.Unsigned:
+                    lua_pushunsigned(L, (uint)_integer);
+                    break;
+                case Kind.Value:
+                    _luauValue.Push(L);
+                    break;
+                case Kind.Userdata:
+                    Debug.Assert(_userdata is not null && _pushUserdata is not null);
+                    // Straight onto the stack: a reference in the registry would only be released again
+                    _pushUserdata(state, _userdata);
+                    if ((nint)state.L != (nint)L)
+                        lua_xmove(state.L, L, 1);
+                    break;
+                case Kind.Reference:
+                    if (!ReferenceEquals(state, _slot.State))
+                        throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+                    _slot.Push(state);
+                    if ((nint)state.L != (nint)L)
+                        lua_xmove(state.L, L, 1);
+                    break;
+                case Kind.Nil:
+                default:
+                    lua_pushnil(L);
+                    break;
+            }
         }
     }
 
@@ -199,7 +211,7 @@ public readonly ref struct IntoLuau
         return copies;
     }
 
-    internal unsafe IntoLuauCopied CaptureCopied()
+    internal IntoLuauCopied CaptureCopied()
     {
         switch (Type)
         {

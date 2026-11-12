@@ -13,7 +13,7 @@ namespace Darp.Luau;
 /// Read an argument through the indexer: <c>args[1].Get&lt;int&gt;()</c>. The arguments are only valid while the
 /// callback runs.
 /// </remarks>
-public readonly unsafe ref struct LuauArgs
+public readonly ref struct LuauArgs
 {
     private readonly LuauState? _state;
     private readonly lua_State* _luaState;
@@ -78,12 +78,15 @@ public readonly unsafe ref struct LuauArgs
     /// <exception cref="InvalidOperationException">Thrown when the callback cannot suspend its coroutine here.</exception>
     public LuauAwaiter CreateAwaiter()
     {
-        _state.ThrowIfDisposed();
-        if (!AsyncDriveTable.IsDriving(_luaState))
-            throw new InvalidOperationException(CoroutineDriver.AwaitRejectedError);
-        if (lua_isyieldable(_luaState) == 0)
-            throw new InvalidOperationException(CoroutineDriver.AwaitNotYieldableError);
-        return new LuauAwaiter(isGranted: true);
+        unsafe
+        {
+            _state.ThrowIfDisposed();
+            if (!AsyncDriveTable.IsDriving(_luaState))
+                throw new InvalidOperationException(CoroutineDriver.AwaitRejectedError);
+            if (lua_isyieldable(_luaState) == 0)
+                throw new InvalidOperationException(CoroutineDriver.AwaitNotYieldableError);
+            return new LuauAwaiter(isGranted: true);
+        }
     }
 
     /// <summary>
@@ -97,14 +100,17 @@ public readonly unsafe ref struct LuauArgs
 
     internal LuauArgs(LuauState state, lua_State* luaState, int argumentCount, int firstParameterStackIndex)
     {
-        ArgumentNullException.ThrowIfNull(luaState);
-        if (!state.OwnsThread(luaState))
-            throw new InvalidOperationException("Cross-state callback argument usage is not allowed.");
+        unsafe
+        {
+            ArgumentNullException.ThrowIfNull(luaState);
+            if (!state.OwnsThread(luaState))
+                throw new InvalidOperationException("Cross-state callback argument usage is not allowed.");
 
-        _state = state;
-        _luaState = luaState;
-        Count = argumentCount;
-        _firstStackIndex = firstParameterStackIndex;
+            _state = state;
+            _luaState = luaState;
+            Count = argumentCount;
+            _firstStackIndex = firstParameterStackIndex;
+        }
     }
 
     /// <summary> Reads the result at <paramref name="index"/> of a call whose results this window holds. </summary>

@@ -320,69 +320,78 @@ public readonly ref struct LuauChunk
     /// <returns>The loaded chunk represented as a function.</returns>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a load error.</exception>
-    public unsafe LuauFunction ToFunction()
+    public LuauFunction ToFunction()
     {
-        LuauState state = GetState();
-        lua_State* L = state.L;
+        unsafe
+        {
+            LuauState state = GetState();
+            lua_State* L = state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        LoadCompiledChunk(L);
-        ulong reference = state.ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauFunction(state, reference);
+            LoadCompiledChunk(L);
+            ulong reference = state.ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauFunction(state, reference);
+        }
     }
 
-    private unsafe TResult ExecuteCore<TResult>(
+    private TResult ExecuteCore<TResult>(
         scoped RefEnumerable<IntoLuau> args,
         int nResults,
         Func<LuauArgs, TResult> resultSelector
     )
     {
-        LuauState state = GetState();
-        lua_State* L = state.L;
+        unsafe
+        {
+            LuauState state = GetState();
+            lua_State* L = state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        int topBeforeInvoke = lua_gettop(L);
-        try
-        {
-            LoadCompiledChunk(L);
-            int nArgs = args.Length;
-            for (int i = 0; i < nArgs; i++)
-                args[i].Push(state);
+            int topBeforeInvoke = lua_gettop(L);
+            try
+            {
+                LoadCompiledChunk(L);
+                int nArgs = args.Length;
+                for (int i = 0; i < nArgs; i++)
+                    args[i].Push(state);
 
-            int status = LuauVm.PCall(state, L, nArgs, nResults);
-            ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
-            var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
-            return resultSelector(result);
-        }
-        finally
-        {
-            lua_settop(L, topBeforeInvoke);
+                int status = LuauVm.PCall(state, L, nArgs, nResults);
+                ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
+                var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
+                return resultSelector(result);
+            }
+            finally
+            {
+                lua_settop(L, topBeforeInvoke);
+            }
         }
     }
 
-    private unsafe void ExecuteCore(scoped RefEnumerable<IntoLuau> args, int nResults)
+    private void ExecuteCore(scoped RefEnumerable<IntoLuau> args, int nResults)
     {
-        LuauState state = GetState();
-        lua_State* L = state.L;
+        unsafe
+        {
+            LuauState state = GetState();
+            lua_State* L = state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        int topBeforeInvoke = lua_gettop(L);
-        try
-        {
-            LoadCompiledChunk(L);
-            int nArgs = args.Length;
-            for (int i = 0; i < nArgs; i++)
-                args[i].Push(state);
+            int topBeforeInvoke = lua_gettop(L);
+            try
+            {
+                LoadCompiledChunk(L);
+                int nArgs = args.Length;
+                for (int i = 0; i < nArgs; i++)
+                    args[i].Push(state);
 
-            int status = LuauVm.PCall(state, L, nArgs, nResults);
-            ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
-        }
-        finally
-        {
-            lua_settop(L, topBeforeInvoke);
+                int status = LuauVm.PCall(state, L, nArgs, nResults);
+                ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
+            }
+            finally
+            {
+                lua_settop(L, topBeforeInvoke);
+            }
         }
     }
 
@@ -390,52 +399,55 @@ public readonly ref struct LuauChunk
     /// <param name="nResults">Missing results up to this count are read as <c>nil</c>, like the sync overloads.</param>
     /// <param name="resultSelector">Reads the results.</param>
     /// <param name="cancellationToken">Stops the script when cancelled. Available to managed callbacks.</param>
-    private unsafe ValueTask<TResult> ExecuteCoreAsync<TResult>(
+    private ValueTask<TResult> ExecuteCoreAsync<TResult>(
         scoped RefEnumerable<IntoLuau> args,
         int nResults,
         Func<LuauArgs, TResult> resultSelector,
         CancellationToken cancellationToken
     )
     {
-        LuauState state = GetState();
-        LuauSynchronizationContext context = state.AsyncContext;
-        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        unsafe
         {
-            using (turn)
+            LuauState state = GetState();
+            LuauSynchronizationContext context = state.AsyncContext;
+            if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
             {
+                using (turn)
+                {
 #if DEBUG
-                using var guard = new StackGuard(state.L, expectedDelta: 0);
+                    using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
-                // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
-                // exactly like for Execute. Loading can run script code, which the token stops too.
-                using (ScriptInterrupt.Enter(state, cancellationToken))
-                    LoadCompiledChunk(state.L);
-                return LuauSynchronizationContext.Detach(
-                    CoroutineDriver
-                        .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
-                        .RunAsync(resultSelector, yieldIsError: true)
-                );
+                    // The chunk is loaded on the main stack and moved onto the coroutine, so the environment is applied
+                    // exactly like for Execute. Loading can run script code, which the token stops too.
+                    using (ScriptInterrupt.Enter(state, cancellationToken))
+                        LoadCompiledChunk(state.L);
+                    return LuauSynchronizationContext.Detach(
+                        CoroutineDriver
+                            .StartInvocation(state, args, minResultCount: nResults, cancellationToken)
+                            .RunAsync(resultSelector, yieldIsError: true)
+                    );
+                }
             }
-        }
 
-        // Another thread executes the state: execute in a later turn, with copies of the source and arguments.
-        return QueueExecution(
-            state,
-            _compiler,
-            _sourceKind,
-            _charSource.ToString(),
-            _utf8Source.ToArray(),
-            _chunkName.ToString(),
-            _environmentHandle,
-            IntoLuau.CaptureBorrowed(args),
-            nResults,
-            resultSelector,
-            cancellationToken
-        );
+            // Another thread executes the state: execute in a later turn, with copies of the source and arguments.
+            return QueueExecution(
+                state,
+                _compiler,
+                _sourceKind,
+                _charSource.ToString(),
+                _utf8Source.ToArray(),
+                _chunkName.ToString(),
+                _environmentHandle,
+                IntoLuau.CaptureBorrowed(args),
+                nResults,
+                resultSelector,
+                cancellationToken
+            );
+        }
     }
 
     // Separate from ExecuteCoreAsync, so that only a queued execution allocates the closure.
-    private static unsafe ValueTask<TResult> QueueExecution<TResult>(
+    private static ValueTask<TResult> QueueExecution<TResult>(
         LuauState state,
         LuauCompiler compiler,
         LuauChunkSourceKind sourceKind,
@@ -448,7 +460,7 @@ public readonly ref struct LuauChunk
         Func<LuauArgs, TResult> resultSelector,
         CancellationToken cancellationToken
     ) =>
-        state.AsyncContext.Queue(() =>
+        unsafe(state.AsyncContext.Queue(() =>
         {
             var chunk = new LuauChunk(
                 state,
@@ -465,105 +477,121 @@ public readonly ref struct LuauChunk
             return CoroutineDriver
                 .StartInvocation(state, copiedArgs, minResultCount: nResults, cancellationToken)
                 .RunAsync(resultSelector, yieldIsError: true);
-        });
+        }));
 
     private unsafe void LoadCompiledChunk(lua_State* L)
     {
-        ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? DefaultChunkName : _chunkName;
-        int nChunkNameBytes = Encoding.UTF8.GetByteCount(chunkName);
-        byte[] chunkNameArray = ArrayPool<byte>.Shared.Rent(nChunkNameBytes + 1);
-        try
+        unsafe
         {
-            int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameArray);
-            chunkNameArray[actualChunkNameBytes] = 0;
-            ReadOnlySpan<byte> chunkNameBuffer = chunkNameArray.AsSpan(0, actualChunkNameBytes);
-
-            if (_sourceKind == LuauChunkSourceKind.Utf8Bytes)
-            {
-                fixed (byte* pChunkName = chunkNameBuffer)
-                fixed (byte* pSource = _utf8Source)
-                {
-                    CompileAndLoadByteCode(L, pSource, (nuint)_utf8Source.Length, pChunkName);
-                }
-                return;
-            }
-
-            int nBytes = Encoding.UTF8.GetByteCount(_charSource);
-            byte[] bytesSource = ArrayPool<byte>.Shared.Rent(nBytes);
+            ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? DefaultChunkName : _chunkName;
+            int nChunkNameBytes = Encoding.UTF8.GetByteCount(chunkName);
+            byte[] chunkNameArray = ArrayPool<byte>.Shared.Rent(nChunkNameBytes + 1);
             try
             {
-                Span<byte> bytesSpan = bytesSource.AsSpan(0, nBytes);
-                int actualNBytes = Encoding.UTF8.GetBytes(_charSource, bytesSpan);
-                bytesSpan = bytesSpan[..actualNBytes];
-                fixed (byte* pChunkName = chunkNameBuffer)
-                fixed (byte* pSource = bytesSpan)
+                int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameArray);
+                chunkNameArray[actualChunkNameBytes] = 0;
+                ReadOnlySpan<byte> chunkNameBuffer = chunkNameArray.AsSpan(0, actualChunkNameBytes);
+
+                if (_sourceKind == LuauChunkSourceKind.Utf8Bytes)
                 {
-                    CompileAndLoadByteCode(L, pSource, (nuint)bytesSpan.Length, pChunkName);
+                    fixed (byte* pChunkName = chunkNameBuffer)
+                    fixed (byte* pSource = _utf8Source)
+                    {
+                        CompileAndLoadByteCode(L, pSource, (nuint)_utf8Source.Length, pChunkName);
+                    }
+                    return;
+                }
+
+                int nBytes = Encoding.UTF8.GetByteCount(_charSource);
+                byte[] bytesSource = ArrayPool<byte>.Shared.Rent(nBytes);
+                try
+                {
+                    Span<byte> bytesSpan = bytesSource.AsSpan(0, nBytes);
+                    int actualNBytes = Encoding.UTF8.GetBytes(_charSource, bytesSpan);
+                    bytesSpan = bytesSpan[..actualNBytes];
+                    fixed (byte* pChunkName = chunkNameBuffer)
+                    fixed (byte* pSource = bytesSpan)
+                    {
+                        CompileAndLoadByteCode(L, pSource, (nuint)bytesSpan.Length, pChunkName);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(bytesSource);
                 }
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(bytesSource);
+                ArrayPool<byte>.Shared.Return(chunkNameArray);
             }
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(chunkNameArray);
         }
     }
 
     private unsafe void CompileAndLoadByteCode(lua_State* L, byte* pSource, nuint sourceLength, byte* pChunkName)
     {
-        LuauSandbox? sandbox = GetState().Sandbox;
-        lua_CompileOptions* pOptions = null;
-        if (sandbox is not null || !ReferenceEquals(_compiler, LuauCompiler.Default))
+        unsafe
         {
-            var options = new lua_CompileOptions
+            LuauSandbox? sandbox = GetState().Sandbox;
+            lua_CompileOptions* pOptions = null;
+            if (sandbox is not null || !ReferenceEquals(_compiler, LuauCompiler.Default))
             {
-                optimizationLevel = _compiler.OptimizationLevel,
-                debugLevel = _compiler.DebugLevel,
-            };
-            sandbox?.Apply(ref options);
-            pOptions = &options;
-        }
+                var options = new lua_CompileOptions
+                {
+                    optimizationLevel = _compiler.OptimizationLevel,
+                    debugLevel = _compiler.DebugLevel,
+                };
+                sandbox?.Apply(ref options);
+                pOptions = &options;
+            }
 
-        nuint nSizeByteCode = 0;
-        byte* pByteCode = luau_compile(pSource, sourceLength, pOptions, &nSizeByteCode);
-        try
-        {
-            // An environment is a table of the host: its scripts look everything up, sandboxed or not.
-            if (sandbox is not null && _environmentHandle == 0)
-                LoadWithOwnGlobals(L, sandbox, pChunkName, pByteCode, nSizeByteCode);
-            else
-                LoadIntoEnvironment(L, pChunkName, pByteCode, nSizeByteCode);
-        }
-        finally
-        {
-            luau_free(pByteCode);
+            nuint nSizeByteCode = 0;
+            byte* pByteCode = luau_compile(pSource, sourceLength, pOptions, &nSizeByteCode);
+            try
+            {
+                // An environment is a table of the host: its scripts look everything up, sandboxed or not.
+                if (sandbox is not null && _environmentHandle == 0)
+                    LoadWithOwnGlobals(L, sandbox, pChunkName, pByteCode, nSizeByteCode);
+                else
+                    LoadIntoEnvironment(L, pChunkName, pByteCode, nSizeByteCode);
+            }
+            finally
+            {
+                luau_free(pByteCode);
+            }
         }
     }
 
     private unsafe void LoadIntoEnvironment(lua_State* L, byte* pChunkName, byte* pByteCode, nuint nSizeByteCode)
     {
-        int environmentStackIndex = 0;
-        if (_environmentHandle != 0)
+        unsafe
         {
-            RegistryReferenceTracker.TrackedReference environmentReference = GetState()
-                .GetTrackedReferenceOrThrow(_environmentHandle);
+            int environmentStackIndex = 0;
+            if (_environmentHandle != 0)
+            {
+                RegistryReferenceTracker.TrackedReference environmentReference = GetState()
+                    .GetTrackedReferenceOrThrow(_environmentHandle);
 #pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
-            _ = environmentReference.PushToTop();
+                _ = environmentReference.PushToTop();
 #pragma warning restore CA2000
-            environmentStackIndex = lua_gettop(L);
-        }
-        try
-        {
-            int loadStatus = LuauVm.Load(GetState(), L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
-            ScriptInterrupt.ThrowIfNotOk(GetState(), L, loadStatus, "luau_load");
-        }
-        finally
-        {
-            if (environmentStackIndex != 0)
-                lua_remove(L, environmentStackIndex);
+                environmentStackIndex = lua_gettop(L);
+            }
+            try
+            {
+                int loadStatus = LuauVm.Load(
+                    GetState(),
+                    L,
+                    pChunkName,
+                    pByteCode,
+                    nSizeByteCode,
+                    environmentStackIndex
+                );
+                ScriptInterrupt.ThrowIfNotOk(GetState(), L, loadStatus, "luau_load");
+            }
+            finally
+            {
+                if (environmentStackIndex != 0)
+                    lua_remove(L, environmentStackIndex);
+            }
         }
     }
 
@@ -580,19 +608,22 @@ public readonly ref struct LuauChunk
         nuint nSizeByteCode
     )
     {
-        LuauState state = GetState();
-        state.PushOwnScriptGlobals(sandbox);
+        unsafe
+        {
+            LuauState state = GetState();
+            state.PushOwnScriptGlobals(sandbox);
 
-        // [globals of the script]
-        lua_pushvalue(L, LUA_GLOBALSINDEX); // [globals of the script, globals of the thread]
-        lua_pushvalue(L, -2);
-        lua_replace(L, LUA_GLOBALSINDEX);
-        int loadStatus = LuauVm.Load(state, L, pChunkName, pByteCode, nSizeByteCode, 0); // [.., .., function or error]
-        lua_pushvalue(L, -2);
-        lua_replace(L, LUA_GLOBALSINDEX);
-        lua_remove(L, -2);
-        lua_remove(L, -2); // [function or error]
-        ScriptInterrupt.ThrowIfNotOk(state, L, loadStatus, "luau_load");
+            // [globals of the script]
+            lua_pushvalue(L, LUA_GLOBALSINDEX); // [globals of the script, globals of the thread]
+            lua_pushvalue(L, -2);
+            lua_replace(L, LUA_GLOBALSINDEX);
+            int loadStatus = LuauVm.Load(state, L, pChunkName, pByteCode, nSizeByteCode, 0); // [.., .., function or error]
+            lua_pushvalue(L, -2);
+            lua_replace(L, LUA_GLOBALSINDEX);
+            lua_remove(L, -2);
+            lua_remove(L, -2); // [function or error]
+            ScriptInterrupt.ThrowIfNotOk(state, L, loadStatus, "luau_load");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

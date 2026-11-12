@@ -20,7 +20,7 @@ namespace Darp.Luau;
 /// The view does not own a registry reference. It is valid only while the callback that received it runs.
 /// </para>
 /// </remarks>
-public readonly unsafe ref struct LuauValueView
+public readonly ref struct LuauValueView
 {
     private readonly LuauState? _state;
     private readonly lua_State* _luaState;
@@ -45,10 +45,13 @@ public readonly unsafe ref struct LuauValueView
     {
         get
         {
-            _state.ThrowIfDisposed();
-            return _stackIndex == 0
-                ? LuauValueType.Nil
-                : LuauValue.GetValueType((lua_Type)lua_type(_luaState, _stackIndex));
+            unsafe
+            {
+                _state.ThrowIfDisposed();
+                return _stackIndex == 0
+                    ? LuauValueType.Nil
+                    : LuauValue.GetValueType((lua_Type)lua_type(_luaState, _stackIndex));
+            }
         }
     }
 

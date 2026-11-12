@@ -158,21 +158,27 @@ public readonly struct LuauReturn
         [NotNullWhen(false)] out string? error
     )
     {
-        Debug.Assert(!IsPending, "A callback hands its pending result to the coroutine driver instead of pushing it.");
-        outputCount = 0;
-        error = _error;
-        if (error is not null)
-            return false;
+        unsafe
+        {
+            Debug.Assert(
+                !IsPending,
+                "A callback hands its pending result to the coroutine driver instead of pushing it."
+            );
+            outputCount = 0;
+            error = _error;
+            if (error is not null)
+                return false;
 
-        try
-        {
-            _buffer.Push(state, luaState);
-            outputCount = _buffer.Length;
-            return true;
-        }
-        finally
-        {
-            _buffer.Release();
+            try
+            {
+                _buffer.Push(state, luaState);
+                outputCount = _buffer.Length;
+                return true;
+            }
+            finally
+            {
+                _buffer.Release();
+            }
         }
     }
 
@@ -217,14 +223,17 @@ public readonly struct LuauReturn
 
         public unsafe void Push(LuauState state, lua_State* luaState)
         {
-            if (Length > 0)
-                _element0.Push(state, luaState);
-            if (Length > 1)
-                _element1.Push(state, luaState);
-            if (Length > 2)
-                _element2.Push(state, luaState);
-            if (Length > 3)
-                _element3.Push(state, luaState);
+            unsafe
+            {
+                if (Length > 0)
+                    _element0.Push(state, luaState);
+                if (Length > 1)
+                    _element1.Push(state, luaState);
+                if (Length > 2)
+                    _element2.Push(state, luaState);
+                if (Length > 3)
+                    _element3.Push(state, luaState);
+            }
         }
 
         public void Release()

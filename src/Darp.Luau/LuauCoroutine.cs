@@ -29,12 +29,15 @@ public readonly struct LuauCoroutine : IDisposable
 
     /// <summary> Gets the current status of the coroutine. </summary>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
-    public unsafe LuauCoroutineStatus Status
+    public LuauCoroutineStatus Status
     {
         get
         {
-            _state.ThrowIfDisposed();
-            return CoroutineDriver.GetStatus(_state, CoroutineDriver.GetCoroutine(_state, _handle));
+            unsafe
+            {
+                _state.ThrowIfDisposed();
+                return CoroutineDriver.GetStatus(_state, CoroutineDriver.GetCoroutine(_state, _handle));
+            }
         }
     }
 

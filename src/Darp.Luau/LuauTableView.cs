@@ -22,7 +22,7 @@ namespace Darp.Luau;
 // The native calls of the success path stand outside of try blocks and using scopes on purpose. On 64-bit targets the
 // JIT does not inline a P/Invoke that sits in a protected region and calls it through a stub instead, which costs
 // about as much as the access itself. Only pushing the key and the value can throw, so only those are guarded.
-public readonly unsafe ref struct LuauTableView
+public readonly ref struct LuauTableView
 {
     private readonly LuauSlot _slot;
 
@@ -37,12 +37,15 @@ public readonly unsafe ref struct LuauTableView
     {
         get
         {
-            LuauState state = _slot.State;
-            lua_State* L = state.L;
-            _slot.Push(state);
-            int count = lua_objlen(L, -1);
-            lua_pop(L, 1);
-            return count;
+            unsafe
+            {
+                LuauState state = _slot.State;
+                lua_State* L = state.L;
+                _slot.Push(state);
+                int count = lua_objlen(L, -1);
+                lua_pop(L, 1);
+                return count;
+            }
         }
     }
 
@@ -140,25 +143,28 @@ public readonly unsafe ref struct LuauTableView
     /// <exception cref="LuaException">Thrown when Luau rejects the write, for example when <c>__newindex</c> raises an error or the table is frozen.</exception>
     public void Set(IntoLuau key, IntoLuau value)
     {
-        LuauState state = _slot.State;
-        if (key.Type is IntoLuau.Kind.Nil)
-            throw new ArgumentNullException(nameof(key), "Cannot set a table value with nil key");
-        lua_State* L = state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        _slot.Push(state); // [table]
-        PushOrPop(state, L, key, pushedCount: 1); // [table, key]
-        PushOrPop(state, L, value, pushedCount: 2); // [table, key, value]
-
-        int status = LuauVm.SetTable(state, L, -3); // [table] or [table, error]
-        if (status != (int)lua_Status.LUA_OK)
+        unsafe
         {
-            string error = PopErrorMessage(L);
+            LuauState state = _slot.State;
+            if (key.Type is IntoLuau.Kind.Nil)
+                throw new ArgumentNullException(nameof(key), "Cannot set a table value with nil key");
+            lua_State* L = state.L;
+#if DEBUG
+            using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+            _slot.Push(state); // [table]
+            PushOrPop(state, L, key, pushedCount: 1); // [table, key]
+            PushOrPop(state, L, value, pushedCount: 2); // [table, key, value]
+
+            int status = LuauVm.SetTable(state, L, -3); // [table] or [table, error]
+            if (status != (int)lua_Status.LUA_OK)
+            {
+                string error = PopErrorMessage(L);
+                lua_pop(L, 1);
+                throw new LuaException($"Lua invocation lua_settable failed with status {status}: {error}");
+            }
             lua_pop(L, 1);
-            throw new LuaException($"Lua invocation lua_settable failed with status {status}: {error}");
         }
-        lua_pop(L, 1);
     }
 
     /// <summary> Determines whether <paramref name="key"/> resolves to a value that is not nil. </summary>
@@ -168,14 +174,17 @@ public readonly unsafe ref struct LuauTableView
     /// <exception cref="LuaException">Thrown when <c>__index</c> raises an error.</exception>
     public bool ContainsKey(IntoLuau key)
     {
-        LuauState state = _slot.State;
-        if (key.Type is IntoLuau.Kind.Nil)
-            throw new ArgumentNullException(nameof(key), "Cannot look up a table value with nil key");
-        lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
-            throw new LuaException($"Could not get the table value: {PopError(L)}");
-        lua_pop(L, 2);
-        return type != lua_Type.LUA_TNIL;
+        unsafe
+        {
+            LuauState state = _slot.State;
+            if (key.Type is IntoLuau.Kind.Nil)
+                throw new ArgumentNullException(nameof(key), "Cannot look up a table value with nil key");
+            lua_State* L = state.L;
+            if (!TryPushValue(state, L, key, out lua_Type type))
+                throw new LuaException($"Could not get the table value: {PopError(L)}");
+            lua_pop(L, 2);
+            return type != lua_Type.LUA_TNIL;
+        }
     }
 
     /// <summary> Enumerates the pairs of the table, in no particular order. </summary>
@@ -226,37 +235,40 @@ public readonly unsafe ref struct LuauTableView
         out KeyValuePair<LuauValue, LuauValue> pair
     )
     {
-        LuauState state = slot.State;
-        lua_State* L = state.L;
-        slot.Push(state); // [table]
-
-        // lua_rawiter pushes key and value unless it is at the end. Unlike lua_next it cannot raise an error when
-        // the table changed since the last step.
-        int next = lua_rawiter(L, -1, iterator);
-        if (next < 0)
+        unsafe
         {
-            lua_pop(L, 1);
-            pair = default;
-            return false;
-        }
-        iterator = next;
+            LuauState state = slot.State;
+            lua_State* L = state.L;
+            slot.Push(state); // [table]
 
-        // [table, key, value]. Reading reports what it cannot read instead of throwing, so the three are popped
-        // on every path.
-        LuauValue key = default;
-        bool isRead =
-            LuauValue.TryRead(ReadSource.FromStack(state, L, -1), out LuauValue value, out ReadFailure failure)
-            && LuauValue.TryRead(ReadSource.FromStack(state, L, -2), out key, out failure);
-        lua_pop(L, 3);
-        if (!isRead)
-        {
-            // The value was read when it is the key that failed.
-            value.Dispose();
-            throw failure.ToException("table pair");
-        }
+            // lua_rawiter pushes key and value unless it is at the end. Unlike lua_next it cannot raise an error when
+            // the table changed since the last step.
+            int next = lua_rawiter(L, -1, iterator);
+            if (next < 0)
+            {
+                lua_pop(L, 1);
+                pair = default;
+                return false;
+            }
+            iterator = next;
 
-        pair = new KeyValuePair<LuauValue, LuauValue>(key, value);
-        return true;
+            // [table, key, value]. Reading reports what it cannot read instead of throwing, so the three are popped
+            // on every path.
+            LuauValue key = default;
+            bool isRead =
+                LuauValue.TryRead(ReadSource.FromStack(state, L, -1), out LuauValue value, out ReadFailure failure)
+                && LuauValue.TryRead(ReadSource.FromStack(state, L, -2), out key, out failure);
+            lua_pop(L, 3);
+            if (!isRead)
+            {
+                // The value was read when it is the key that failed.
+                value.Dispose();
+                throw failure.ToException("table pair");
+            }
+
+            pair = new KeyValuePair<LuauValue, LuauValue>(key, value);
+            return true;
+        }
     }
 
     /// <summary> Reads the value at <paramref name="index"/> of the table of <paramref name="slot"/> as <typeparamref name="T"/>. </summary>
@@ -268,25 +280,28 @@ public readonly unsafe ref struct LuauTableView
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static bool TryGetItem<T>(scoped in LuauSlot slot, int index, [MaybeNullWhen(false)] out T value)
     {
-        LuauState state = slot.State;
-        lua_State* L = state.L;
-        slot.Push(state); // [table]
-        var type = (lua_Type)lua_rawgeti(L, -1, index); // [table, value]
-
-        // Nil ends the list also for a type that reads nil.
-        if (type is lua_Type.LUA_TNIL)
+        unsafe
         {
-            lua_pop(L, 2);
-            value = default;
-            return false;
-        }
+            LuauState state = slot.State;
+            lua_State* L = state.L;
+            slot.Push(state); // [table]
+            var type = (lua_Type)lua_rawgeti(L, -1, index); // [table, value]
 
-        ReadSource source = ReadSource.FromStack(state, L, -1, type);
-        bool isRead = LuauReader.TryRead(source.AsProbe(), out value, out ReadFailure failure);
-        lua_pop(L, 2);
-        if (!isRead && failure.IsNotSupported)
-            throw failure.ToException("table value");
-        return isRead;
+            // Nil ends the list also for a type that reads nil.
+            if (type is lua_Type.LUA_TNIL)
+            {
+                lua_pop(L, 2);
+                value = default;
+                return false;
+            }
+
+            ReadSource source = ReadSource.FromStack(state, L, -1, type);
+            bool isRead = LuauReader.TryRead(source.AsProbe(), out value, out ReadFailure failure);
+            lua_pop(L, 2);
+            if (!isRead && failure.IsNotSupported)
+                throw failure.ToException("table value");
+            return isRead;
+        }
     }
 
     /// <summary> The UTF-8 bytes of the string at <paramref name="key"/>, which Luau owns. </summary>
@@ -306,24 +321,29 @@ public readonly unsafe ref struct LuauTableView
         out bool isNil
     )
     {
-        bytes = default;
-        isNil = false;
-        LuauState state = _slot.State;
-        lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
+        unsafe
         {
-            lua_pop(L, 2);
-            return false;
-        }
+            bytes = default;
+            isNil = false;
+            LuauState state = _slot.State;
+            lua_State* L = state.L;
+            if (!TryPushValue(state, L, key, out lua_Type type))
+            {
+                lua_pop(L, 2);
+                return false;
+            }
 
-        isNil = type is lua_Type.LUA_TNIL;
-        if (type == expectedType)
-        {
-            bytes =
-                expectedType is lua_Type.LUA_TSTRING ? LuauReader.StringBytes(L, -1) : LuauReader.BufferBytes(L, -1);
+            isNil = type is lua_Type.LUA_TNIL;
+            if (type == expectedType)
+            {
+                bytes =
+                    expectedType is lua_Type.LUA_TSTRING
+                        ? LuauReader.StringBytes(L, -1)
+                        : LuauReader.BufferBytes(L, -1);
+            }
+            lua_pop(L, 2);
+            return type == expectedType;
         }
-        lua_pop(L, 2);
-        return type == expectedType;
     }
 
     /// <summary> Reads the value at <paramref name="key"/> as <typeparamref name="T"/> and leaves the stack as it was. </summary>
@@ -340,31 +360,34 @@ public readonly unsafe ref struct LuauTableView
         out bool isNil
     )
     {
-        LuauState state = _slot.State;
-        lua_State* L = state.L;
-        if (!TryPushValue(state, L, key, out lua_Type type))
+        unsafe
         {
-            value = default;
-            isNil = false;
-            if (isProbe)
+            LuauState state = _slot.State;
+            lua_State* L = state.L;
+            if (!TryPushValue(state, L, key, out lua_Type type))
             {
-                // Nobody looks at why a probe failed, so the error is not turned into text for it.
-                lua_pop(L, 2);
-                failure = default;
+                value = default;
+                isNil = false;
+                if (isProbe)
+                {
+                    // Nobody looks at why a probe failed, so the error is not turned into text for it.
+                    lua_pop(L, 2);
+                    failure = default;
+                }
+                else
+                {
+                    failure = ReadFailure.Error(PopError(L));
+                }
+                return false;
             }
-            else
-            {
-                failure = ReadFailure.Error(PopError(L));
-            }
-            return false;
-        }
 
-        isNil = type is lua_Type.LUA_TNIL;
-        // The reader reports what it finds instead of throwing, so the two values are popped on every path.
-        ReadSource source = ReadSource.FromStack(state, L, -1, type);
-        bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
-        lua_pop(L, 2);
-        return isRead;
+            isNil = type is lua_Type.LUA_TNIL;
+            // The reader reports what it finds instead of throwing, so the two values are popped on every path.
+            ReadSource source = ReadSource.FromStack(state, L, -1, type);
+            bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
+            lua_pop(L, 2);
+            return isRead;
+        }
     }
 
     /// <summary> Pushes the table and the value at <paramref name="key"/>. </summary>
@@ -388,9 +411,12 @@ public readonly unsafe ref struct LuauTableView
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static string PopError(lua_State* L)
     {
-        string error = PopErrorMessage(L);
-        lua_pop(L, 1);
-        return error;
+        unsafe
+        {
+            string error = PopErrorMessage(L);
+            lua_pop(L, 1);
+            return error;
+        }
     }
 
     /// <summary>
@@ -399,25 +425,31 @@ public readonly unsafe ref struct LuauTableView
     /// </summary>
     private static void PushOrPop(LuauState state, lua_State* L, scoped in IntoLuau value, int pushedCount)
     {
-        try
+        unsafe
         {
-            value.Push(state);
-        }
-        catch
-        {
-            lua_pop(L, pushedCount);
-            throw;
+            try
+            {
+                value.Push(state);
+            }
+            catch
+            {
+                lua_pop(L, pushedCount);
+                throw;
+            }
         }
     }
 
     /// <summary> Reads the error object on top of the stack as text and pops it. </summary>
     private static string PopErrorMessage(lua_State* L)
     {
-        nuint length = 0;
-        byte* message = lua_tolstring(L, -1, &length);
-        string error = message is null ? "<unknown lua error>" : Encoding.UTF8.GetString(message, (int)length);
-        lua_pop(L, 1);
-        return error;
+        unsafe
+        {
+            nuint length = 0;
+            byte* message = lua_tolstring(L, -1, &length);
+            string error = message is null ? "<unknown lua error>" : Encoding.UTF8.GetString(message, (int)length);
+            lua_pop(L, 1);
+            return error;
+        }
     }
 
     private static Exception ToException(ReadFailure failure) => failure.ToException("table value");

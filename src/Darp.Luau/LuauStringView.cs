@@ -11,7 +11,7 @@ namespace Darp.Luau;
 /// The view does not own a registry reference. It is valid only while the callback that received it runs; call
 /// <see cref="ToOwned"/> to keep the string.
 /// </remarks>
-public readonly unsafe ref struct LuauStringView
+public readonly ref struct LuauStringView
 {
     private readonly LuauSlot _slot;
 
@@ -27,13 +27,16 @@ public readonly unsafe ref struct LuauStringView
     /// </remarks>
     public ReadOnlySpan<byte> AsSpan()
     {
-        LuauState state = _slot.State;
-        lua_State* L = state.L;
-        _slot.Push(state);
-        // What the view borrows keeps the string alive after its copy is popped.
-        ReadOnlySpan<byte> bytes = LuauReader.StringBytes(L, -1);
-        lua_pop(L, 1);
-        return bytes;
+        unsafe
+        {
+            LuauState state = _slot.State;
+            lua_State* L = state.L;
+            _slot.Push(state);
+            // What the view borrows keeps the string alive after its copy is popped.
+            ReadOnlySpan<byte> bytes = LuauReader.StringBytes(L, -1);
+            lua_pop(L, 1);
+            return bytes;
+        }
     }
 
     /// <summary> Creates an owned reference to the string, which stays valid after the callback. </summary>

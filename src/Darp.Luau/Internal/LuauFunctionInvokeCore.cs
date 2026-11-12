@@ -5,32 +5,35 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal;
 
-internal static unsafe class LuauFunctionInvokeCore
+internal static class LuauFunctionInvokeCore
 {
     private const int LuaMultRet = -1;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Invoke(scoped in LuauSlot source, scoped in RefEnumerable<IntoLuau> args)
     {
-        LuauState state = source.State;
-        lua_State* L = state.L;
+        unsafe
+        {
+            LuauState state = source.State;
+            lua_State* L = state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        int topBeforeInvoke = lua_gettop(L);
-        try
-        {
-            source.Push(state);
-            int length = args.Length;
-            for (int i = 0; i < length; i++)
-                args[i].Push(state);
+            int topBeforeInvoke = lua_gettop(L);
+            try
+            {
+                source.Push(state);
+                int length = args.Length;
+                for (int i = 0; i < length; i++)
+                    args[i].Push(state);
 
-            int status = LuauVm.PCall(state, L, length, 0);
-            ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
-        }
-        finally
-        {
-            lua_settop(L, topBeforeInvoke);
+                int status = LuauVm.PCall(state, L, length, 0);
+                ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
+            }
+            finally
+            {
+                lua_settop(L, topBeforeInvoke);
+            }
         }
     }
 
@@ -41,27 +44,30 @@ internal static unsafe class LuauFunctionInvokeCore
         Func<LuauArgs, TR> func
     )
     {
-        LuauState state = source.State;
-        lua_State* L = state.L;
+        unsafe
+        {
+            LuauState state = source.State;
+            lua_State* L = state.L;
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        int topBeforeInvoke = lua_gettop(L);
-        try
-        {
-            source.Push(state);
-            int nArgs = args.Length;
-            for (int i = 0; i < nArgs; i++)
-                args[i].Push(state);
+            int topBeforeInvoke = lua_gettop(L);
+            try
+            {
+                source.Push(state);
+                int nArgs = args.Length;
+                for (int i = 0; i < nArgs; i++)
+                    args[i].Push(state);
 
-            int status = LuauVm.PCall(state, L, nArgs, LuaMultRet);
-            ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
-            var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
-            return func(result);
-        }
-        finally
-        {
-            lua_settop(L, topBeforeInvoke);
+                int status = LuauVm.PCall(state, L, nArgs, LuaMultRet);
+                ScriptInterrupt.ThrowIfNotOk(state, L, status, "lua_pcall");
+                var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
+                return func(result);
+            }
+            finally
+            {
+                lua_settop(L, topBeforeInvoke);
+            }
         }
     }
 
@@ -105,7 +111,7 @@ internal static unsafe class LuauFunctionInvokeCore
         Func<LuauArgs, TR> resultSelector,
         CancellationToken cancellationToken
     ) =>
-        state.AsyncContext.Queue(() =>
+        unsafe(state.AsyncContext.Queue(() =>
         {
             RegistryReferenceTracker.TrackedReference queuedFunction = state.GetTrackedReferenceOrThrow(functionHandle);
             LuauState validState = queuedFunction.State;
@@ -114,7 +120,7 @@ internal static unsafe class LuauFunctionInvokeCore
             return CoroutineDriver
                 .StartInvocation(validState, copiedArgs, minResultCount: 0, cancellationToken)
                 .RunAsync(resultSelector, yieldIsError: true);
-        });
+        }));
 
     /// <summary> Invokes a borrowed function on a new coroutine, so managed callbacks can await. </summary>
     /// <exception cref="InvalidOperationException">

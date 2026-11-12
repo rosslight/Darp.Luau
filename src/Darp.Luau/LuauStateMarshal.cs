@@ -18,50 +18,62 @@ internal static class LuauStateMarshal
     /// </summary>
     public static unsafe int ReturnCallbackResult(LuauState state, lua_State* luaState, in LuauReturn result)
     {
-        if (result.IsPending)
-            return ReturnPendingResult(state, luaState, result);
+        unsafe
+        {
+            if (result.IsPending)
+                return ReturnPendingResult(state, luaState, result);
 
-        return result.TryPushValues(state, luaState, out int outputCount, out string? error)
-            ? ReturnSuccess(luaState, outputCount)
-            : ReturnError(luaState, error);
+            return result.TryPushValues(state, luaState, out int outputCount, out string? error)
+                ? ReturnSuccess(luaState, outputCount)
+                : ReturnError(luaState, error);
+        }
     }
 
     // Kept out of line: most callbacks complete at once and should not pay for this path.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static unsafe int ReturnPendingResult(LuauState state, lua_State* luaState, in LuauReturn result)
     {
-        if (CoroutineDriver.TryAwait(state, luaState, result))
-            return DARP_LUAU_CALLBACK_YIELD;
+        unsafe
+        {
+            if (CoroutineDriver.TryAwait(state, luaState, result))
+                return DARP_LUAU_CALLBACK_YIELD;
 
-        result.Release();
-        return ReturnError(
-            luaState,
-            AsyncDriveTable.IsDriving(luaState)
-                ? CoroutineDriver.AwaitNotYieldableError
-                : CoroutineDriver.AwaitRejectedError
-        );
+            result.Release();
+            return ReturnError(
+                luaState,
+                AsyncDriveTable.IsDriving(luaState)
+                    ? CoroutineDriver.AwaitNotYieldableError
+                    : CoroutineDriver.AwaitRejectedError
+            );
+        }
     }
 
     public static unsafe int ReturnError(lua_State* state, ReadOnlySpan<byte> message)
     {
-        if (message.IsEmpty)
-            message = "something went wrong"u8;
-        PushString(state, message);
-        return -1;
+        unsafe
+        {
+            if (message.IsEmpty)
+                message = "something went wrong"u8;
+            PushString(state, message);
+            return -1;
+        }
     }
 
     public static unsafe int ReturnError(lua_State* state, ReadOnlySpan<char> message)
     {
-        if (message.IsEmpty)
-            message = "something went wrong";
-        PushString(state, message);
-        return -1;
+        unsafe
+        {
+            if (message.IsEmpty)
+                message = "something went wrong";
+            PushString(state, message);
+            return -1;
+        }
     }
 
     /// <summary> Finishes a native callback whose managed code threw: raises <paramref name="exception"/> as a Luau error. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe int ReturnCallbackException(lua_State* state, Exception exception) =>
-        ReturnError(state, FormatCallbackException(exception));
+        unsafe(ReturnError(state, FormatCallbackException(exception)));
 
     /// <summary> Gets the Luau error an exception stands for when managed code that Luau called throws it: its message. </summary>
     /// <remarks>
@@ -82,7 +94,7 @@ internal static class LuauStateMarshal
     /// Nothing throws there to tell the script something, so the error names what failed and the exception.
     /// </remarks>
     public static unsafe int ReturnLibraryException(lua_State* state, string what, Exception exception) =>
-        ReturnError(state, $"{what} callback failed: {exception.GetType().Name}: {MessageOf(exception)}");
+        unsafe(ReturnError(state, $"{what} callback failed: {exception.GetType().Name}: {MessageOf(exception)}"));
 
     private static string MessageOf(Exception exception)
     {
@@ -107,70 +119,85 @@ internal static class LuauStateMarshal
 
     public static unsafe bool TryGetString(lua_State* L, int stackIndex, out ReadOnlySpan<byte> value)
     {
-        if ((lua_Type)lua_type(L, stackIndex) is not lua_Type.LUA_TSTRING)
+        unsafe
         {
-            value = default;
-            return false;
-        }
+            if ((lua_Type)lua_type(L, stackIndex) is not lua_Type.LUA_TSTRING)
+            {
+                value = default;
+                return false;
+            }
 
-        nuint keyLength;
-        byte* keyUtf8 = lua_tolstring(L, stackIndex, &keyLength);
-        if (keyUtf8 is null)
-        {
-            value = default;
-            return false;
+            nuint keyLength;
+            byte* keyUtf8 = lua_tolstring(L, stackIndex, &keyLength);
+            if (keyUtf8 is null)
+            {
+                value = default;
+                return false;
+            }
+            value = new ReadOnlySpan<byte>(keyUtf8, checked((int)keyLength));
+            return true;
         }
-        value = new ReadOnlySpan<byte>(keyUtf8, checked((int)keyLength));
-        return true;
     }
 
     public static unsafe bool TryGetNameCall(lua_State* L, out ReadOnlySpan<byte> methodName)
     {
-        int atom = 0;
-        byte* name = lua_namecallatom(L, &atom);
-        if (name is null)
+        unsafe
         {
-            methodName = default;
-            return false;
+            int atom = 0;
+            byte* name = lua_namecallatom(L, &atom);
+            if (name is null)
+            {
+                methodName = default;
+                return false;
+            }
+
+            int length = 0;
+            while (name[length] != 0)
+                length++;
+
+            methodName = new ReadOnlySpan<byte>(name, length);
+            return true;
         }
-
-        int length = 0;
-        while (name[length] != 0)
-            length++;
-
-        methodName = new ReadOnlySpan<byte>(name, length);
-        return true;
     }
 
     public static unsafe void PushString(lua_State* state, string? message)
     {
-        if (message is null)
+        unsafe
         {
-            lua_pushnil(state);
-            return;
+            if (message is null)
+            {
+                lua_pushnil(state);
+                return;
+            }
+            PushString(state, message.AsSpan());
         }
-        PushString(state, message.AsSpan());
     }
 
     public static unsafe void PushString(lua_State* state, ReadOnlySpan<char> message)
     {
-        using var utf8Message = new Utf8Buffer(message, stackalloc byte[Utf8Buffer.StackSize]);
-        PushString(state, utf8Message.Bytes);
+        unsafe
+        {
+            using var utf8Message = new Utf8Buffer(message, stackalloc byte[Utf8Buffer.StackSize]);
+            PushString(state, utf8Message.Bytes);
+        }
     }
 
     public static unsafe void PushString(lua_State* state, ReadOnlySpan<byte> message)
     {
-        if (message.IsEmpty)
+        unsafe
         {
-            // An empty span has no address, and Luau must not get a null pointer, also for no bytes.
-            byte empty = 0;
-            lua_pushlstring(state, &empty, 0);
-            return;
-        }
+            if (message.IsEmpty)
+            {
+                // An empty span has no address, and Luau must not get a null pointer, also for no bytes.
+                byte empty = 0;
+                lua_pushlstring(state, &empty, 0);
+                return;
+            }
 
-        fixed (byte* pMessage = message)
-        {
-            lua_pushlstring(state, pMessage, (nuint)message.Length);
+            fixed (byte* pMessage = message)
+            {
+                lua_pushlstring(state, pMessage, (nuint)message.Length);
+            }
         }
     }
 }

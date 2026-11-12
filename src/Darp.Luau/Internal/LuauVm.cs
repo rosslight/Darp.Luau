@@ -26,17 +26,20 @@ namespace Darp.Luau.Internal;
 /// </para>
 /// </remarks>
 #pragma warning disable RS0030 // Banned API: this is the file the ban points to.
-internal static unsafe class LuauVm
+internal static class LuauVm
 {
     /// <summary> Calls the function below its <paramref name="nargs"/> arguments. </summary>
     /// <returns>The status. On an error, the error object replaces the function and its arguments.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int PCall(LuauState state, lua_State* L, int nargs, int nresults)
     {
-        state.VmDepth++;
-        int status = lua_pcall(L, nargs, nresults, 0);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = lua_pcall(L, nargs, nresults, 0);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Loads bytecode as a function. </summary>
@@ -48,40 +51,52 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Load(LuauState state, lua_State* L, byte* chunkName, byte* byteCode, nuint size, int env)
     {
-        state.VmDepth++;
-        int status = luau_load(L, chunkName, byteCode, size, env);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = luau_load(L, chunkName, byteCode, size, env);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Starts or continues <paramref name="coroutine"/> with its top <paramref name="narg"/> values. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Resume(LuauState state, lua_State* coroutine, lua_State* from, int narg)
     {
-        state.VmDepth++;
-        int status = lua_resume(coroutine, from, narg);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = lua_resume(coroutine, from, narg);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Continues a coroutine that waits in a managed callback. Its top values become the results. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeCallback(LuauState state, lua_State* coroutine, int narg)
     {
-        state.VmDepth++;
-        int status = darp_luau_resumecallback(coroutine, null, narg);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = darp_luau_resumecallback(coroutine, null, narg);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Continues a suspended coroutine by raising the error on top of its stack where it waits. </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int ResumeError(LuauState state, lua_State* coroutine)
     {
-        state.VmDepth++;
-        int status = lua_resumeerror(coroutine, null);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = lua_resumeerror(coroutine, null);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Replaces the key on top with <c>t[key]</c> for the table at <paramref name="idx"/>. </summary>
@@ -89,10 +104,13 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetTable(LuauState state, lua_State* L, int idx)
     {
-        state.VmDepth++;
-        int result = darp_luau_pgettable(L, idx);
-        state.VmDepth--;
-        return result;
+        unsafe
+        {
+            state.VmDepth++;
+            int result = darp_luau_pgettable(L, idx);
+            state.VmDepth--;
+            return result;
+        }
     }
 
     /// <summary> Does <c>t[key] = value</c> for the table at <paramref name="idx"/> and pops key and value. </summary>
@@ -100,16 +118,22 @@ internal static unsafe class LuauVm
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int SetTable(LuauState state, lua_State* L, int idx)
     {
-        state.VmDepth++;
-        int status = darp_luau_psettable(L, idx);
-        state.VmDepth--;
-        return status;
+        unsafe
+        {
+            state.VmDepth++;
+            int status = darp_luau_psettable(L, idx);
+            state.VmDepth--;
+            return status;
+        }
     }
 
     /// <summary> Closes the VM. The caller has checked that it does not run. </summary>
     public static void Close(LuauState state)
     {
-        Debug.Assert(state.VmDepth == 0);
-        lua_close(state.L);
+        unsafe
+        {
+            Debug.Assert(state.VmDepth == 0);
+            lua_close(state.L);
+        }
     }
 }

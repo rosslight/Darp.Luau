@@ -9,7 +9,7 @@ namespace Darp.Luau.Utils;
 /// slot, an owned reference a registry reference. An operation copies the value to the top of the main stack of
 /// the state with <see cref="Push"/>, works there and pops it.
 /// </remarks>
-internal readonly unsafe ref struct LuauSlot
+internal readonly ref struct LuauSlot
 {
     private readonly LuauState _state;
 
@@ -19,13 +19,16 @@ internal readonly unsafe ref struct LuauSlot
 
     public LuauSlot(LuauState state, lua_State* luaState, int stackIndex)
     {
-        ArgumentNullException.ThrowIfNull(luaState);
-        if (!state.OwnsThread(luaState))
-            throw new InvalidOperationException("Cross-state stack reference usage is not allowed.");
+        unsafe
+        {
+            ArgumentNullException.ThrowIfNull(luaState);
+            if (!state.OwnsThread(luaState))
+                throw new InvalidOperationException("Cross-state stack reference usage is not allowed.");
 
-        _state = state;
-        _luaState = luaState;
-        _stackIndex = stackIndex;
+            _state = state;
+            _luaState = luaState;
+            _stackIndex = stackIndex;
+        }
     }
 
     public LuauSlot(LuauState state, RegistryReferenceTracker.TrackedReference reference)
@@ -54,33 +57,42 @@ internal readonly unsafe ref struct LuauSlot
     /// <exception cref="ObjectDisposedException">Thrown when the registry reference was released.</exception>
     public void Push(LuauState state)
     {
-        lua_State* L = state.L;
-        if (Reference is { } reference)
+        unsafe
         {
-            reference.Push(L);
-            return;
-        }
+            lua_State* L = state.L;
+            if (Reference is { } reference)
+            {
+                reference.Push(L);
+                return;
+            }
 
-        lua_pushvalue(_luaState, _stackIndex);
-        if (_luaState != L)
-            lua_xmove(_luaState, L, 1);
+            lua_pushvalue(_luaState, _stackIndex);
+            if (_luaState != L)
+                lua_xmove(_luaState, L, 1);
+        }
     }
 
     /// <summary> Tracks the value under a handle of its own, for an owned reference. </summary>
     public ulong ToOwnedHandle()
     {
-        LuauState state = State;
-        Push(state);
-        return state.ReferenceTracker.TrackAndPopRef(state.L, -1);
+        unsafe
+        {
+            LuauState state = State;
+            Push(state);
+            return state.ReferenceTracker.TrackAndPopRef(state.L, -1);
+        }
     }
 
     /// <summary> Describes the value like Luau's <c>tostring</c> does without metamethods. </summary>
     public override string ToString()
     {
-        LuauState state = State;
-        Push(state);
-        string text = Helpers.StackString(state, -1);
-        lua_pop(state.L, 1);
-        return text;
+        unsafe
+        {
+            LuauState state = State;
+            Push(state);
+            string text = Helpers.StackString(state, -1);
+            lua_pop(state.L, 1);
+            return text;
+        }
     }
 }

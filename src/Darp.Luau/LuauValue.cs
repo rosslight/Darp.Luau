@@ -74,13 +74,13 @@ public readonly struct LuauValue : IDisposable
     private readonly struct LuauValueUnion
     {
         [FieldOffset(0)]
-        public readonly bool ValueBool;
+        public readonly safe bool ValueBool;
 
         [FieldOffset(0)]
-        public readonly double ValueDouble;
+        public readonly safe double ValueDouble;
 
         [FieldOffset(0)]
-        public readonly ulong ValueHandle;
+        public readonly safe ulong ValueHandle;
 
         public LuauValueUnion(bool value) => ValueBool = value;
 
@@ -184,7 +184,7 @@ public readonly struct LuauValue : IDisposable
     /// <param name="isProbe">Whether the read only asks if the value is a <typeparamref name="T"/>. See <see cref="ReadSource.IsProbe"/>.</param>
     /// <param name="value">The value when it was read.</param>
     /// <param name="failure">Why the value was not read.</param>
-    private unsafe bool Read<T>(bool isProbe, [MaybeNullWhen(false)] out T value, out ReadFailure failure)
+    private bool Read<T>(bool isProbe, [MaybeNullWhen(false)] out T value, out ReadFailure failure)
     {
         switch (Type)
         {
@@ -264,47 +264,53 @@ public readonly struct LuauValue : IDisposable
     /// <exception cref="ArgumentOutOfRangeException"> Thrown if the Type is invalid </exception>
     internal unsafe void Push(lua_State* L)
     {
-        if (_state is not null)
+        unsafe
         {
-            _state.ThrowIfDisposed();
-            if (!_state.OwnsThread(L))
-                throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-        }
+            if (_state is not null)
+            {
+                _state.ThrowIfDisposed();
+                if (!_state.OwnsThread(L))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+            }
 
-        switch (Type)
-        {
-            case LuauValueType.Nil:
-                lua_pushnil(L);
-                break;
-            case LuauValueType.Boolean:
-                lua_pushboolean(L, _union.ValueBool ? 1 : 0);
-                break;
-            case LuauValueType.Number:
-                lua_pushnumber(L, _union.ValueDouble);
-                break;
-            case LuauValueType.String
-            or LuauValueType.Table
-            or LuauValueType.Function
-            or LuauValueType.Thread
-            or LuauValueType.Userdata
-            or LuauValueType.Buffer:
-                if (_state is null)
-                    throw new InvalidOperationException("No LuauState present.");
-                var trackedReference = _state.GetTrackedReferenceOrThrow(_union.ValueHandle);
+            switch (Type)
+            {
+                case LuauValueType.Nil:
+                    lua_pushnil(L);
+                    break;
+                case LuauValueType.Boolean:
+                    lua_pushboolean(L, _union.ValueBool ? 1 : 0);
+                    break;
+                case LuauValueType.Number:
+                    lua_pushnumber(L, _union.ValueDouble);
+                    break;
+                case LuauValueType.String
+                or LuauValueType.Table
+                or LuauValueType.Function
+                or LuauValueType.Thread
+                or LuauValueType.Userdata
+                or LuauValueType.Buffer:
+                    if (_state is null)
+                        throw new InvalidOperationException("No LuauState present.");
+                    var trackedReference = _state.GetTrackedReferenceOrThrow(_union.ValueHandle);
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
-                trackedReference.PushToTop();
+                    trackedReference.PushToTop();
 #pragma warning restore CA2000
-                if ((nint)_state.L != (nint)L)
-                    lua_xmove(_state.L, L, 1);
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported Luau value type: {Type}.");
+                    if ((nint)_state.L != (nint)L)
+                        lua_xmove(_state.L, L, 1);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported Luau value type: {Type}.");
+            }
         }
     }
 
-    internal static unsafe LuauValue ToValue(LuauState state, int index = -1)
+    internal static LuauValue ToValue(LuauState state, int index = -1)
     {
-        return ToValue(state, state.L, index);
+        unsafe
+        {
+            return ToValue(state, state.L, index);
+        }
     }
 
     /// <summary> Gets the value at <paramref name="index"/>, with a reference of its own when it is reference-backed. </summary>
@@ -321,44 +327,47 @@ public readonly struct LuauValue : IDisposable
     /// <summary> Reads <paramref name="source"/> as a value, with a reference of its own when it is reference-backed. </summary>
     internal static bool TryRead(scoped in ReadSource source, out LuauValue value, out ReadFailure failure)
     {
-        // Written by a read that fails only. See ReadFailure.
-        Unsafe.SkipInit(out failure);
-        if (source.IsNil)
+        unsafe
         {
-            value = default;
-            return true;
-        }
-
-        switch (source.Type)
-        {
-            case lua_Type.LUA_TBOOLEAN:
-                value = new LuauValue(source.State, LuauValueType.Boolean, new LuauValueUnion(source.Boolean));
-                return true;
-            case lua_Type.LUA_TNUMBER:
-                value = new LuauValue(source.State, LuauValueType.Number, new LuauValueUnion(source.Number));
-                return true;
-            case lua_Type.LUA_TSTRING:
-                value = Own(source, LuauValueType.String);
-                return true;
-            case lua_Type.LUA_TTABLE:
-                value = Own(source, LuauValueType.Table);
-                return true;
-            case lua_Type.LUA_TFUNCTION:
-                value = Own(source, LuauValueType.Function);
-                return true;
-            case lua_Type.LUA_TTHREAD:
-                value = Own(source, LuauValueType.Thread);
-                return true;
-            case lua_Type.LUA_TUSERDATA:
-                value = Own(source, LuauValueType.Userdata);
-                return true;
-            case lua_Type.LUA_TBUFFER:
-                value = Own(source, LuauValueType.Buffer);
-                return true;
-            default:
+            // Written by a read that fails only. See ReadFailure.
+            Unsafe.SkipInit(out failure);
+            if (source.IsNil)
+            {
                 value = default;
-                failure = ReadFailure.NotSupported($"The lua type {source.Type} is not supported!");
-                return false;
+                return true;
+            }
+
+            switch (source.Type)
+            {
+                case lua_Type.LUA_TBOOLEAN:
+                    value = new LuauValue(source.State, LuauValueType.Boolean, new LuauValueUnion(source.Boolean));
+                    return true;
+                case lua_Type.LUA_TNUMBER:
+                    value = new LuauValue(source.State, LuauValueType.Number, new LuauValueUnion(source.Number));
+                    return true;
+                case lua_Type.LUA_TSTRING:
+                    value = Own(source, LuauValueType.String);
+                    return true;
+                case lua_Type.LUA_TTABLE:
+                    value = Own(source, LuauValueType.Table);
+                    return true;
+                case lua_Type.LUA_TFUNCTION:
+                    value = Own(source, LuauValueType.Function);
+                    return true;
+                case lua_Type.LUA_TTHREAD:
+                    value = Own(source, LuauValueType.Thread);
+                    return true;
+                case lua_Type.LUA_TUSERDATA:
+                    value = Own(source, LuauValueType.Userdata);
+                    return true;
+                case lua_Type.LUA_TBUFFER:
+                    value = Own(source, LuauValueType.Buffer);
+                    return true;
+                default:
+                    value = default;
+                    failure = ReadFailure.NotSupported($"The lua type {source.Type} is not supported!");
+                    return false;
+            }
         }
     }
 

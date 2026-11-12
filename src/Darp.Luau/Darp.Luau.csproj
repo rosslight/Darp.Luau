@@ -4,6 +4,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The updated memory safety rules of C# 15: only operations that access native memory need an unsafe context, and a member marked unsafe passes that need on to its callers. -->
+    <LangVersion>preview</LangVersion>
+    <Features>$(Features);updated-memory-safety-rules</Features>
     <IsAotCompatible>true</IsAotCompatible>
     <NoWarn>CA2225;CA1031</NoWarn>
     <!-- A banned call (BannedSymbols.txt) does not compile, also in a local build without /warnaserror. -->

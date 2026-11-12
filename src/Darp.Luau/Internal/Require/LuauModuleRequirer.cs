@@ -7,7 +7,7 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal.Require;
 
-internal sealed unsafe class LuauModuleRequirer : IDisposable
+internal sealed class LuauModuleRequirer : IDisposable
 {
     private readonly LuauState _state;
     private readonly LuauHostModuleRequirer _hostModules;
@@ -47,67 +47,76 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
 
     private void InstallRequireFunction()
     {
-#if DEBUG
-        using var guard = new StackGuard(_state.L, expectedDelta: 0);
-#endif
-        _proxyRequire = _scriptModules.CreateProxyRequireFunction(_state);
-        ulong proxyRequireHandle = _proxyRequire.GetHandleOrThrow();
-        RegistryReferenceTracker.TrackedReference proxyRequireReference = _state.GetTrackedReferenceOrThrow(
-            proxyRequireHandle
-        );
-
-        lua_State* L = _state.L;
-        _state.PushWritableGlobals(); // [globals]
-#pragma warning disable CA2000 // The native require callback captures this stack value as an upvalue.
-        _ = proxyRequireReference.PushToTop(); // [globals, proxy]
-#pragma warning restore CA2000
-        fixed (byte* pRequireName = "require\0"u8)
+        unsafe
         {
-            darp_luau_pushrequirecallback(L, &RequireCallback, ToVoidPtr(), pRequireName); // [globals, require]
-            // The global of the library, set raw: no metamethod of a script can redirect it.
-            lua_rawsetfield(L, -2, pRequireName); // [globals]
+#if DEBUG
+            using var guard = new StackGuard(_state.L, expectedDelta: 0);
+#endif
+            _proxyRequire = _scriptModules.CreateProxyRequireFunction(_state);
+            ulong proxyRequireHandle = _proxyRequire.GetHandleOrThrow();
+            RegistryReferenceTracker.TrackedReference proxyRequireReference = _state.GetTrackedReferenceOrThrow(
+                proxyRequireHandle
+            );
+
+            lua_State* L = _state.L;
+            _state.PushWritableGlobals(); // [globals]
+#pragma warning disable CA2000 // The native require callback captures this stack value as an upvalue.
+            _ = proxyRequireReference.PushToTop(); // [globals, proxy]
+#pragma warning restore CA2000
+            fixed (byte* pRequireName = "require\0"u8)
+            {
+                darp_luau_pushrequirecallback(L, &RequireCallback, ToVoidPtr(), pRequireName); // [globals, require]
+                // The global of the library, set raw: no metamethod of a script can redirect it.
+                lua_rawsetfield(L, -2, pRequireName); // [globals]
+            }
+            lua_pop(L, 1);
         }
-        lua_pop(L, 1);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int RequireCallback(lua_State* L, void* ctx)
     {
-        ArgumentNullException.ThrowIfNull(L);
-        int topBeforeCallback = lua_gettop(L);
-        try
+        unsafe
         {
-            return RequireCallbackCore(L, ctx);
-        }
-        catch (Exception exception)
-        {
-            lua_settop(L, topBeforeCallback);
-            return LuauStateMarshal.ReturnLibraryException(L, "require", exception);
+            ArgumentNullException.ThrowIfNull(L);
+            int topBeforeCallback = lua_gettop(L);
+            try
+            {
+                return RequireCallbackCore(L, ctx);
+            }
+            catch (Exception exception)
+            {
+                lua_settop(L, topBeforeCallback);
+                return LuauStateMarshal.ReturnLibraryException(L, "require", exception);
+            }
         }
     }
 
     private static int RequireCallbackCore(lua_State* L, void* ctx)
     {
-        LuauModuleRequirer requirer = FromVoidPtr(ctx);
-        if (!LuauStateMarshal.TryGetString(L, 1, out ReadOnlySpan<byte> utf8ModuleName))
-            return LuauStateMarshal.ReturnError(L, "bad argument #1 to 'require' (string expected)");
-
-        string moduleName = Encoding.UTF8.GetString(utf8ModuleName);
-        RequireResolution resolution = requirer.Resolve(moduleName);
-        switch (resolution.Kind)
+        unsafe
         {
-            case RequireResolutionKind.HostModule:
-                requirer.PushModule(L, resolution.Module);
-                return 1;
-            case RequireResolutionKind.ScriptModule:
-                lua_settop(L, 1);
-                LuauStateMarshal.PushString(L, GetCurrentFile(L));
-                return DARP_LUAU_REQUIRE_PROXY;
-            case RequireResolutionKind.Error:
-                return LuauStateMarshal.ReturnError(L, resolution.Error ?? "require failed");
-            case RequireResolutionKind.NotFound:
-            default:
-                return LuauStateMarshal.ReturnError(L, $"module '{moduleName}' is not registered");
+            LuauModuleRequirer requirer = FromVoidPtr(ctx);
+            if (!LuauStateMarshal.TryGetString(L, 1, out ReadOnlySpan<byte> utf8ModuleName))
+                return LuauStateMarshal.ReturnError(L, "bad argument #1 to 'require' (string expected)");
+
+            string moduleName = Encoding.UTF8.GetString(utf8ModuleName);
+            RequireResolution resolution = requirer.Resolve(moduleName);
+            switch (resolution.Kind)
+            {
+                case RequireResolutionKind.HostModule:
+                    requirer.PushModule(L, resolution.Module);
+                    return 1;
+                case RequireResolutionKind.ScriptModule:
+                    lua_settop(L, 1);
+                    LuauStateMarshal.PushString(L, GetCurrentFile(L));
+                    return DARP_LUAU_REQUIRE_PROXY;
+                case RequireResolutionKind.Error:
+                    return LuauStateMarshal.ReturnError(L, resolution.Error ?? "require failed");
+                case RequireResolutionKind.NotFound:
+                default:
+                    return LuauStateMarshal.ReturnError(L, $"module '{moduleName}' is not registered");
+            }
         }
     }
 
@@ -122,26 +131,32 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
 
     private void PushModule(lua_State* L, LuauTable module)
     {
-        ulong handle = module.GetHandleOrThrow();
-        RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(handle);
+        unsafe
+        {
+            ulong handle = module.GetHandleOrThrow();
+            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(handle);
 #if DEBUG
-        using var guard = new StackGuard(_state.L, expectedDelta: (nint)L == (nint)_state.L ? 1 : 0);
+            using var guard = new StackGuard(_state.L, expectedDelta: (nint)L == (nint)_state.L ? 1 : 0);
 #endif
 #pragma warning disable CA2000 // The pushed value is returned to the caller stack.
-        _ = trackedReference.PushToTop();
+            _ = trackedReference.PushToTop();
 #pragma warning restore CA2000
-        if ((nint)L != (nint)_state.L)
-            lua_xmove(_state.L, L, 1);
+            if ((nint)L != (nint)_state.L)
+                lua_xmove(_state.L, L, 1);
+        }
     }
 
     public void Dispose()
     {
-        _proxyRequire.Dispose();
-        _hostModules.Dispose();
-        _scriptModules.Dispose();
+        unsafe
+        {
+            _proxyRequire.Dispose();
+            _hostModules.Dispose();
+            _scriptModules.Dispose();
 
-        if (_handle.IsAllocated)
-            _handle.Free();
+            if (_handle.IsAllocated)
+                _handle.Free();
+        }
     }
 
     private void* ToVoidPtr()
@@ -151,49 +166,61 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
 
     private static LuauModuleRequirer FromVoidPtr(void* context)
     {
-        var handle = GCHandle.FromIntPtr((IntPtr)context);
-        return handle.Target as LuauModuleRequirer ?? throw new ArgumentException("invalid context pointer");
+        unsafe
+        {
+            var handle = GCHandle.FromIntPtr((IntPtr)context);
+            return handle.Target as LuauModuleRequirer ?? throw new ArgumentException("invalid context pointer");
+        }
     }
 
     private static string GetCurrentFile(lua_State* L)
     {
-        var debug = new lua_Debug();
-        for (int level = 1; ; level++)
+        unsafe
         {
-            int status;
-            fixed (byte* pWhat = "s\0"u8)
+            var debug = new lua_Debug();
+            for (int level = 1; ; level++)
             {
-                status = lua_getinfo(L, level, pWhat, &debug);
-            }
+                int status;
+                fixed (byte* pWhat = "s\0"u8)
+                {
+                    status = lua_getinfo(L, level, pWhat, &debug);
+                }
 
-            if (status == 0)
-                return "=stdin";
-
-            if (debug.what is null || !NullTerminatedEquals(debug.what, "C"u8))
-            {
-                if (debug.source is null)
+                if (status == 0)
                     return "=stdin";
 
-                return ReadUtf8Z(debug.source);
+                if (debug.what is null || !NullTerminatedEquals(debug.what, "C"u8))
+                {
+                    if (debug.source is null)
+                        return "=stdin";
+
+                    return ReadUtf8Z(debug.source);
+                }
             }
         }
     }
 
     private static string ReadUtf8Z(byte* ptr)
     {
-        ReadOnlySpan<byte> bytes = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(ptr);
-        return Encoding.UTF8.GetString(bytes);
+        unsafe
+        {
+            ReadOnlySpan<byte> bytes = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(ptr);
+            return Encoding.UTF8.GetString(bytes);
+        }
     }
 
     private static bool NullTerminatedEquals(byte* value, ReadOnlySpan<byte> expected)
     {
-        for (int i = 0; i < expected.Length; i++)
+        unsafe
         {
-            if (value[i] != expected[i])
-                return false;
-        }
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (value[i] != expected[i])
+                    return false;
+            }
 
-        return value[expected.Length] == 0;
+            return value[expected.Length] == 0;
+        }
     }
 }
 

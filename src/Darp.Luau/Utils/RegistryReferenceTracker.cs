@@ -32,27 +32,33 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     /// <exception cref="InvalidOperationException"> Thrown if the maximum number of tracked registry references has been exceeded. </exception>
     public unsafe ulong TrackRef(lua_State* L, int stackIndex, bool pinned = false)
     {
-        ArgumentNullException.ThrowIfNull(L);
-        if (!_state.OwnsThread(L))
-            throw new InvalidOperationException("Cross-state reference tracking is not allowed.");
+        unsafe
+        {
+            ArgumentNullException.ThrowIfNull(L);
+            if (!_state.OwnsThread(L))
+                throw new InvalidOperationException("Cross-state reference tracking is not allowed.");
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        int luaReference = lua_ref(L, stackIndex);
+            int luaReference = lua_ref(L, stackIndex);
 
-        ulong handle = GetNextHandle();
-        _trackedReferences[handle] = new TrackedReference(_state, luaReference, handle, pinned);
-        return handle;
+            ulong handle = GetNextHandle();
+            _trackedReferences[handle] = new TrackedReference(_state, luaReference, handle, pinned);
+            return handle;
+        }
     }
 
     public unsafe ulong TrackAndPopRef(lua_State* L, int stackIndex, bool pinned = false)
     {
+        unsafe
+        {
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: -1);
+            using var guard = new StackGuard(L, expectedDelta: -1);
 #endif
-        ulong handle = TrackRef(L, stackIndex, pinned);
-        lua_pop(L, 1);
-        return handle;
+            ulong handle = TrackRef(L, stackIndex, pinned);
+            lua_pop(L, 1);
+            return handle;
+        }
     }
 
     /// <summary>
@@ -63,21 +69,27 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     /// <returns>The registry reference of the root.</returns>
     public unsafe int AddRoot(lua_State* L, int stackIndex)
     {
-        int luaReference = lua_ref(L, stackIndex);
-        _createdRootCount++;
-        _activeRootCount++;
-        return luaReference;
+        unsafe
+        {
+            int luaReference = lua_ref(L, stackIndex);
+            _createdRootCount++;
+            _activeRootCount++;
+            return luaReference;
+        }
     }
 
     /// <summary> Releases a root added with <see cref="AddRoot"/>. </summary>
     /// <remarks> Does nothing after the state is disposed: its roots are released with it. </remarks>
-    public unsafe void ReleaseRoot(int luaReference)
+    public void ReleaseRoot(int luaReference)
     {
-        if (_state.IsDisposed)
-            return;
-        _ = lua_unref(_state.L, luaReference);
-        _activeRootCount--;
-        _releasedRegistryReferenceCount++;
+        unsafe
+        {
+            if (_state.IsDisposed)
+                return;
+            _ = lua_unref(_state.L, luaReference);
+            _activeRootCount--;
+            _releasedRegistryReferenceCount++;
+        }
     }
 
     public bool HasRegistryReference(ulong handle) => _trackedReferences.ContainsKey(handle);
@@ -150,22 +162,28 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         /// <exception cref="ObjectDisposedException">Thrown when every handle of the reference was released.</exception>
         public unsafe void Push(lua_State* L)
         {
-            if (!IsTracked)
+            unsafe
             {
-                throw new ObjectDisposedException(
-                    nameof(TrackedReference),
-                    "Tried to access a reference that is no longer tracked."
-                );
+                if (!IsTracked)
+                {
+                    throw new ObjectDisposedException(
+                        nameof(TrackedReference),
+                        "Tried to access a reference that is no longer tracked."
+                    );
+                }
+                _ = lua_getref(L, _luaReference);
             }
-            _ = lua_getref(L, _luaReference);
         }
 
-        public unsafe PopDisposable PushToTop()
+        public PopDisposable PushToTop()
         {
-            _state.ThrowIfDisposed();
-            lua_State* L = _state.L;
-            var type = (lua_Type)lua_getref(L, _luaReference);
-            return new PopDisposable(L, true);
+            unsafe
+            {
+                _state.ThrowIfDisposed();
+                lua_State* L = _state.L;
+                var type = (lua_Type)lua_getref(L, _luaReference);
+                return new PopDisposable(L, true);
+            }
         }
 
         public ulong CountRef()
@@ -178,21 +196,26 @@ internal sealed class RegistryReferenceTracker(LuauState state)
             return nextHandle;
         }
 
-        public unsafe void RemoveRef(ulong handle)
+        public void RemoveRef(ulong handle)
         {
-            if (!_state.ReferenceTracker._trackedReferences.TryRemove(handle, out TrackedReference? reference))
-                throw new InvalidOperationException("Tried to remove a handle that was not tracked.");
-            if (reference != this)
-                throw new InvalidOperationException("Tried to remove a handle that does not belong to this reference.");
+            unsafe
+            {
+                if (!_state.ReferenceTracker._trackedReferences.TryRemove(handle, out TrackedReference? reference))
+                    throw new InvalidOperationException("Tried to remove a handle that was not tracked.");
+                if (reference != this)
+                    throw new InvalidOperationException(
+                        "Tried to remove a handle that does not belong to this reference."
+                    );
 
-            _numberOfManagedRefs--;
-            if (_numberOfManagedRefs > 0)
-                return;
+                _numberOfManagedRefs--;
+                if (_numberOfManagedRefs > 0)
+                    return;
 
-            _state.ThrowIfDisposed();
-            lua_State* L = _state.L;
-            _ = lua_unref(L, _luaReference);
-            _state.ReferenceTracker._releasedRegistryReferenceCount++;
+                _state.ThrowIfDisposed();
+                lua_State* L = _state.L;
+                _ = lua_unref(L, _luaReference);
+                _state.ReferenceTracker._releasedRegistryReferenceCount++;
+            }
         }
     }
 }

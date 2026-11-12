@@ -27,18 +27,21 @@ public sealed class LuaException : Exception
     /// <exception cref="LuaException">Thrown when <paramref name="status"/> is not successful.</exception>
     public static unsafe void ThrowIfNotOk(lua_State* L, int status, string description)
     {
-        if (status == 0)
-            return;
+        unsafe
+        {
+            if (status == 0)
+                return;
 
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: -1);
+            using var guard = new StackGuard(L, expectedDelta: -1);
 #endif
-        nuint outLength = 0;
-        byte* err = lua_tolstring(L, -1, &outLength);
-        string error = err is null ? "<unknown lua error>" : Encoding.UTF8.GetString(err, (int)outLength);
-        lua_pop(L, 1);
-        string message = $"Lua invocation {description} failed with status {status}: {error}";
-        throw new LuaException(message);
+            nuint outLength = 0;
+            byte* err = lua_tolstring(L, -1, &outLength);
+            string error = err is null ? "<unknown lua error>" : Encoding.UTF8.GetString(err, (int)outLength);
+            lua_pop(L, 1);
+            string message = $"Lua invocation {description} failed with status {status}: {error}";
+            throw new LuaException(message);
+        }
     }
 }
 

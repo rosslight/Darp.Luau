@@ -11,7 +11,7 @@ namespace Darp.Luau;
 /// The view does not own a registry reference. It is valid only while the callback that received it runs; call
 /// <see cref="ToOwned"/> to keep the userdata.
 /// </remarks>
-public readonly unsafe ref struct LuauUserdataView
+public readonly ref struct LuauUserdataView
 {
     private readonly LuauSlot _slot;
 
@@ -52,12 +52,15 @@ public readonly unsafe ref struct LuauUserdataView
     private bool TryRead<T>(bool isProbe, [NotNullWhen(true)] out T? value, out ReadFailure failure)
         where T : class
     {
-        LuauState state = _slot.State;
-        lua_State* L = state.L;
-        _slot.Push(state);
-        ReadSource source = ReadSource.FromStack(state, L, -1);
-        bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
-        lua_pop(L, 1);
-        return isRead;
+        unsafe
+        {
+            LuauState state = _slot.State;
+            lua_State* L = state.L;
+            _slot.Push(state);
+            ReadSource source = ReadSource.FromStack(state, L, -1);
+            bool isRead = LuauReader.TryRead(isProbe ? source.AsProbe() : source, out value, out failure);
+            lua_pop(L, 1);
+            return isRead;
+        }
     }
 }

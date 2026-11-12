@@ -68,7 +68,7 @@ internal sealed class LuauHostModuleRequirer : IDisposable
         }
     }
 
-    private unsafe void Freeze(LuauTable module)
+    private void Freeze(LuauTable module)
     {
         using (_state.GetTrackedReferenceOrThrow(module.GetHandleOrThrow()).PushToTop())
             LuauSandbox.FreezeTables(_state.L);

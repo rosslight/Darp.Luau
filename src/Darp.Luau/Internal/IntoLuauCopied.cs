@@ -65,64 +65,67 @@ internal readonly struct IntoLuauCopied
 
     internal unsafe void Push(LuauState state, lua_State* L)
     {
-        if (!state.OwnsThread(L))
-            throw new InvalidOperationException("Cross-state value push is not allowed.");
-
-        switch (_type)
+        unsafe
         {
-            case Kind.String:
-                Debug.Assert(_object is not null);
-                var text = (string)_object;
-                if (text.Length > 256)
-                {
-                    Span<byte> utf8 = new byte[Encoding.UTF8.GetByteCount(text)];
-                    int length = Encoding.UTF8.GetBytes(text, utf8);
-                    LuauStateMarshal.PushString(L, utf8[..length]);
-                }
-                else
-                {
-                    Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetByteCount(text)];
-                    int length = Encoding.UTF8.GetBytes(text, utf8);
-                    LuauStateMarshal.PushString(L, utf8[..length]);
-                }
-                break;
-            case Kind.Buffer:
-                Debug.Assert(_object is not null);
-                var buffer = (byte[])_object;
-                void* pDest = lua_newbuffer(L, (nuint)buffer.Length);
-                var destination = new Span<byte>(pDest, buffer.Length);
-                buffer.CopyTo(destination);
-                break;
-            case Kind.Value:
-            case Kind.BorrowedValue:
-                _value.Push(L);
-                break;
-            case Kind.BorrowedReference:
-                Debug.Assert(_object is not null);
-                var reference = (RegistryReferenceTracker.TrackedReference)_object;
-                if (!ReferenceEquals(state, reference.State))
-                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-                if (!reference.IsTracked)
-                    throw new ObjectDisposedException(
-                        nameof(LuauValue),
-                        "The argument was disposed before it was used."
-                    );
+            if (!state.OwnsThread(L))
+                throw new InvalidOperationException("Cross-state value push is not allowed.");
+
+            switch (_type)
+            {
+                case Kind.String:
+                    Debug.Assert(_object is not null);
+                    var text = (string)_object;
+                    if (text.Length > 256)
+                    {
+                        Span<byte> utf8 = new byte[Encoding.UTF8.GetByteCount(text)];
+                        int length = Encoding.UTF8.GetBytes(text, utf8);
+                        LuauStateMarshal.PushString(L, utf8[..length]);
+                    }
+                    else
+                    {
+                        Span<byte> utf8 = stackalloc byte[Encoding.UTF8.GetByteCount(text)];
+                        int length = Encoding.UTF8.GetBytes(text, utf8);
+                        LuauStateMarshal.PushString(L, utf8[..length]);
+                    }
+                    break;
+                case Kind.Buffer:
+                    Debug.Assert(_object is not null);
+                    var buffer = (byte[])_object;
+                    void* pDest = lua_newbuffer(L, (nuint)buffer.Length);
+                    var destination = new Span<byte>(pDest, buffer.Length);
+                    buffer.CopyTo(destination);
+                    break;
+                case Kind.Value:
+                case Kind.BorrowedValue:
+                    _value.Push(L);
+                    break;
+                case Kind.BorrowedReference:
+                    Debug.Assert(_object is not null);
+                    var reference = (RegistryReferenceTracker.TrackedReference)_object;
+                    if (!ReferenceEquals(state, reference.State))
+                        throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+                    if (!reference.IsTracked)
+                        throw new ObjectDisposedException(
+                            nameof(LuauValue),
+                            "The argument was disposed before it was used."
+                        );
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
-                _ = reference.PushToTop();
+                    _ = reference.PushToTop();
 #pragma warning restore CA2000
-                if ((nint)state.L != (nint)L)
-                    lua_xmove(state.L, L, 1);
-                break;
-            case Kind.Userdata:
-                Debug.Assert(_object is CopiedUserdata);
-                ((CopiedUserdata)_object).Push(state);
-                if ((nint)state.L != (nint)L)
-                    lua_xmove(state.L, L, 1);
-                break;
-            case Kind.Nil:
-            default:
-                lua_pushnil(L);
-                break;
+                    if ((nint)state.L != (nint)L)
+                        lua_xmove(state.L, L, 1);
+                    break;
+                case Kind.Userdata:
+                    Debug.Assert(_object is CopiedUserdata);
+                    ((CopiedUserdata)_object).Push(state);
+                    if ((nint)state.L != (nint)L)
+                        lua_xmove(state.L, L, 1);
+                    break;
+                case Kind.Nil:
+                default:
+                    lua_pushnil(L);
+                    break;
+            }
         }
     }
 

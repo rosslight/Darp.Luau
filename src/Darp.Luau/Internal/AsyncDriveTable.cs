@@ -24,21 +24,24 @@ internal sealed class AsyncDriveTable
     /// <returns>The slot to pass to <see cref="Remove"/> when the drive ends.</returns>
     public unsafe int Add(lua_State* coroutine, CancellationToken cancellationToken)
     {
-        int slot = _firstFreeSlot;
-        if (slot != NoSlot)
+        unsafe
         {
-            _firstFreeSlot = _slots[slot].NextFreeSlot;
+            int slot = _firstFreeSlot;
+            if (slot != NoSlot)
+            {
+                _firstFreeSlot = _slots[slot].NextFreeSlot;
+            }
+            else
+            {
+                if (_usedSlotCount == _slots.Length)
+                    Array.Resize(ref _slots, Math.Max(4, _slots.Length * 2));
+                slot = _usedSlotCount++;
+            }
+            _slots[slot] = new Slot { CancellationToken = cancellationToken };
+            // Offset by one: thread data of zero means that no async drive runs the coroutine.
+            lua_setthreaddata(coroutine, (void*)(nint)(slot + 1));
+            return slot;
         }
-        else
-        {
-            if (_usedSlotCount == _slots.Length)
-                Array.Resize(ref _slots, Math.Max(4, _slots.Length * 2));
-            slot = _usedSlotCount++;
-        }
-        _slots[slot] = new Slot { CancellationToken = cancellationToken };
-        // Offset by one: thread data of zero means that no async drive runs the coroutine.
-        lua_setthreaddata(coroutine, (void*)(nint)(slot + 1));
-        return slot;
     }
 
     /// <summary> Ends the drive in <paramref name="slot"/>. </summary>
@@ -46,11 +49,14 @@ internal sealed class AsyncDriveTable
     /// <param name="coroutine">The driven coroutine, or <c>null</c> when its state is disposed and its memory is gone.</param>
     public unsafe void Remove(int slot, lua_State* coroutine)
     {
-        // The coroutine may have been taken from the drive and may be run by another one by now.
-        if (coroutine is not null && IsDriving(coroutine, slot))
-            lua_setthreaddata(coroutine, null);
-        _slots[slot] = new Slot { NextFreeSlot = _firstFreeSlot };
-        _firstFreeSlot = slot;
+        unsafe
+        {
+            // The coroutine may have been taken from the drive and may be run by another one by now.
+            if (coroutine is not null && IsDriving(coroutine, slot))
+                lua_setthreaddata(coroutine, null);
+            _slots[slot] = new Slot { NextFreeSlot = _firstFreeSlot };
+            _firstFreeSlot = slot;
+        }
     }
 
     /// <summary> The work the drive in <paramref name="slot"/> awaits, none while its coroutine runs. </summary>
@@ -62,18 +68,21 @@ internal sealed class AsyncDriveTable
     /// <returns><c>false</c> when no async drive runs the coroutine.</returns>
     public unsafe bool TrySetPending(lua_State* coroutine, PendingWork pending)
     {
-        if (!TryGetSlot(coroutine, out int slot))
-            return false;
-        _slots[slot].Pending = pending;
-        return true;
+        unsafe
+        {
+            if (!TryGetSlot(coroutine, out int slot))
+                return false;
+            _slots[slot].Pending = pending;
+            return true;
+        }
     }
 
     /// <summary> Whether an async drive runs <paramref name="coroutine"/>. </summary>
-    public static unsafe bool IsDriving(lua_State* coroutine) => TryGetSlot(coroutine, out _);
+    public static unsafe bool IsDriving(lua_State* coroutine) => unsafe(TryGetSlot(coroutine, out _));
 
     /// <summary> Whether the drive in <paramref name="slot"/>, and not a later one, runs <paramref name="coroutine"/>. </summary>
     public static unsafe bool IsDriving(lua_State* coroutine, int slot) =>
-        TryGetSlot(coroutine, out int currentSlot) && currentSlot == slot;
+        unsafe(TryGetSlot(coroutine, out int currentSlot) && currentSlot == slot);
 
     /// <summary> Whether the host cancelled the call of the drive in <paramref name="slot"/>. </summary>
     public bool IsCancellationRequested(int slot) => _slots[slot].CancellationToken.IsCancellationRequested;
@@ -83,12 +92,15 @@ internal sealed class AsyncDriveTable
 
     /// <summary> Whether <paramref name="coroutine"/> is suspended in a managed callback its drive awaits. </summary>
     public unsafe bool IsAwaiting(lua_State* coroutine) =>
-        TryGetSlot(coroutine, out int slot) && !_slots[slot].Pending.IsNone;
+        unsafe(TryGetSlot(coroutine, out int slot) && !_slots[slot].Pending.IsNone);
 
     private static unsafe bool TryGetSlot(lua_State* coroutine, out int slot)
     {
-        slot = (int)(nint)lua_getthreaddata(coroutine) - 1;
-        return slot != NoSlot;
+        unsafe
+        {
+            slot = (int)(nint)lua_getthreaddata(coroutine) - 1;
+            return slot != NoSlot;
+        }
     }
 
     private struct Slot

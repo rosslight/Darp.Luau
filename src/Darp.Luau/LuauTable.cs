@@ -14,7 +14,7 @@ namespace Darp.Luau;
     "CA1815:Override equals and operator equals on value types",
     Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
 )]
-public readonly unsafe struct LuauTable : IDisposable, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
+public readonly struct LuauTable : IDisposable, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;

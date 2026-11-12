@@ -29,7 +29,7 @@ namespace Darp.Luau.Internal;
 /// thread that runs the script.
 /// </para>
 /// </remarks>
-internal static unsafe class ScriptInterrupt
+internal static class ScriptInterrupt
 {
     private const string StoppedMessage = "The script was stopped because its host call was cancelled.";
 
@@ -37,13 +37,22 @@ internal static unsafe class ScriptInterrupt
     /// <param name="stateHandle">A handle to the state, which outlives the returned memory.</param>
     public static darp_luau_interrupt* Create(GCHandle stateHandle)
     {
-        var interrupt = (darp_luau_interrupt*)NativeMemory.Alloc((nuint)sizeof(darp_luau_interrupt));
-        interrupt->callback = &ShouldStop;
-        interrupt->ctx = (void*)GCHandle.ToIntPtr(stateHandle);
-        return interrupt;
+        unsafe
+        {
+            var interrupt = (darp_luau_interrupt*)NativeMemory.Alloc((nuint)sizeof(darp_luau_interrupt));
+            interrupt->callback = &ShouldStop;
+            interrupt->ctx = (void*)GCHandle.ToIntPtr(stateHandle);
+            return interrupt;
+        }
     }
 
-    public static void Free(darp_luau_interrupt* interrupt) => NativeMemory.Free(interrupt);
+    public static void Free(darp_luau_interrupt* interrupt)
+    {
+        unsafe
+        {
+            NativeMemory.Free(interrupt);
+        }
+    }
 
     /// <summary> Lets <paramref name="cancellationToken"/>, and no other token, stop the script while the scope is open. </summary>
     /// <remarks>
@@ -62,23 +71,26 @@ internal static unsafe class ScriptInterrupt
 
     private static void Install(LuauState state, CancellationToken cancellationToken)
     {
-        // Host code that runs between two stretches of a script, such as the conversion of an awaited result, may
-        // dispose the state. Its VM is gone then.
-        if (state.IsDisposed)
-            return;
-        // Luau is only made to ask for a token that can be cancelled: a script pays for every question.
-        if (cancellationToken.CanBeCanceled)
-            darp_luau_setinterrupt(state.L, state.Interrupt);
-        else if (state.InterruptToken.CanBeCanceled)
-            darp_luau_setinterrupt(state.L, null);
-        state.InterruptToken = cancellationToken;
+        unsafe
+        {
+            // Host code that runs between two stretches of a script, such as the conversion of an awaited result, may
+            // dispose the state. Its VM is gone then.
+            if (state.IsDisposed)
+                return;
+            // Luau is only made to ask for a token that can be cancelled: a script pays for every question.
+            if (cancellationToken.CanBeCanceled)
+                darp_luau_setinterrupt(state.L, state.Interrupt);
+            else if (state.InterruptToken.CanBeCanceled)
+                darp_luau_setinterrupt(state.L, null);
+            state.InterruptToken = cancellationToken;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int ShouldStop(lua_State* L, void* ctx) =>
-        GCHandle.FromIntPtr((nint)ctx).Target is LuauState state && state.InterruptToken.IsCancellationRequested
+        unsafe(GCHandle.FromIntPtr((nint)ctx).Target is LuauState state && state.InterruptToken.IsCancellationRequested
             ? 1
-            : 0;
+            : 0);
 
     /// <summary> Throws when a sync host call failed. </summary>
     /// <remarks>
@@ -96,13 +108,16 @@ internal static unsafe class ScriptInterrupt
 
     private static void ThrowFailure(LuauState state, lua_State* L, int status, string description)
     {
-        try
+        unsafe
         {
-            LuaException.ThrowIfNotOk(L, status, description);
-        }
-        catch (LuaException failure) when (state.InterruptToken.IsCancellationRequested)
-        {
-            throw Cancelled(failure, state.InterruptToken);
+            try
+            {
+                LuaException.ThrowIfNotOk(L, status, description);
+            }
+            catch (LuaException failure) when (state.InterruptToken.IsCancellationRequested)
+            {
+                throw Cancelled(failure, state.InterruptToken);
+            }
         }
     }
 

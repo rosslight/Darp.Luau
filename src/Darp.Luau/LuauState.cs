@@ -13,7 +13,7 @@ namespace Darp.Luau;
 
 /// <summary> The LuauState </summary>
 /// <remarks> Not threadsafe </remarks>
-public sealed unsafe class LuauState : IDisposable
+public sealed class LuauState : IDisposable
 {
     private readonly ILuauFileSystem _virtualFileSystem;
 
@@ -98,46 +98,49 @@ public sealed unsafe class LuauState : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when the state has been disposed.</exception>
     public void EnableSandbox()
     {
-        this.ThrowIfDisposed();
-        if (IsSandboxed)
-            return;
-
-        // When the globals cannot be written, nothing has changed yet.
-        PushWritableGlobals(); // [globals]
-        // With these a script replaces the globals of a thread, or of a function of another script. Luau keeps
-        // them for old scripts only.
-        lua_pushnil(L);
-        fixed (byte* pName = "getfenv\0"u8)
-            lua_rawsetfield(L, -2, pName);
-        lua_pushnil(L);
-        fixed (byte* pName = "setfenv\0"u8)
-            lua_rawsetfield(L, -2, pName);
-        // A script may have given the main thread other globals. The ones of the state are frozen and used.
-        lua_replace(L, LUA_GLOBALSINDEX); // []
-        // With 'require' in place, modules can be registered and enabled afterwards: that changes no global.
-        LuauModuleRequirer requirer = GetOrCreateModuleRequirer();
-
-        // Freezes the global table and every table in it, at any depth.
-        PushGlobals();
-        LuauSandbox.FreezeTables(L);
-        lua_pop(L, 1);
-        // The host modules are part of the host's API as well. A module that is loaded later is frozen then.
-        requirer.FreezeHostModules();
-        // Freezes the metatable of strings; the tables in the globals are frozen already.
-        luaL_sandbox(L);
-        // It leaves a metatable of the globals writable. With it a script gives every other script another
-        // '__index', and through that other globals.
-        if (lua_getmetatable(L, LUA_GLOBALSINDEX) != 0)
+        unsafe
         {
-            lua_setreadonly(L, -1, 1);
+            this.ThrowIfDisposed();
+            if (IsSandboxed)
+                return;
+
+            // When the globals cannot be written, nothing has changed yet.
+            PushWritableGlobals(); // [globals]
+            // With these a script replaces the globals of a thread, or of a function of another script. Luau keeps
+            // them for old scripts only.
+            lua_pushnil(L);
+            fixed (byte* pName = "getfenv\0"u8)
+                lua_rawsetfield(L, -2, pName);
+            lua_pushnil(L);
+            fixed (byte* pName = "setfenv\0"u8)
+                lua_rawsetfield(L, -2, pName);
+            // A script may have given the main thread other globals. The ones of the state are frozen and used.
+            lua_replace(L, LUA_GLOBALSINDEX); // []
+            // With 'require' in place, modules can be registered and enabled afterwards: that changes no global.
+            LuauModuleRequirer requirer = GetOrCreateModuleRequirer();
+
+            // Freezes the global table and every table in it, at any depth.
+            PushGlobals();
+            LuauSandbox.FreezeTables(L);
             lua_pop(L, 1);
+            // The host modules are part of the host's API as well. A module that is loaded later is frozen then.
+            requirer.FreezeHostModules();
+            // Freezes the metatable of strings; the tables in the globals are frozen already.
+            luaL_sandbox(L);
+            // It leaves a metatable of the globals writable. With it a script gives every other script another
+            // '__index', and through that other globals.
+            if (lua_getmetatable(L, LUA_GLOBALSINDEX) != 0)
+            {
+                lua_setreadonly(L, -1, 1);
+                lua_pop(L, 1);
+            }
+            // It also marks the globals as safe, which lets Luau resolve 'a.b.c' once when a script is loaded and
+            // call built-in functions without looking them up. That is for the scripts loaded from now on, which get
+            // globals of their own with that mark. A function that was loaded before was compiled without knowing
+            // which globals change, and keeps looking everything up.
+            lua_setsafeenv(L, LUA_GLOBALSINDEX, 0);
+            Sandbox = LuauSandbox.Create(this);
         }
-        // It also marks the globals as safe, which lets Luau resolve 'a.b.c' once when a script is loaded and
-        // call built-in functions without looking them up. That is for the scripts loaded from now on, which get
-        // globals of their own with that mark. A function that was loaded before was compiled without knowing
-        // which globals change, and keeps looking everything up.
-        lua_setsafeenv(L, LUA_GLOBALSINDEX, 0);
-        Sandbox = LuauSandbox.Create(this);
     }
 
     /// <summary> Pushes the global table of the state, whatever the globals of its main thread are right now. </summary>
@@ -155,11 +158,14 @@ public sealed unsafe class LuauState : IDisposable
     /// <exception cref="LuaException">Thrown when a script froze the globals.</exception>
     internal void PushWritableGlobals()
     {
-        PushGlobals();
-        if (lua_getreadonly(L, -1) == 0)
-            return;
-        lua_pop(L, 1);
-        throw new LuaException("The globals are read-only.");
+        unsafe
+        {
+            PushGlobals();
+            if (lua_getreadonly(L, -1) == 0)
+                return;
+            lua_pop(L, 1);
+            throw new LuaException("The globals are read-only.");
+        }
     }
 
     /// <summary>
@@ -174,15 +180,18 @@ public sealed unsafe class LuauState : IDisposable
     /// </remarks>
     internal void PushOwnScriptGlobals(LuauSandbox sandbox)
     {
-        lua_newtable(L); // [globals]
-        lua_newtable(L); // [globals, metatable]
-        PushGlobals();
-        fixed (byte* pIndex = "__index\0"u8)
-            lua_rawsetfield(L, -2, pIndex);
-        lua_setreadonly(L, -1, 1);
-        _ = lua_setmetatable(L, -2);
-        if (sandbox.AllowsFastPaths)
-            lua_setsafeenv(L, -1, 1);
+        unsafe
+        {
+            lua_newtable(L); // [globals]
+            lua_newtable(L); // [globals, metatable]
+            PushGlobals();
+            fixed (byte* pIndex = "__index\0"u8)
+                lua_rawsetfield(L, -2, pIndex);
+            lua_setreadonly(L, -1, 1);
+            _ = lua_setmetatable(L, -2);
+            if (sandbox.AllowsFastPaths)
+                lua_setsafeenv(L, -1, 1);
+        }
     }
 
     private void ThrowIfSandboxed(string what)
@@ -227,38 +236,41 @@ public sealed unsafe class LuauState : IDisposable
         SynchronizationContext? hostSynchronizationContext
     )
     {
-        _virtualFileSystem = virtualFileSystem ?? new FileSystem();
-        AsyncContext = new LuauSynchronizationContext(hostSynchronizationContext);
-
-        L = luaL_newstate();
-        if (L is null)
-            throw new InvalidOperationException("Could not create Lua state.");
-        try
+        unsafe
         {
-            _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);
-            Interrupt = ScriptInterrupt.Create(_selfHandle);
+            _virtualFileSystem = virtualFileSystem ?? new FileSystem();
+            AsyncContext = new LuauSynchronizationContext(hostSynchronizationContext);
+
+            L = luaL_newstate();
+            if (L is null)
+                throw new InvalidOperationException("Could not create Lua state.");
+            try
+            {
+                _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);
+                Interrupt = ScriptInterrupt.Create(_selfHandle);
 #if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: 0);
+                using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
 
-            _cache = new UserdataRegistrationCache(this);
-            ReferenceTracker = new RegistryReferenceTracker(this);
+                _cache = new UserdataRegistrationCache(this);
+                ReferenceTracker = new RegistryReferenceTracker(this);
 
-            LoadStandardLibraries(builtinLibraries);
+                LoadStandardLibraries(builtinLibraries);
 
-            // Push table to stack, get the reference and pop
-            lua_pushvalue(L, LUA_GLOBALSINDEX);
-            _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
-        }
-        catch
-        {
-            // Nobody gets the state to dispose it.
-            _disposing = 1;
-            LuauVm.Close(this);
-            ScriptInterrupt.Free(Interrupt);
-            if (_selfHandle.IsAllocated)
-                _selfHandle.Free();
-            throw;
+                // Push table to stack, get the reference and pop
+                lua_pushvalue(L, LUA_GLOBALSINDEX);
+                _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
+            }
+            catch
+            {
+                // Nobody gets the state to dispose it.
+                _disposing = 1;
+                LuauVm.Close(this);
+                ScriptInterrupt.Free(Interrupt);
+                if (_selfHandle.IsAllocated)
+                    _selfHandle.Free();
+                throw;
+            }
         }
     }
 
@@ -278,42 +290,48 @@ public sealed unsafe class LuauState : IDisposable
 
     private void OpenBuiltinLibraries(LuauLibraries libraries)
     {
-        if (libraries.HasFlag(LuauLibraries.Base))
-            openlib(this, L, ""u8, luaopen_base);
-        if (libraries.HasFlag(LuauLibraries.Coroutine))
-            openlib(this, L, LUA_COLIBNAME, luaopen_coroutine);
-        if (libraries.HasFlag(LuauLibraries.Table))
-            openlib(this, L, LUA_TABLIBNAME, luaopen_table);
-        if (libraries.HasFlag(LuauLibraries.Os))
-            openlib(this, L, LUA_OSLIBNAME, luaopen_os);
-        if (libraries.HasFlag(LuauLibraries.String))
-            openlib(this, L, LUA_STRLIBNAME, luaopen_string);
-        if (libraries.HasFlag(LuauLibraries.Math))
-            openlib(this, L, LUA_MATHLIBNAME, luaopen_math);
-        if (libraries.HasFlag(LuauLibraries.Debug))
-            openlib(this, L, LUA_DBLIBNAME, luaopen_debug);
-        if (libraries.HasFlag(LuauLibraries.Utf8))
-            openlib(this, L, LUA_UTF8LIBNAME, luaopen_utf8);
-        if (libraries.HasFlag(LuauLibraries.Bit32))
-            openlib(this, L, LUA_BITLIBNAME, luaopen_bit32);
-        if (libraries.HasFlag(LuauLibraries.Buffer))
-            openlib(this, L, LUA_BUFFERLIBNAME, luaopen_buffer);
-        if (libraries.HasFlag(LuauLibraries.Vector))
-            openlib(this, L, LUA_VECLIBNAME, luaopen_vector);
+        unsafe
+        {
+            if (libraries.HasFlag(LuauLibraries.Base))
+                openlib(this, L, ""u8, luaopen_base);
+            if (libraries.HasFlag(LuauLibraries.Coroutine))
+                openlib(this, L, LUA_COLIBNAME, luaopen_coroutine);
+            if (libraries.HasFlag(LuauLibraries.Table))
+                openlib(this, L, LUA_TABLIBNAME, luaopen_table);
+            if (libraries.HasFlag(LuauLibraries.Os))
+                openlib(this, L, LUA_OSLIBNAME, luaopen_os);
+            if (libraries.HasFlag(LuauLibraries.String))
+                openlib(this, L, LUA_STRLIBNAME, luaopen_string);
+            if (libraries.HasFlag(LuauLibraries.Math))
+                openlib(this, L, LUA_MATHLIBNAME, luaopen_math);
+            if (libraries.HasFlag(LuauLibraries.Debug))
+                openlib(this, L, LUA_DBLIBNAME, luaopen_debug);
+            if (libraries.HasFlag(LuauLibraries.Utf8))
+                openlib(this, L, LUA_UTF8LIBNAME, luaopen_utf8);
+            if (libraries.HasFlag(LuauLibraries.Bit32))
+                openlib(this, L, LUA_BITLIBNAME, luaopen_bit32);
+            if (libraries.HasFlag(LuauLibraries.Buffer))
+                openlib(this, L, LUA_BUFFERLIBNAME, luaopen_buffer);
+            if (libraries.HasFlag(LuauLibraries.Vector))
+                openlib(this, L, LUA_VECLIBNAME, luaopen_vector);
+        }
     }
 
     private delegate int OpenLibFunc(lua_State* L);
 
     private static void openlib(LuauState state, lua_State* L, ReadOnlySpan<byte> name, OpenLibFunc openf)
     {
+        unsafe
+        {
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(openf);
-        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
-        fixed (byte* pName = name)
-            lua_pushstring(L, pName);
-        LuaException.ThrowIfNotOk(L, LuauVm.PCall(state, L, 1, 0), "lua_pcall");
+            IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(openf);
+            lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
+            fixed (byte* pName = name)
+                lua_pushstring(L, pName);
+            LuaException.ThrowIfNotOk(L, LuauVm.PCall(state, L, 1, 0), "lua_pcall");
+        }
     }
 
     /// <summary> The delegate type used to load a custom module table. </summary>
@@ -377,9 +395,12 @@ public sealed unsafe class LuauState : IDisposable
 
     internal bool OwnsThread(lua_State* luaState)
     {
-        ArgumentNullException.ThrowIfNull(luaState);
-        // Most calls run on the main thread; only coroutines pay for the lookup.
-        return luaState == L || lua_mainthread(luaState) == L;
+        unsafe
+        {
+            ArgumentNullException.ThrowIfNull(luaState);
+            // Most calls run on the main thread; only coroutines pay for the lookup.
+            return luaState == L || lua_mainthread(luaState) == L;
+        }
     }
 
     private static bool IsReservedModuleName(string name) =>
@@ -394,11 +415,14 @@ public sealed unsafe class LuauState : IDisposable
         delegate* unmanaged[Cdecl]<void*, void> contextDestructor = null
     )
     {
-        this.ThrowIfDisposed();
+        unsafe
+        {
+            this.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 1);
+            using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        darp_luau_pushcallback(L, callback, context, contextDestructor, debugName);
+            darp_luau_pushcallback(L, callback, context, contextDestructor, debugName);
+        }
     }
 
     /// <summary> Runs when Luau frees the function of a managed callback: it collected it, or the state closes. </summary>
@@ -408,10 +432,13 @@ public sealed unsafe class LuauState : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void CallbackContextDestructor(void* ctx)
     {
-        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
-        if (handle.Target is ManagedCallbackContext context)
-            context.State._activeManagedCallbacks--;
-        handle.Free();
+        unsafe
+        {
+            var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+            if (handle.Target is ManagedCallbackContext context)
+                context.State._activeManagedCallbacks--;
+            handle.Free();
+        }
     }
 
     /// <summary> Creates a coroutine that runs <paramref name="body"/> when it is first resumed. </summary>
@@ -421,37 +448,43 @@ public sealed unsafe class LuauState : IDisposable
     /// <exception cref="InvalidOperationException">Thrown when <paramref name="body"/> belongs to a different state.</exception>
     public LuauCoroutine CreateCoroutine(LuauFunction body)
     {
-        this.ThrowIfDisposed();
-        _ = body.GetHandleOrThrow();
+        unsafe
+        {
+            this.ThrowIfDisposed();
+            _ = body.GetHandleOrThrow();
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_State* coroutine = lua_newthread(L);
-        try
-        {
-            IntoLuau bodyValue = body;
-            bodyValue.Push(this, coroutine);
+            lua_State* coroutine = lua_newthread(L);
+            try
+            {
+                IntoLuau bodyValue = body;
+                bodyValue.Push(this, coroutine);
+            }
+            catch
+            {
+                lua_pop(L, 1);
+                throw;
+            }
+            ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauCoroutine(this, reference);
         }
-        catch
-        {
-            lua_pop(L, 1);
-            throw;
-        }
-        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauCoroutine(this, reference);
     }
 
     /// <summary> Create a new table </summary>
     /// <returns> The resulting table </returns>
     public LuauTable CreateTable()
     {
-        this.ThrowIfDisposed();
+        unsafe
+        {
+            this.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_newtable(L);
-        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauTable(this, reference);
+            lua_newtable(L);
+            ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauTable(this, reference);
+        }
     }
 
     /// <summary>
@@ -460,29 +493,32 @@ public sealed unsafe class LuauState : IDisposable
     /// <returns>The created environment table.</returns>
     public LuauTable CreateEnvironment()
     {
-        this.ThrowIfDisposed();
+        unsafe
+        {
+            this.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_newtable(L);
+            lua_newtable(L);
 
-        fixed (byte* pGlobalName = "_G\0"u8)
-        {
-            lua_pushvalue(L, -1);
-            lua_rawsetfield(L, -2, pGlobalName);
+            fixed (byte* pGlobalName = "_G\0"u8)
+            {
+                lua_pushvalue(L, -1);
+                lua_rawsetfield(L, -2, pGlobalName);
+            }
+
+            lua_newtable(L);
+            fixed (byte* pIndexName = "__index\0"u8)
+            {
+                lua_pushvalue(L, LUA_GLOBALSINDEX);
+                lua_rawsetfield(L, -2, pIndexName);
+            }
+
+            _ = lua_setmetatable(L, -2);
+
+            ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauTable(this, reference);
         }
-
-        lua_newtable(L);
-        fixed (byte* pIndexName = "__index\0"u8)
-        {
-            lua_pushvalue(L, LUA_GLOBALSINDEX);
-            lua_rawsetfield(L, -2, pIndexName);
-        }
-
-        _ = lua_setmetatable(L, -2);
-
-        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauTable(this, reference);
     }
 
     /// <summary>
@@ -496,44 +532,50 @@ public sealed unsafe class LuauState : IDisposable
     /// </remarks>
     public LuauFunction CreateFunctionManual(LuauCallback callback)
     {
-        this.ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(callback);
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var context = new ManagedCallbackContext(this, callback);
-        var handle = GCHandle.Alloc(context);
-        fixed (byte* pDebugName = "managed function\0"u8)
+        unsafe
         {
-            PushNativeCallback(
-                &ManagedCallback,
-                (void*)GCHandle.ToIntPtr(handle),
-                pDebugName,
-                &CallbackContextDestructor
-            );
+            this.ThrowIfDisposed();
+            ArgumentNullException.ThrowIfNull(callback);
+#if DEBUG
+            using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+            var context = new ManagedCallbackContext(this, callback);
+            var handle = GCHandle.Alloc(context);
+            fixed (byte* pDebugName = "managed function\0"u8)
+            {
+                PushNativeCallback(
+                    &ManagedCallback,
+                    (void*)GCHandle.ToIntPtr(handle),
+                    pDebugName,
+                    &CallbackContextDestructor
+                );
+            }
+            _activeManagedCallbacks++;
+            ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauFunction(this, reference);
         }
-        _activeManagedCallbacks++;
-        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauFunction(this, reference);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int ManagedCallback(lua_State* luaState, void* ctx)
     {
-        ArgumentNullException.ThrowIfNull(luaState);
-        int topBeforeCallback = lua_gettop(luaState);
-        try
+        unsafe
         {
-            var handle = GCHandle.FromIntPtr((IntPtr)ctx);
-            if (handle.Target is not ManagedCallbackContext context)
-                return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
+            ArgumentNullException.ThrowIfNull(luaState);
+            int topBeforeCallback = lua_gettop(luaState);
+            try
+            {
+                var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+                if (handle.Target is not ManagedCallbackContext context)
+                    return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
 
-            return context.Invoke(luaState);
-        }
-        catch (Exception exception)
-        {
-            lua_settop(luaState, topBeforeCallback);
-            return LuauStateMarshal.ReturnCallbackException(luaState, exception);
+                return context.Invoke(luaState);
+            }
+            catch (Exception exception)
+            {
+                lua_settop(luaState, topBeforeCallback);
+                return LuauStateMarshal.ReturnCallbackException(luaState, exception);
+            }
         }
     }
 
@@ -546,43 +588,49 @@ public sealed unsafe class LuauState : IDisposable
 
         public int Invoke(lua_State* luaState)
         {
-            LuauState state = _state;
-            if (!state.OwnsThread(luaState))
-                return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
-
-            int numberOfParameters = lua_gettop(luaState);
-#if DEBUG
-            using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
-#endif
-            int topBeforeInvoke = numberOfParameters;
-            var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
-            try
+            unsafe
             {
-                LuauReturn result = _callback(args);
-                Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
+                LuauState state = _state;
+                if (!state.OwnsThread(luaState))
+                    return LuauStateMarshal.ReturnError(
+                        luaState,
+                        "managed function callback belongs to a different state"
+                    );
 
-                int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
+                int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-                // A yield leaves the stack as it is; an error leaves its message.
-                nestedGuard.OverwriteExpectedDelta(
-                    returnCount switch
-                    {
-                        DARP_LUAU_CALLBACK_YIELD => 0,
-                        < 0 => 1,
-                        _ => returnCount,
-                    }
-                );
+                using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
 #endif
-                return returnCount;
-            }
-            catch (Exception exception)
-            {
-                lua_settop(luaState, topBeforeInvoke);
-                int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, exception);
+                int topBeforeInvoke = numberOfParameters;
+                var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
+                try
+                {
+                    LuauReturn result = _callback(args);
+                    Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
+
+                    int returnCount = LuauStateMarshal.ReturnCallbackResult(state, luaState, result);
 #if DEBUG
-                nestedGuard.OverwriteExpectedDelta(1);
+                    // A yield leaves the stack as it is; an error leaves its message.
+                    nestedGuard.OverwriteExpectedDelta(
+                        returnCount switch
+                        {
+                            DARP_LUAU_CALLBACK_YIELD => 0,
+                            < 0 => 1,
+                            _ => returnCount,
+                        }
+                    );
 #endif
-                return returnCount;
+                    return returnCount;
+                }
+                catch (Exception exception)
+                {
+                    lua_settop(luaState, topBeforeInvoke);
+                    int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, exception);
+#if DEBUG
+                    nestedGuard.OverwriteExpectedDelta(1);
+#endif
+                    return returnCount;
+                }
             }
         }
     }
@@ -657,14 +705,17 @@ public sealed unsafe class LuauState : IDisposable
     /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
-        this.ThrowIfDisposed();
+        unsafe
+        {
+            this.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        LuauStateMarshal.PushString(L, utf8Value);
+            LuauStateMarshal.PushString(L, utf8Value);
 
-        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauString(this, reference);
+            ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauString(this, reference);
+        }
     }
 
     /// <summary>Creates a new Luau buffer from managed bytes.</summary>
@@ -672,16 +723,19 @@ public sealed unsafe class LuauState : IDisposable
     /// <returns>The created <see cref="LuauBuffer"/> reference.</returns>
     public LuauBuffer CreateBuffer(scoped ReadOnlySpan<byte> span)
     {
-        this.ThrowIfDisposed();
-        ObjectDisposedException.ThrowIf(_disposing > 0, this);
+        unsafe
+        {
+            this.ThrowIfDisposed();
+            ObjectDisposedException.ThrowIf(_disposing > 0, this);
 #if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        void* pDest = lua_newbuffer(L, (nuint)span.Length);
-        span.CopyTo(new Span<byte>(pDest, span.Length));
+            void* pDest = lua_newbuffer(L, (nuint)span.Length);
+            span.CopyTo(new Span<byte>(pDest, span.Length));
 
-        ulong handle = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauBuffer(this, handle);
+            ulong handle = ReferenceTracker.TrackAndPopRef(L, -1);
+            return new LuauBuffer(this, handle);
+        }
     }
 
     /// <summary> Creates a lightweight executable chunk from source text. </summary>
@@ -739,23 +793,26 @@ public sealed unsafe class LuauState : IDisposable
     )]
     public void Dispose()
     {
-        if (VmDepth > 0 && _disposing == 0)
+        unsafe
         {
-            throw new InvalidOperationException(
-                "A LuauState cannot be disposed while it runs a script or creates the static side of a userdata type, "
-                    + "for example from one of its callbacks. Dispose it after the host call that does so has returned."
-            );
+            if (VmDepth > 0 && _disposing == 0)
+            {
+                throw new InvalidOperationException(
+                    "A LuauState cannot be disposed while it runs a script or creates the static side of a userdata type, "
+                        + "for example from one of its callbacks. Dispose it after the host call that does so has returned."
+                );
+            }
+            if (Interlocked.Exchange(ref _disposing, 1) != 0)
+                return;
+            _cache.Dispose();
+            _moduleRequirer?.Dispose();
+            _moduleRequirer = null;
+            ReferenceTracker.ReleaseAll();
+            // Closing frees every function, which releases the handles of the managed callbacks.
+            LuauVm.Close(this);
+            Sandbox?.Dispose();
+            ScriptInterrupt.Free(Interrupt);
+            _selfHandle.Free();
         }
-        if (Interlocked.Exchange(ref _disposing, 1) != 0)
-            return;
-        _cache.Dispose();
-        _moduleRequirer?.Dispose();
-        _moduleRequirer = null;
-        ReferenceTracker.ReleaseAll();
-        // Closing frees every function, which releases the handles of the managed callbacks.
-        LuauVm.Close(this);
-        Sandbox?.Dispose();
-        ScriptInterrupt.Free(Interrupt);
-        _selfHandle.Free();
     }
 }
