@@ -179,7 +179,7 @@ A Luau number is a `double`. Reading it as another numeric type only succeeds wh
 | --- | --- | --- |
 | integer types (`int`, `byte`, `long`, `UInt128`, ...) | whole numbers in the range of the type | fractions such as `1.5`, `-1` for an unsigned type, numbers out of range, NaN, infinity |
 | `float`, `Half` | every number, as the nearest value the type has | nothing; a number out of range becomes infinity |
-| `decimal` | every finite number in its range, converted like a cast from `double`: since .NET 11 the exact value, before rounded to 15 significant digits | NaN, infinity, numbers out of range |
+| `decimal` | every finite number in its range, converted like a cast from `double` on the runtime in use: the exact value on .NET 11 and later, rounded to 15 significant digits on .NET 10 | NaN, infinity, numbers out of range |
 | `double` | every number | nothing |
 | enums | whole numbers in the range of the underlying type | the same as that integer type |
 
