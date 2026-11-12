@@ -4,7 +4,7 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 
 ## Current boundaries
 
-- The main package currently targets `net10.0`.
+- The main package targets `net10.0` and `net11.0`.
 - `LuauState` executes source through `Load(...).Execute(...)` or `LoadFile(path).Execute(...)`. There is no separate `DoFile(...)` helper.
 - `LuauState` is not thread-safe. Async host calls serialize their own continuations, but the synchronous API does not check which thread calls it: without a host dispatcher, use it only when no async call is outstanding or inside a turn.
 - Owned references and borrowed views are bound to a single `LuauState`; cross-state usage is invalid.

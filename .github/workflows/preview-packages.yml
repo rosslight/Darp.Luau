@@ -76,7 +76,9 @@ jobs:
               try { [xml] $spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
               if ($spec.package.metadata.version -ne $env:PREVIEW_VERSION) { throw "Wrong version in $id" }
               if ($spec.package.metadata.id -ne $id) { throw "Wrong package ID in $id" }
-              if (-not $archive.GetEntry('lib/net10.0/Darp.Luau.dll')) { throw "Missing runtime assembly" }
+              foreach ($framework in 'net10.0', 'net11.0') {
+                if (-not $archive.GetEntry("lib/$framework/Darp.Luau.dll")) { throw "Missing runtime assembly for $framework" }
+              }
               if (-not $archive.GetEntry('analyzers/dotnet/cs/Darp.Luau.Generator.dll')) { throw "Missing bundled generator" }
               if ($spec.SelectNodes("//*[local-name()='dependency' and @id='Darp.Luau.Generator']").Count -ne 0) {
                 throw "The generator must be bundled, not a package dependency"
@@ -103,7 +105,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: '10.0.402'
+          dotnet-version: '11.0.100'
 
       - name: Publish to GitHub Packages
         env:

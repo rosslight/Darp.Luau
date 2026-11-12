@@ -103,7 +103,7 @@ internal static class FileUtils
 
     public static int RequiredIndexOfLastSlash(string str)
     {
-        int nPos = str.LastIndexOf('/');
+        int nPos = str.AsSpan().LastIndexOf('/');
         if (nPos >= 0)
             return nPos;
 

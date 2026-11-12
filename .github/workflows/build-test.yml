@@ -13,6 +13,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
+        with:
+          # The SDK in global.json brings the .NET 11 runtime only; the tests also run on .NET 10.
+          dotnet-version: 10.0.x
+          global-json-file: global.json
 
       - name: Restore dependencies
         run: dotnet restore
@@ -34,11 +38,12 @@ jobs:
           update-comment: true
           show-changed-lines-only: true
 
-      - name: Publish runtime tests with Native AOT
-        run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r linux-x64 -o ./artifacts/native-aot-tests /warnaserror
-      - name: Test Native AOT
-        working-directory: ./artifacts/native-aot-tests
-        run: ./Darp.Luau.Tests
+      - name: Test with Native AOT
+        run: |
+          for framework in net10.0 net11.0; do
+            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r linux-x64 -o ./artifacts/native-aot-tests/$framework /warnaserror
+            ./artifacts/native-aot-tests/$framework/Darp.Luau.Tests
+          done
 
   warnings-release:
     runs-on: ubuntu-24.04
@@ -46,6 +51,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
+        with:
+          # The SDK in global.json brings the .NET 11 runtime only; the tests also run on .NET 10.
+          dotnet-version: 10.0.x
+          global-json-file: global.json
 
       - name: Build warning-free Debug
         run: dotnet build "Darp.Lua.Net.slnx" -c Debug /warnaserror
@@ -81,6 +90,10 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
+        with:
+          # The SDK in global.json brings the .NET 11 runtime only; the tests also run on .NET 10.
+          dotnet-version: 10.0.x
+          global-json-file: global.json
 
       - name: Restore dependencies
         run: dotnet restore
@@ -88,8 +101,10 @@ jobs:
         run: dotnet build --no-restore
       - name: Test generators
         run: dotnet test --project tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj --no-build --no-progress
-      - name: Publish runtime tests with Native AOT
-        run: dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests /warnaserror
-      - name: Test Native AOT
-        working-directory: ./artifacts/native-aot-tests
-        run: ./Darp.Luau.Tests${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Test with Native AOT
+        shell: bash
+        run: |
+          for framework in net10.0 net11.0; do
+            dotnet publish tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj -c Release -f $framework -r ${{ matrix.rid }} -o ./artifacts/native-aot-tests/$framework /warnaserror
+            ./artifacts/native-aot-tests/$framework/Darp.Luau.Tests${{ runner.os == 'Windows' && '.exe' || '' }}
+          done
