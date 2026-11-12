@@ -19,14 +19,11 @@ public class NuLuaBenchmarks : IDisposable
     public NuLuaBenchmarks()
     {
         _state.OpenLibraries();
-        _state.RegisterFunction(
-            "managed_add",
-            (state, args) =>
-            {
-                state.Push(args[0].Read<double>() + args[1].Read<double>());
-                return 1;
-            }
-        );
+        _state.RegisterFunction("managed_add", (state, args) =>
+        {
+            state.Push(args[0].Read<double>() + args[1].Read<double>());
+            return 1;
+        });
         _state.DoString(Scenario.Script);
         _state.DoString(Scenario.AsyncScript);
 

@@ -107,19 +107,16 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
         ]);
 
         LuauState state = CreateState(LuauLibraries.None, fs);
-        state.RegisterModule(
-            "game",
-            static (lua, in module) =>
+        state.RegisterModule("game", static (lua, in module) =>
+        {
+            using LuauFunction add = lua.CreateFunctionManual(static args =>
             {
-                using LuauFunction add = lua.CreateFunctionManual(static args =>
-                {
-                    int a = args[1].Get<int>();
-                    int b = args[2].Get<int>();
-                    return LuauReturn.Ok(a + b);
-                });
-                module.Set("add", add);
-            }
-        );
+                int a = args[1].Get<int>();
+                int b = args[2].Get<int>();
+                return LuauReturn.Ok(a + b);
+            });
+            module.Set("add", add);
+        });
         state.EnableScriptModules();
 
         int result = state.LoadFile("./main.luau").Execute<int>();
@@ -131,21 +128,18 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     public void CustomModule_ShouldBeAvailableThroughRequire()
     {
         LuauState state = CreateState();
-        state.RegisterModule(
-            "game",
-            static (state, in module) =>
-            {
-                module.Set("answer", 42);
+        state.RegisterModule("game", static (state, in module) =>
+        {
+            module.Set("answer", 42);
 
-                using LuauFunction add = state.CreateFunctionManual(static args =>
-                {
-                    int a = args[1].Get<int>();
-                    int b = args[2].Get<int>();
-                    return LuauReturn.Ok(a + b);
-                });
-                module.Set("add", add);
-            }
-        );
+            using LuauFunction add = state.CreateFunctionManual(static args =>
+            {
+                int a = args[1].Get<int>();
+                int b = args[2].Get<int>();
+                return LuauReturn.Ok(a + b);
+            });
+            module.Set("add", add);
+        });
         state
             .Load(
                 """
@@ -177,14 +171,11 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
         LuauState state = CreateState();
         int loadCount = 0;
 
-        state.RegisterModule(
-            "game",
-            (_, in module) =>
-            {
-                loadCount++;
-                module.Set("answer", 99);
-            }
-        );
+        state.RegisterModule("game", (_, in module) =>
+        {
+            loadCount++;
+            module.Set("answer", 99);
+        });
         state
             .Load(
                 """

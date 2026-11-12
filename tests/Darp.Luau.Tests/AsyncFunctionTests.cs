@@ -97,9 +97,8 @@ public sealed class AsyncFunctionTests : IDisposable
     [Fact]
     public async Task Await_OfAlreadyCompletedWork_ShouldNotSuspend()
     {
-        using LuauFunction next = SetAsyncGlobal(
-            "next_number",
-            (value, _) => ValueTask.FromResult(LuauReturn.Ok(value + 1))
+        using LuauFunction next = SetAsyncGlobal("next_number", (value, _) =>
+            ValueTask.FromResult(LuauReturn.Ok(value + 1))
         );
 
         ValueTask<int> pending = _state.Load("return next_number(41)").ExecuteAsync<int>([], TestToken);
@@ -149,9 +148,8 @@ public sealed class AsyncFunctionTests : IDisposable
             new(TaskCreationOptions.RunContinuationsAsynchronously),
             new(TaskCreationOptions.RunContinuationsAsynchronously),
         ];
-        using LuauFunction addLater = SetAsyncGlobal(
-            "add_later",
-            (value, _) => AddLater(gates[_startedWorkCount - 1].Task, value)
+        using LuauFunction addLater = SetAsyncGlobal("add_later", (value, _) =>
+            AddLater(gates[_startedWorkCount - 1].Task, value)
         );
 
         ValueTask<int> first = _state.Load("return add_later(10)").ExecuteAsync<int>([], TestToken);
@@ -174,9 +172,8 @@ public sealed class AsyncFunctionTests : IDisposable
         var gates = new TaskCompletionSource<int>[invocationCount];
         var sources = new CancellationTokenSource[invocationCount];
         var observedTokens = new CancellationToken[invocationCount];
-        using LuauFunction addLater = SetAsyncGlobal(
-            "add_later",
-            (value, _) => AddLater(gates[(int)value].Task, value)
+        using LuauFunction addLater = SetAsyncGlobal("add_later", (value, _) =>
+            AddLater(gates[(int)value].Task, value)
         );
         using LuauFunction readToken = _state.CreateFunctionManual(args =>
         {
@@ -220,14 +217,11 @@ public sealed class AsyncFunctionTests : IDisposable
     [Fact]
     public async Task FaultedWork_ShouldBeCatchableByScriptPcall()
     {
-        using LuauFunction explode = SetAsyncGlobal(
-            "explode",
-            async (_, _) =>
-            {
-                await Task.Yield();
-                throw new InvalidOperationException("boom from async callback");
-            }
-        );
+        using LuauFunction explode = SetAsyncGlobal("explode", async (_, _) =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("boom from async callback");
+        });
 
         (bool ok, string error) = await _state
             .Load(
@@ -245,14 +239,11 @@ public sealed class AsyncFunctionTests : IDisposable
     [Fact]
     public async Task FaultedWork_WhenUnhandled_ShouldFailTheInvocationWithLuaException()
     {
-        using LuauFunction explode = SetAsyncGlobal(
-            "explode",
-            async (_, _) =>
-            {
-                await Task.Yield();
-                throw new InvalidOperationException("boom from async callback");
-            }
-        );
+        using LuauFunction explode = SetAsyncGlobal("explode", async (_, _) =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("boom from async callback");
+        });
 
         LuaException exception = await Should.ThrowAsync<LuaException>(() =>
             _state.Load("explode()").ExecuteAsync([], TestToken).AsTask()
@@ -447,14 +438,11 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         using var cts = new CancellationTokenSource();
         CancellationToken observed = default;
-        using LuauFunction readToken = SetAsyncGlobal(
-            "read_token",
-            (_, cancellationToken) =>
-            {
-                observed = cancellationToken;
-                return ValueTask.FromResult(LuauReturn.Ok());
-            }
-        );
+        using LuauFunction readToken = SetAsyncGlobal("read_token", (_, cancellationToken) =>
+        {
+            observed = cancellationToken;
+            return ValueTask.FromResult(LuauReturn.Ok());
+        });
 
         await _state.Load("read_token()").ExecuteAsync([], cts.Token);
         observed.ShouldBe(cts.Token);
@@ -472,9 +460,8 @@ public sealed class AsyncFunctionTests : IDisposable
     public async Task Cancellation_ShouldCancelTheInvocationEvenUnderPcallAndKeepTheStateUsable()
     {
         using var cts = new CancellationTokenSource();
-        using LuauFunction wait = SetAsyncGlobal(
-            "wait",
-            (_, cancellationToken) => WaitForCancellation(cancellationToken)
+        using LuauFunction wait = SetAsyncGlobal("wait", (_, cancellationToken) =>
+            WaitForCancellation(cancellationToken)
         );
         ulong baseline = _state.MemoryStatistics.ActiveRegistryReferences;
 
@@ -511,14 +498,11 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         using var unrelated = new CancellationTokenSource();
         await unrelated.CancelAsync();
-        using LuauFunction wait = SetAsyncGlobal(
-            "wait",
-            async (_, _) =>
-            {
-                await Task.Yield();
-                throw new OperationCanceledException("timed out", unrelated.Token);
-            }
-        );
+        using LuauFunction wait = SetAsyncGlobal("wait", async (_, _) =>
+        {
+            await Task.Yield();
+            throw new OperationCanceledException("timed out", unrelated.Token);
+        });
 
         (bool ok, string error) = await _state
             .Load(
@@ -540,9 +524,8 @@ public sealed class AsyncFunctionTests : IDisposable
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         using LuauFunction convert = _state.CreateFunctionManual(args =>
             args.CreateAwaiter()
-                .Await(
-                    new ValueTask<int>(gate.Task),
-                    static _ => throw new OperationCanceledException("conversion gave up")
+                .Await(new ValueTask<int>(gate.Task), static _ =>
+                    throw new OperationCanceledException("conversion gave up")
                 )
         );
         _state.Globals.Set("convert", convert);
@@ -560,9 +543,8 @@ public sealed class AsyncFunctionTests : IDisposable
     public async Task Cancellation_OfResumeAsync_ShouldFinishTheCoroutine()
     {
         using var cts = new CancellationTokenSource();
-        using LuauFunction wait = SetAsyncGlobal(
-            "wait",
-            (_, cancellationToken) => WaitForCancellation(cancellationToken)
+        using LuauFunction wait = SetAsyncGlobal("wait", (_, cancellationToken) =>
+            WaitForCancellation(cancellationToken)
         );
         using LuauFunction body = _state.Load("wait()").ToFunction();
         using LuauCoroutine coroutine = _state.CreateCoroutine(body);
@@ -601,14 +583,11 @@ public sealed class AsyncFunctionTests : IDisposable
         bool converted = false;
         using LuauFunction wait = state.CreateFunctionManual(args =>
             args.CreateAwaiter()
-                .Await(
-                    new ValueTask<int>(gate.Task),
-                    value =>
-                    {
-                        converted = true;
-                        return LuauReturn.Ok(value);
-                    }
-                )
+                .Await(new ValueTask<int>(gate.Task), value =>
+                {
+                    converted = true;
+                    return LuauReturn.Ok(value);
+                })
         );
         state.Globals.Set("wait", wait);
 
@@ -805,14 +784,11 @@ public sealed class AsyncFunctionTests : IDisposable
     [Fact]
     public async Task FaultedWork_FromAUserdataMethod_ShouldBeCatchableByScriptPcall()
     {
-        SetAwaitingUserdata(
-            "waiter",
-            async (_, _) =>
-            {
-                await Task.Yield();
-                throw new InvalidOperationException("boom from async method");
-            }
-        );
+        SetAwaitingUserdata("waiter", async (_, _) =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("boom from async method");
+        });
 
         (bool ok, string error) = await _state
             .Load(
@@ -851,15 +827,12 @@ public sealed class AsyncFunctionTests : IDisposable
         private readonly Func<double, CancellationToken, ValueTask<LuauReturn>> _work = work;
 
         public static void Register(LuauUserdataRegistry<AwaitingUserdata> registry) =>
-            registry.AddMethod(
-                "wait",
-                static (self, args) =>
-                {
-                    double value = args[1].TryGet(out double number) ? number : 0;
-                    LuauAwaiter awaiter = args.CreateAwaiter();
-                    return awaiter.Await(self._work(value, args.CancellationToken));
-                }
-            );
+            registry.AddMethod("wait", static (self, args) =>
+            {
+                double value = args[1].TryGet(out double number) ? number : 0;
+                LuauAwaiter awaiter = args.CreateAwaiter();
+                return awaiter.Await(self._work(value, args.CancellationToken));
+            });
     }
 
     [Fact]
@@ -950,9 +923,8 @@ public sealed class AsyncFunctionTests : IDisposable
     {
         using LuauFunction fail = _state.CreateFunctionManual(args =>
             args.CreateAwaiter()
-                .Await(
-                    new ValueTask<int>(Task.Run(static () => 1, TestToken)),
-                    static _ => throw new InvalidOperationException("boom from conversion")
+                .Await(new ValueTask<int>(Task.Run(static () => 1, TestToken)), static _ =>
+                    throw new InvalidOperationException("boom from conversion")
                 )
         );
         _state.Globals.Set("fail", fail);

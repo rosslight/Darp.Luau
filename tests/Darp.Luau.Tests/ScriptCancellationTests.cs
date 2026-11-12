@@ -318,14 +318,11 @@ public sealed class ScriptCancellationTests : IDisposable
         using LuauFunction endless = _state.Load("while true do end").ToFunction();
         using LuauFunction convert = _state.CreateFunctionManual(args =>
             args.CreateAwaiter()
-                .Await(
-                    new ValueTask<int>(gate.Task),
-                    _ =>
-                    {
-                        endless.Invoke();
-                        return LuauReturn.Ok();
-                    }
-                )
+                .Await(new ValueTask<int>(gate.Task), _ =>
+                {
+                    endless.Invoke();
+                    return LuauReturn.Ok();
+                })
         );
         _state.Globals.Set("convert", convert);
 

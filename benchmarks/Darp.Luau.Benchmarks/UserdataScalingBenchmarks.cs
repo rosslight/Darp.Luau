@@ -37,11 +37,8 @@ public class UserdataScalingBenchmarks : IDisposable
     /// <summary> One new userdata returned to Luau on every state at once. Scales with the states if the time stays the same. </summary>
     [Benchmark(OperationsPerInvoke = CallsPerState)]
     public void ReturnUserdataOnEveryState() =>
-        Parallel.For(
-            0,
-            States,
-            new ParallelOptions { MaxDegreeOfParallelism = States },
-            i => _createOnState[i].Invoke(CallsPerState)
+        Parallel.For(0, States, new ParallelOptions { MaxDegreeOfParallelism = States }, i =>
+            _createOnState[i].Invoke(CallsPerState)
         );
 
     private LuauState CreateState()

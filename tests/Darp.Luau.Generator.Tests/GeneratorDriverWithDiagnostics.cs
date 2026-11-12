@@ -12,10 +12,7 @@ internal sealed class GeneratorDriverWithDiagnostics(
 
     public ImmutableArray<Diagnostic> Diagnostics { get; } = diagnostics;
 
-    public static ConversionResult Convert(
-        GeneratorDriverWithDiagnostics target,
-        IReadOnlyDictionary<string, object> _
-    )
+    public static ConversionResult Convert(GeneratorDriverWithDiagnostics target, IReadOnlyDictionary<string, object> _)
     {
         List<Exception> exceptions = [];
         List<Target> generatedTargets = [];

@@ -36,13 +36,11 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
             .Select(static (model, _) => model!)
             .WithTrackingName("GeneratedExportsUserdataModels");
 
-        context.RegisterSourceOutput(
-            moduleModels,
-            static (spc, model) => AddSource(spc, model.Type, ModuleEmitter.Emit(model))
+        context.RegisterSourceOutput(moduleModels, static (spc, model) =>
+            AddSource(spc, model.Type, ModuleEmitter.Emit(model))
         );
-        context.RegisterSourceOutput(
-            userdataModels,
-            static (spc, model) => AddSource(spc, model.Type, UserdataEmitter.Emit(model))
+        context.RegisterSourceOutput(userdataModels, static (spc, model) =>
+            AddSource(spc, model.Type, UserdataEmitter.Emit(model))
         );
     }
 

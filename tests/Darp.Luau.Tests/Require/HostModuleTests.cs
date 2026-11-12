@@ -19,9 +19,7 @@ public sealed class HostModuleTests
     [Fact]
     public void ScriptFile_ShouldRequireRegisteredHostModule()
     {
-        var fs = new FakeFileSystem([
-            ("./main.luau", """return require("myHost").answer"""),
-        ]);
+        var fs = new FakeFileSystem([("./main.luau", """return require("myHost").answer""")]);
 
         using var state = new LuauState(LuauLibraries.All, fs);
         state.RegisterModule("myHost", static (_, in module) => module.Set("answer", 42));
@@ -59,9 +57,7 @@ public sealed class HostModuleTests
     [Fact]
     public void Require_ScriptModulePathBeforeEnable_ShouldThrowDisabledError()
     {
-        var fs = new FakeFileSystem([
-            ("./dependency.luau", "return { answer = 42 }"),
-        ]);
+        var fs = new FakeFileSystem([("./dependency.luau", "return { answer = 42 }")]);
 
         using var state = new LuauState(LuauLibraries.All, fs);
         state.RegisterModule("dummy", static (_, in _) => { });
@@ -79,17 +75,14 @@ public sealed class HostModuleTests
         using var state = new LuauState();
         bool shouldFail = true;
         int loadCount = 0;
-        state.RegisterModule(
-            "fragile",
-            (_, in module) =>
-            {
-                loadCount++;
-                if (shouldFail)
-                    throw new InvalidOperationException("boom from OnLoad");
+        state.RegisterModule("fragile", (_, in module) =>
+        {
+            loadCount++;
+            if (shouldFail)
+                throw new InvalidOperationException("boom from OnLoad");
 
-                module.Set("answer", 42);
-            }
-        );
+            module.Set("answer", 42);
+        });
 
         LuaException exception = Should.Throw<LuaException>(() =>
             state.Load("""return require("fragile")""").Execute<LuauTable>()
@@ -109,14 +102,11 @@ public sealed class HostModuleTests
     {
         using var state = new LuauState();
         LuauTable cachedModule = default;
-        state.RegisterModule(
-            "fragile",
-            (_, in module) =>
-            {
-                cachedModule = module;
-                module.Set("answer", 42);
-            }
-        );
+        state.RegisterModule("fragile", (_, in module) =>
+        {
+            cachedModule = module;
+            module.Set("answer", 42);
+        });
 
         state.Load("""return require("fragile").answer""").Execute<int>().ShouldBe(42);
 
@@ -136,9 +126,8 @@ public sealed class HostModuleTests
     public void HostModule_RecursiveRequire_ShouldSurfaceAlreadyLoadingError()
     {
         using var state = new LuauState();
-        state.RegisterModule(
-            "recursive",
-            (lua, in _) => lua.Load("""return require("recursive")""").Execute<LuauTable>()
+        state.RegisterModule("recursive", (lua, in _) =>
+            lua.Load("""return require("recursive")""").Execute<LuauTable>()
         );
 
         LuaException exception = Should.Throw<LuaException>(() =>

@@ -646,49 +646,37 @@ public sealed class UserdataTests
         public static void Register(LuauUserdataRegistry<CounterUserdata> registry)
         {
             registry.AddGetter("value", static (self, _) => LuauReturnSingle.Ok(self.Value));
-            registry.AddSetter(
-                "value",
-                static (self, value) =>
-                {
-                    int number = value.Get<int>();
-                    self.Value = number;
-                }
-            );
-            registry.AddMethod(
-                "add",
-                static (self, args) =>
-                {
-                    RecordCall("add", args);
-                    if (args.Count != 1)
-                        throw new InvalidOperationException($"expected 1 arguments, got {args.Count}");
-                    int offset = args[1].Get<int>();
+            registry.AddSetter("value", static (self, value) =>
+            {
+                int number = value.Get<int>();
+                self.Value = number;
+            });
+            registry.AddMethod("add", static (self, args) =>
+            {
+                RecordCall("add", args);
+                if (args.Count != 1)
+                    throw new InvalidOperationException($"expected 1 arguments, got {args.Count}");
+                int offset = args[1].Get<int>();
 
-                    return LuauReturn.Ok(self.Value + offset);
-                }
-            );
-            registry.AddMethod(
-                "pair",
-                static (self, args) =>
-                {
-                    RecordCall("pair", args);
-                    if (args.Count != 0)
-                        throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
+                return LuauReturn.Ok(self.Value + offset);
+            });
+            registry.AddMethod("pair", static (self, args) =>
+            {
+                RecordCall("pair", args);
+                if (args.Count != 0)
+                    throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
 
-                    return LuauReturn.Ok(self.Value, self.Value + 1);
-                }
-            );
-            registry.AddMethod(
-                "touch",
-                static (self, args) =>
-                {
-                    RecordCall("touch", args);
-                    if (args.Count != 0)
-                        throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
+                return LuauReturn.Ok(self.Value, self.Value + 1);
+            });
+            registry.AddMethod("touch", static (self, args) =>
+            {
+                RecordCall("touch", args);
+                if (args.Count != 0)
+                    throw new InvalidOperationException($"expected 0 arguments, got {args.Count}");
 
-                    self.Value++;
-                    return LuauReturn.Ok();
-                }
-            );
+                self.Value++;
+                return LuauReturn.Ok();
+            });
         }
 
         private static void RecordCall(string methodName, LuauArgs args)
@@ -708,9 +696,8 @@ public sealed class UserdataTests
             registry.AddGetter("errorIndex", static (_, _) => throw new InvalidOperationException("error from getter"));
             registry.AddSetter("explodeSet", static (_, _) => throw new InvalidOperationException("Boom from setter"));
             registry.AddSetter("errorSet", static (_, _) => throw new InvalidOperationException("error from setter"));
-            registry.AddMethod(
-                "explodeMethod",
-                static (_, _) => throw new InvalidOperationException("Boom from method")
+            registry.AddMethod("explodeMethod", static (_, _) =>
+                throw new InvalidOperationException("Boom from method")
             );
         }
 

@@ -21,8 +21,7 @@ internal static class BenchmarkConfig
         if (string.IsNullOrEmpty(baselineVersion))
             return config.AddJob(Job.Default.WithId("Current"));
 
-        string baselineFeed =
-            Environment.GetEnvironmentVariable(BaselineFeedVariable)
+        string baselineFeed = Environment.GetEnvironmentVariable(BaselineFeedVariable)
             ?? throw new InvalidOperationException(
                 $"{BaselineFeedVariable} must be set with {BaselineVersionVariable}."
             );

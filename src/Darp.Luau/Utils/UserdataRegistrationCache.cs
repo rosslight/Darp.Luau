@@ -288,11 +288,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
         // The userdata the object was pushed as can be gone, and its key can belong to that of another object.
         var native = (LuauUserdataNative*)lua_touserdatatagged(L, -1, LuauUserdataNative.Tag);
-        if (
-            native is null
-            || native->Slot != slot
-            || !ReferenceEquals(native->GetTarget(_state), userdata)
-        )
+        if (native is null || native->Slot != slot || !ReferenceEquals(native->GetTarget(_state), userdata))
         {
             lua_pop(L, 2);
             return false;

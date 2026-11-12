@@ -25,6 +25,6 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
-    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="/" Link="README.md"/>
+    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="/" Link="README.md" />
   </ItemGroup>
 </Project>

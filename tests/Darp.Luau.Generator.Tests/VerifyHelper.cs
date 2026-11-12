@@ -14,8 +14,8 @@ public static class VerifyHelper
 {
     public static Task VerifyGenerator(string source, [CallerFilePath] string? callerFilePath = null)
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
@@ -31,8 +31,8 @@ public static class VerifyHelper
 
     public static Task VerifyGeneratorWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
@@ -56,8 +56,8 @@ public static class VerifyHelper
         [CallerFilePath] string? callerFilePath = null
     )
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<CreateFunctionGenerator>(
             [source],
@@ -87,8 +87,8 @@ public static class VerifyHelper
 
     public static Task VerifyGeneratedExports(string[] sources, [CallerFilePath] string? callerFilePath = null)
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
@@ -108,8 +108,8 @@ public static class VerifyHelper
 
     public static Task VerifyGeneratedExportsSource(string[] sources, [CallerFilePath] string? callerFilePath = null)
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
@@ -124,10 +124,13 @@ public static class VerifyHelper
         );
     }
 
-    public static Task VerifyGeneratedExportsSourceWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
+    public static Task VerifyGeneratedExportsSourceWithErrors(
+        string source,
+        [CallerFilePath] string? callerFilePath = null
+    )
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             [source],
@@ -155,8 +158,8 @@ public static class VerifyHelper
         [CallerFilePath] string? callerFilePath = null
     )
     {
-        string fileName =
-            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        string fileName = Path.GetFileNameWithoutExtension(callerFilePath)
+            ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         return VerifyGenerator<GeneratedExportsGenerator>(
             sources,
@@ -209,8 +212,8 @@ public static class VerifyHelper
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation newCompilation, out _);
 
         GeneratorDriverRunResult runResult = driver.GetRunResult();
-        ImmutableArray<Diagnostic> generatorDiagnostics = runResult.Results
-            .SelectMany(static result => result.Diagnostics)
+        ImmutableArray<Diagnostic> generatorDiagnostics = runResult
+            .Results.SelectMany(static result => result.Diagnostics)
             .ToImmutableArray();
         ImmutableArray<Diagnostic> compilationDiagnostics = GetEmitDiagnostics(newCompilation);
         ImmutableArray<Diagnostic> analyzerDiagnostics = await newCompilation
@@ -242,8 +245,8 @@ public static class VerifyHelper
                 + string.Join("\n", runResult.ToReadableString())
         );
 
-        runResult.Results
-            .SelectMany(static result => result.GeneratedSources)
+        runResult
+            .Results.SelectMany(static result => result.GeneratedSources)
             .Count(static source => source.HintName.Contains("CreateFunctionInterceptors", StringComparison.Ordinal))
             .ShouldBe(2);
     }
@@ -277,14 +280,11 @@ public static class VerifyHelper
         return settingsTask.ScrubLinesWithReplace(line =>
         {
             var regex = new Regex("""GeneratedCodeAttribute\("[^"\n]+",\s*"(?<version>\d+\.\d+\.\d+\.\d+)"\)""");
-            return regex.Replace(
-                line,
-                match =>
-                {
-                    string versionToReplace = match.Groups["version"].Value;
-                    return match.Value.Replace(versionToReplace, scrubbedVersionName);
-                }
-            );
+            return regex.Replace(line, match =>
+            {
+                string versionToReplace = match.Groups["version"].Value;
+                return match.Value.Replace(versionToReplace, scrubbedVersionName);
+            });
         });
     }
 
@@ -439,8 +439,7 @@ file sealed class EmbeddedResourcesAdditionalText(string logicalPath) : Addition
     public override SourceText GetText(CancellationToken cancellationToken = default)
     {
         string resourceName = System.IO.Path.Join(_assembly.GetName().Name, Path).Replace('\\', '.').Replace('/', '.');
-        using Stream s =
-            _assembly.GetManifestResourceStream(resourceName)
+        using Stream s = _assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName} ({Path})");
 
         using var reader = new StreamReader(s);

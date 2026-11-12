@@ -646,13 +646,10 @@ public sealed class SandboxTests
         public int Reads { get; private set; }
 
         public static void Register(LuauUserdataRegistry<Live> registry) =>
-            registry.AddGetter(
-                "value",
-                static (self, _) =>
-                {
-                    self.Reads++;
-                    return LuauReturnSingle.Ok(self.Value);
-                }
-            );
+            registry.AddGetter("value", static (self, _) =>
+            {
+                self.Reads++;
+                return LuauReturnSingle.Ok(self.Value);
+            });
     }
 }
