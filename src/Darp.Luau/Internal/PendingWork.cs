@@ -44,6 +44,15 @@ internal readonly struct PendingWork
             task.Result.Release();
     }
 
+    /// <summary> Gives up work nobody waits for any more, so that its failure is not reported as unobserved. </summary>
+    public void Abandon() =>
+        Task.ContinueWith(
+            static work => _ = work.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
+
     private abstract class Conversion
     {
         public abstract Task Work { get; }

@@ -195,6 +195,264 @@ public sealed class ExecutionContextTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncCalls_WhileAnotherThreadExecutesATurn_ShouldThrowAndLeaveTheStateAsItIs()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using LuauFunction block = _state.CreateFunctionManual(_ =>
+        {
+            entered.Set();
+            release.Wait();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("block", block);
+        using LuauFunction add = _state.Load("return function(a, b) return a + b end").Execute<LuauFunction>();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(add);
+        LuauTable globals = _state.Globals;
+
+        Task<int> running = Task.Run(() => _state.Load("block() return 1").Execute<int>(), TestToken);
+        entered.Wait(TestToken);
+
+        Should
+            .Throw<InvalidOperationException>(() => add.Invoke<int>(1, 2))
+            .Message.ShouldContain("in use by another thread");
+        Should.Throw<InvalidOperationException>(() => _state.Load("return 1").Execute<int>());
+        Should.Throw<InvalidOperationException>(() => coroutine.Resume<int>(1, 2));
+        Should.Throw<InvalidOperationException>(() => globals.Get<LuauFunction>("block"));
+        Should.Throw<InvalidOperationException>(() => globals.Set("refused", true));
+        Should.Throw<InvalidOperationException>(() => _state.Dispose());
+        release.Set();
+
+        (await running).ShouldBe(1);
+        _state.IsDisposed.ShouldBeFalse();
+        globals.ContainsKey("refused").ShouldBeFalse();
+        add.Invoke<int>(1, 2).ShouldBe(3);
+        coroutine.Resume<int>(1, 2).ShouldBe(3);
+    }
+
+    [Fact]
+    public void TableAccess_ThatFails_ShouldGiveTheTurnBack()
+    {
+        using var otherState = new LuauState();
+        using LuauTable foreign = otherState.CreateTable();
+        using LuauTable guarded = _state
+            .Load(
+                """
+                local guarded = setmetatable({}, { __index = function() error("no reading") end })
+                return table.freeze(guarded)
+                """
+            )
+            .Execute<LuauTable>();
+
+        // A key or a value that cannot be pushed, and an error that Luau raises.
+        Should.Throw<InvalidOperationException>(() => guarded.Get<int>(foreign));
+        Should.Throw<InvalidOperationException>(() => guarded.Set(foreign, 1));
+        Should.Throw<InvalidOperationException>(() => guarded.Set("key", foreign));
+        Should.Throw<LuaException>(() => guarded.Set("key", 1));
+        Should.Throw<LuaGetException>(() => guarded.Get<int>("key"));
+        Should.Throw<LuaException>(() => guarded.ContainsKey("key"));
+        guarded.TryGet("key", out int _).ShouldBeFalse();
+
+        // Each access ended its host call, so another thread gets the state.
+        LuauState state = _state;
+        Exception? failure = null;
+        var otherThread = new Thread(() => failure = Record.Exception(() => state.Globals.Set("free", true)));
+        otherThread.Start();
+        otherThread.Join();
+        failure.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task AsyncCall_WhileAnotherThreadRunsASyncCall_ShouldBeQueuedBehindIt()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using LuauFunction block = _state.CreateFunctionManual(_ =>
+        {
+            entered.Set();
+            release.Wait();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("block", block);
+
+        Task running = Task.Run(() => _state.Load("block() finished = true").Execute(), TestToken);
+        entered.Wait(TestToken);
+        ValueTask<bool> queued = _state.Load("return finished").ExecuteAsync<bool>([], TestToken);
+        queued.IsCompleted.ShouldBeFalse();
+        release.Set();
+
+        await running;
+        (await queued).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task SyncCall_RightAfterAnAsyncCallCompleted_ShouldFindTheStateFree()
+    {
+        using LuauFunction yield = _state.CreateFunctionManual(args =>
+            args.AwaitOrError(async () =>
+            {
+                await Task.Yield();
+                return LuauReturn.Ok();
+            })
+        );
+        _state.Globals.Set("yield", yield);
+        using LuauFunction yielding = _state.Load("yield()").ToFunction();
+
+        // Each call finishes in a turn on a thread-pool thread. Its caller hears of it when that turn has ended.
+        for (int i = 0; i < 500; i++)
+        {
+            await yielding.InvokeAsync([], TestToken);
+            _state.Globals.Set("count", i);
+        }
+
+        _state.Globals.Get<int>("count").ShouldBe(499);
+    }
+
+    [Fact]
+    public async Task AsyncCall_ThatFinishesInsideTheTurnOfAnotherCall_ShouldCompleteWhenThatTurnHasEnded()
+    {
+        // Its continuations run inline: the waiting call goes on inside the callback that completes the gate.
+        var gate = new TaskCompletionSource<int>();
+        using LuauFunction wait = _state.CreateFunctionManual(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
+        _state.Globals.Set("wait", wait);
+        using LuauFunction finish = _state.CreateFunctionManual(_ =>
+        {
+            gate.SetResult(42);
+            // The waiting call has finished, but this turn has not.
+            Thread.Sleep(50);
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("finish", finish);
+        LuauState state = _state;
+
+        ValueTask<int> waiting = _state.Load("return wait()").ExecuteAsync<int>([], TestToken);
+        Task<int> observed = UseTheStateAfter(waiting, state);
+        await _state.Load("finish()").ExecuteAsync([], TestToken);
+
+        (await observed).ShouldBe(42);
+        return;
+
+        static async ValueTask<LuauReturn> WaitAsync(Task<int> gate) => LuauReturn.Ok(await gate);
+
+        static async Task<int> UseTheStateAfter(ValueTask<int> call, LuauState state)
+        {
+            int result = await call;
+            state.Globals.Set("result", result);
+            return state.Globals.Get<int>("result");
+        }
+    }
+
+    [Fact]
+    public async Task AsyncCall_StartedByACallbackOfASyncCall_ShouldContinueWhenTheSyncCallHasReturned()
+    {
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = _state.CreateFunctionManual(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
+        _state.Globals.Set("wait", wait);
+        using LuauFunction waiting = _state.Load("return wait(), returned").ToFunction();
+        ValueTask<(int, bool)> started = default;
+        using LuauFunction start = _state.CreateFunctionManual(_ =>
+        {
+            started = waiting.InvokeAsync<int, bool>([], TestToken);
+            // The continuation is queued now. The sync call is a turn, so no other thread runs it meanwhile.
+            gate.SetResult(42);
+            Thread.Sleep(20);
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("start", start);
+
+        _state.Load("start() returned = true").Execute();
+
+        (await started).ShouldBe((42, true));
+        return;
+
+        static async ValueTask<LuauReturn> WaitAsync(Task<int> gate) => LuauReturn.Ok(await gate);
+    }
+
+    [Fact]
+    public async Task SyncCall_OnTheDispatcherThread_ShouldRunAheadOfQueuedWork()
+    {
+        using var dispatcher = new SingleThreadSynchronizationContext();
+        using var state = new LuauState(LuauLibraries.All, null, dispatcher);
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using LuauFunction wait = state.CreateFunctionManual(args => args.AwaitOrError(() => WaitAsync(gate.Task)));
+        state.Globals.Set("wait", wait);
+
+        await dispatcher.Run(async () =>
+        {
+            ValueTask<int> pending = state.Load("return wait() + offset").ExecuteAsync<int>([], TestToken);
+            // The continuation is queued for the dispatcher, which is busy with this code.
+            gate.SetResult(40);
+            state.Globals.Set("offset", 2);
+
+            (await pending).ShouldBe(42);
+        });
+        return;
+
+        static async ValueTask<LuauReturn> WaitAsync(Task<int> gate) => LuauReturn.Ok(await gate);
+    }
+
+    [Fact]
+    public async Task QueuedResume_OfACoroutineThatFinishedMeanwhile_ShouldFailItsCall()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using LuauFunction block = _state.CreateFunctionManual(_ =>
+        {
+            entered.Set();
+            release.Wait();
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("block", block);
+        using LuauFunction body = _state.Load("return 1").ToFunction();
+        using LuauCoroutine coroutine = _state.CreateCoroutine(body);
+
+        Task running = Task.Run(() => _state.Load("block()").Execute(), TestToken);
+        entered.Wait(TestToken);
+        ValueTask<int> first = coroutine.ResumeAsync<int>([], TestToken);
+        ValueTask<int> second = coroutine.ResumeAsync<int>([], TestToken);
+        release.Set();
+
+        await running;
+        (await first).ShouldBe(1);
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(() => second.AsTask());
+        exception.Message.ShouldContain("Finished");
+    }
+
+    [Fact]
+    public async Task StateDisposed_BeforeCompletedWorkWasDelivered_ShouldFailTheCallWithoutConverting()
+    {
+        using var dispatcher = new SingleThreadSynchronizationContext();
+        var state = new LuauState(LuauLibraries.All, null, dispatcher);
+        // Its continuations run inline, so the result is on its way when SetResult returns.
+        var gate = new TaskCompletionSource<int>();
+        bool converted = false;
+        using LuauFunction wait = state.CreateFunctionManual(args =>
+            args.CreateAwaiter()
+                .Await(
+                    new ValueTask<int>(gate.Task),
+                    value =>
+                    {
+                        converted = true;
+                        return LuauReturn.Ok(value);
+                    }
+                )
+        );
+        state.Globals.Set("wait", wait);
+
+        await dispatcher.Run(async () =>
+        {
+            ValueTask pending = state.Load("wait()").ExecuteAsync([], TestToken);
+            // The work is done, but the dispatcher is busy with this code and has not delivered its result.
+            gate.SetResult(1);
+            state.Dispose();
+
+            await Should.ThrowAsync<ObjectDisposedException>(() => pending.AsTask());
+        });
+
+        converted.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task HostCalls_ShouldRestoreTheCallersContextAndNotLeakTheirOwn()
     {
         var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);

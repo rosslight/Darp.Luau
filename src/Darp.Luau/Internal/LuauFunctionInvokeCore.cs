@@ -14,6 +14,7 @@ internal static unsafe class LuauFunctionInvokeCore
     {
         LuauState state = source.State;
         lua_State* L = state.L;
+        using HostCall.SyncScope _ = HostCall.EnterSync(state);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -43,6 +44,7 @@ internal static unsafe class LuauFunctionInvokeCore
     {
         LuauState state = source.State;
         lua_State* L = state.L;
+        using HostCall.SyncScope _ = HostCall.EnterSync(state);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -79,13 +81,11 @@ internal static unsafe class LuauFunctionInvokeCore
     )
     {
         LuauSynchronizationContext context = state.GetSlotOrThrow(functionHandle).State.AsyncContext;
-        if (context.TryEnter(out LuauSynchronizationContext.Turn turn))
+        using LuauSynchronizationContext.Turn turn = context.TryEnter();
+        if (turn.IsEntered)
         {
-            using (turn)
-            {
-                // Resolved again inside the turn: until it began, another turn may have run.
-                return InvokeInTurn(state.GetSlotOrThrow(functionHandle), args, resultSelector, cancellationToken);
-            }
+            // Resolved again inside the turn: until it began, another turn may have run.
+            return InvokeInTurn(state.GetSlotOrThrow(functionHandle), args, resultSelector, cancellationToken);
         }
 
         return QueueInvocation(
@@ -128,10 +128,10 @@ internal static unsafe class LuauFunctionInvokeCore
     )
     {
         LuauState state = source.State;
-        if (!state.AsyncContext.TryEnter(out LuauSynchronizationContext.Turn turn))
+        using LuauSynchronizationContext.Turn turn = state.AsyncContext.TryEnter();
+        if (!turn.IsEntered)
             throw new InvalidOperationException("A borrowed function can only be invoked during its callback.");
-        using (turn)
-            return InvokeInTurn(source, args, resultSelector, cancellationToken);
+        return InvokeInTurn(source, args, resultSelector, cancellationToken);
     }
 
     private static ValueTask<TR> InvokeInTurn<TR>(
@@ -147,7 +147,7 @@ internal static unsafe class LuauFunctionInvokeCore
 #endif
         // The function is moved onto the coroutine by StartInvocation.
         source.Push(state);
-        return LuauSynchronizationContext.Detach(
+        return state.AsyncContext.Detach(
             CoroutineDriver
                 .StartInvocation(state, args, minResultCount: 0, cancellationToken)
                 .RunAsync(resultSelector, yieldIsError: true)

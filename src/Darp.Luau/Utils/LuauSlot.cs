@@ -49,6 +49,11 @@ internal readonly unsafe ref struct LuauSlot
         }
     }
 
+    /// <summary> Throws when the registry reference was released, like <see cref="Push"/> would. </summary>
+    /// <remarks> For a caller that must not fail once it has begun its host call. </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when the registry reference was released.</exception>
+    public void ThrowIfReleased() => Reference?.ThrowIfReleased();
+
     /// <summary> Copies the value to the top of the main stack of <paramref name="state"/>. </summary>
     /// <param name="state">The state of the slot, which the caller got from <see cref="State"/>.</param>
     /// <exception cref="ObjectDisposedException">Thrown when the registry reference was released.</exception>

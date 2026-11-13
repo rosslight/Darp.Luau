@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Darp.Luau.Native;
@@ -45,22 +44,11 @@ internal static unsafe class ScriptInterrupt
 
     public static void Free(darp_luau_interrupt* interrupt) => NativeMemory.Free(interrupt);
 
-    /// <summary> Lets <paramref name="cancellationToken"/>, and no other token, stop the script while the scope is open. </summary>
+    /// <summary> Makes <paramref name="cancellationToken"/> the token that stops the script. </summary>
     /// <remarks>
-    /// Every async host call is stopped by its own token only. One that runs inside a callback of another one, or
-    /// continues there after its awaited work completed, is not stopped by the token of that other call.
+    /// Only <see cref="HostCall"/> calls it: when an async host call begins to run a script, and when it has run it.
     /// </remarks>
-    public static Scope Enter(LuauState state, CancellationToken cancellationToken)
-    {
-        CancellationToken enclosingToken = state.InterruptToken;
-        Install(state, cancellationToken);
-        return new Scope(state, enclosingToken);
-    }
-
-    /// <summary> The scope of a sync host call: it takes no token and leaves the one in charge as it is. </summary>
-    public static Scope KeepToken => default;
-
-    private static void Install(LuauState state, CancellationToken cancellationToken)
+    public static void Install(LuauState state, CancellationToken cancellationToken)
     {
         // Host code that runs between two stretches of a script, such as the conversion of an awaited result, may
         // dispose the state. Its VM is gone then.
@@ -114,22 +102,4 @@ internal static unsafe class ScriptInterrupt
     /// <param name="cancellationToken">The cancelled token.</param>
     public static OperationCanceledException Cancelled(LuaException? failure, CancellationToken cancellationToken) =>
         new(StoppedMessage, failure, cancellationToken);
-
-    /// <summary> Restores the token of the enclosing host call when the script has returned to the host. </summary>
-    public readonly ref struct Scope(LuauState state, CancellationToken enclosingToken)
-    {
-        [SuppressMessage(
-            "Usage",
-            "CA2213:Disposable fields should be disposed",
-            Justification = "The scope references LuauState but does not own it."
-        )]
-        private readonly LuauState? _state = state;
-        private readonly CancellationToken _enclosingToken = enclosingToken;
-
-        public void Dispose()
-        {
-            if (_state is not null)
-                Install(_state, _enclosingToken);
-        }
-    }
 }
