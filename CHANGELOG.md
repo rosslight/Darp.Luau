@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0](https://github.com/rosslight/Darp.Luau/compare/v0.6.0...v0.7.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* move ILuauFileSystem into the Darp.Luau namespace ([#96](https://github.com/rosslight/Darp.Luau/issues/96))
+
+### Features
+
+* target .NET 11 next to .NET 10 ([#92](https://github.com/rosslight/Darp.Luau/issues/92)) ([7f8cf3e](https://github.com/rosslight/Darp.Luau/commit/7f8cf3eb948de64412e238a5959bdd263ee76580))
+
+
+### Bug Fixes
+
+* move ILuauFileSystem into the Darp.Luau namespace ([#96](https://github.com/rosslight/Darp.Luau/issues/96)) ([f973b2b](https://github.com/rosslight/Darp.Luau/commit/f973b2bf05a5a1349e6cc2bd403bdb0154dedbb5))
+
 ## [0.6.0](https://github.com/rosslight/Darp.Luau/compare/v0.5.0...v0.6.0) (2026-10-16)
 
 
