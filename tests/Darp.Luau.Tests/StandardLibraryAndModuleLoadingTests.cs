@@ -1,4 +1,3 @@
-using Darp.Luau.Internal.Require;
 using Darp.Luau.Tests.Require;
 using Shouldly;
 

@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Internal.Require;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;
