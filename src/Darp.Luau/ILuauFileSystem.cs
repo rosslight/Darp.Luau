@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
 
-namespace Darp.Luau.Internal.Require;
+namespace Darp.Luau;
 
 /// <summary> A virtual file system for abstract file operations. </summary>
 public interface ILuauFileSystem
@@ -30,29 +30,4 @@ public interface ILuauFileSystem
     /// <returns> The content of the file read or null </returns>
     [Pure]
     string? ReadFile(string path);
-}
-
-internal sealed class FileSystem : ILuauFileSystem
-{
-    public string GetCurrentDirectory() => Directory.GetCurrentDirectory();
-
-    public bool FileExists([NotNullWhen(true)] string? path) => File.Exists(path);
-
-    public bool DirectoryExists([NotNullWhen(true)] string? path) => Directory.Exists(path);
-
-    public string? ReadFile(string path)
-    {
-        try
-        {
-            return File.ReadAllText(path);
-        }
-        catch (FileNotFoundException)
-        {
-            return null;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
-    }
 }
